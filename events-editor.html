@@ -235,7 +235,15 @@ svg{display:block}
   display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;
   max-height:46vh;overflow-y:auto;
 }
-.numgrid.jaar{grid-template-columns:repeat(4,1fr)}
+.jaarrij{display:flex;gap:10px;align-items:center;margin-top:10px}
+.jaarrij .icon-btn{width:52px;height:52px;flex:0 0 auto}
+#jaarVeld{
+  flex:1;min-width:0;text-align:center;
+  font-family:var(--mono);font-size:30px;letter-spacing:.06em;
+  padding:10px 6px;border:1px solid var(--line);border-radius:8px;
+  background:#151920;color:var(--txt);
+}
+#jaarVeld::placeholder{color:#5f6878;letter-spacing:.04em}
 .numgrid button{
   padding:11px 0;border:1px solid var(--line);border-radius:8px;background:#28313f;
   color:var(--txt);font-family:var(--mono);font-size:18px;
@@ -465,7 +473,16 @@ svg{display:block}
     <h3>Jaar kiezen</h3>
     <button class="source-row wide" id="jaarOnbekend"><span class="title">*** onbekend ***</span></button>
     <button class="source-row wide" id="jaarDitJaar"><span class="title">*** dit jaar ***</span></button>
-    <div id="jaarGrid" class="numgrid jaar"></div>
+    <div class="jaarrij">
+      <button class="icon-btn" id="jaarMin" aria-label="Jaar terug">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <input id="jaarVeld" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Jaar">
+      <button class="icon-btn" id="jaarPlus" aria-label="Jaar vooruit">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <div class="hint" id="jaarHint"></div>
     <div class="modal-actions">
       <button class="btn" id="jaarCancel">Annuleren</button>
       <button class="btn btn-primary" id="jaarOk">OK</button>
@@ -1997,7 +2014,6 @@ function openTypeKeuze(){
   tekenTypeLijst();
   $('typeModal').hidden = false;
 }
-var JAAR_MIN = 1890;
 function schrikkeljaar(y){ return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0); }
 function dagenInMaand(m, y){
   if(!m) return 31;
@@ -2025,30 +2041,44 @@ function openDagKeuze(){
   tekenDagGrid();
   $('dagModal').hidden = false;
 }
-function tekenJaarGrid(){
-  var nu = new Date().getFullYear(), h = '';
-  var alleenSchrikkel = jaarDoel === 'datum' && +dstate.dag === 29 && +dstate.maand === 2;
-  for(var y = nu + 1; y >= JAAR_MIN; y--){
-    h += '<button' + (+jaarKeuze === y ? ' class="selected"' : '') +
-         (alleenSchrikkel && !schrikkeljaar(y) ? ' disabled' : '') +
-         ' data-y="' + y + '">' + y + '</button>';
-  }
-  $('jaarGrid').innerHTML = h;
-  Array.prototype.forEach.call($('jaarGrid').children, function(b){
-    b.onclick = function(){ jaarKeuze = b.getAttribute('data-y'); tekenJaarGrid(); };
-  });
+var JAAR_LAAG = 1800, JAAR_HOOG = 9999;
+function jaarGeldig(v){ return v !== '' && +v >= JAAR_LAAG && +v <= JAAR_HOOG; }
+function tekenJaar(){
+  var nu = new Date().getFullYear();
+  $('jaarVeld').value = jaarKeuze === '' ? '' : jaarKeuze;
+  $('jaarVeld').placeholder = jaarDoel === 'datum' ? 'onbekend' : String(nu);
   $('jaarOnbekend').className = 'source-row wide' + (jaarKeuze === '' ? ' selected' : '');
   $('jaarOnbekend').hidden = jaarDoel !== 'datum';
-  var nuJaar = new Date().getFullYear();
-  $('jaarDitJaar').className = 'source-row wide' + (+jaarKeuze === nuJaar ? ' selected' : '');
+  $('jaarDitJaar').className = 'source-row wide' + (+jaarKeuze === nu ? ' selected' : '');
   $('jaarDitJaar').hidden = jaarDoel !== 'filter';
-  var sel = $('jaarGrid').querySelector('.selected');
-  if(sel) sel.scrollIntoView({ block:'center' });
+  var schrikkelEis = jaarDoel === 'datum' && +dstate.dag === 29 && +dstate.maand === 2;
+  $('jaarMin').disabled = jaarKeuze !== '' && +jaarKeuze <= JAAR_LAAG;
+  $('jaarPlus').disabled = jaarKeuze !== '' && +jaarKeuze >= JAAR_HOOG;
+  var h = JAAR_LAAG + ' t/m ' + JAAR_HOOG;
+  if(schrikkelEis) h += ' \u2014 alleen een schrikkeljaar heeft 29 februari';
+  if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)) h = 'Vul een jaar in tussen ' + JAAR_LAAG + ' en ' + JAAR_HOOG + '.';
+  else if(schrikkelEis && jaarGeldig(jaarKeuze) && !schrikkeljaar(+jaarKeuze)) h = jaarKeuze + ' is geen schrikkeljaar.';
+  $('jaarHint').textContent = h;
+}
+/* tijdens typen alles bijwerken behalve het invoerveld zelf */
+function tekenJaarBehoudCursor(){
+  var v = $('jaarVeld').value;
+  tekenJaar();
+  $('jaarVeld').value = v;
+}
+/* stap een jaar op of terug; vanuit een leeg veld beginnen we bij dit jaar */
+function stapJaar(richting){
+  var nu = new Date().getFullYear();
+  var v = jaarKeuze === '' ? nu : +jaarKeuze + richting;
+  if(v < JAAR_LAAG) v = JAAR_LAAG;
+  if(v > JAAR_HOOG) v = JAAR_HOOG;
+  jaarKeuze = v;
+  tekenJaar();
 }
 function openJaarKeuze(){
   jaarDoel = 'datum';
   jaarKeuze = dstate.jaar || '';
-  tekenJaarGrid();
+  tekenJaar();
   $('jaarModal').hidden = false;
 }
 function toonMaanden(){
@@ -2401,13 +2431,31 @@ $('fJaar').onclick = function(){ leesDate(); openJaarKeuze(); };
 $('filterJaar').onclick = function(){
   jaarDoel = 'filter';
   jaarKeuze = fJaar;
-  tekenJaarGrid();
+  tekenJaar();
   $('jaarModal').hidden = false;
 };
-$('jaarOnbekend').onclick = function(){ jaarKeuze = ''; tekenJaarGrid(); };
-$('jaarDitJaar').onclick = function(){ jaarKeuze = new Date().getFullYear(); tekenJaarGrid(); };
+$('jaarMin').onclick = function(){ stapJaar(-1); };
+$('jaarPlus').onclick = function(){ stapJaar(1); };
+$('jaarVeld').oninput = function(){
+  /* alleen cijfers, hooguit vier */
+  var schoon = this.value.replace(/\D/g, '').slice(0, 4);
+  if(schoon !== this.value) this.value = schoon;
+  jaarKeuze = schoon === '' ? '' : schoon;
+  tekenJaarBehoudCursor();
+};
+$('jaarVeld').onkeydown = function(e){
+  var toegestaan = ['Backspace','Delete','Tab','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+  if(e.key === 'ArrowUp'){ e.preventDefault(); stapJaar(1); return; }
+  if(e.key === 'ArrowDown'){ e.preventDefault(); stapJaar(-1); return; }
+  if(e.ctrlKey || e.metaKey || toegestaan.indexOf(e.key) >= 0) return;
+  if(!/^[0-9]$/.test(e.key)) e.preventDefault();
+};
+$('jaarOnbekend').onclick = function(){ jaarKeuze = ''; tekenJaar(); };
+$('jaarDitJaar').onclick = function(){ jaarKeuze = new Date().getFullYear(); tekenJaar(); };
 $('jaarCancel').onclick = function(){ $('jaarModal').hidden = true; };
 $('jaarOk').onclick = function(){
+  if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)){ tekenJaar(); return; }
+  if(jaarDoel !== 'datum' && jaarKeuze === ''){ tekenJaar(); return; }
   $('jaarModal').hidden = true;
   if(jaarDoel === 'filter'){
     fJaar = +jaarKeuze || new Date().getFullYear();
