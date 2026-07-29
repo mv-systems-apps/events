@@ -1,5 +1,5 @@
 /* Service worker voor de events-editor.
-   Strategie:h stale-while-revalidate — meteen uit de cache serveren en
+   Strategie: stale-while-revalidate — meteen uit de cache serveren en
    op de achtergrond verversen. Verhoog CACHE_VERSION (of draai
    update_cache_version.py) om de oude cache op te ruimen. */
 
