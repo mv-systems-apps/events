@@ -9,7 +9,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <meta name="apple-mobile-web-app-title" content="Events">
-<meta http-equiv="refresh" content="0; url=events-editor.html">
+<meta http-equiv="refresh" content="1; url=events-editor.html">
 <style>
 body{
   margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
@@ -21,6 +21,11 @@ a{color:#7aa2f7}
 </head>
 <body>
 <p>Bezig met openen&hellip; <a href="events-editor.html">Events</a></p>
-<script>location.replace('events-editor.html');</script>
+<script>
+/* eerst de service worker registreren, dan pas doorsturen: zonder een
+   geregistreerde worker beschouwt de browser de site niet als installeerbaar */
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+setTimeout(function(){ location.replace('events-editor.html'); }, 60);
+</script>
 </body>
 </html>
