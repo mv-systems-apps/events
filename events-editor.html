@@ -269,6 +269,14 @@ svg{display:block}
   overflow-wrap:anywhere;
 }
 .cfgstatic + .cfgstatic{margin-top:6px}
+.checkkop{
+  margin:14px 0 6px;font-family:var(--mono);font-size:16px;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.checkkop:first-child{margin-top:0}
+.checkregel{font-size:17px;padding:4px 0;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere}
+.checkregel:last-child{border-bottom:none}
+.checkgoed{font-size:19px;color:var(--ok)}
 .inforij{padding:10px 0;border-bottom:1px solid var(--line-soft)}
 .inforij:last-child{border-bottom:none}
 .inforij .lbl{
@@ -286,6 +294,7 @@ svg{display:block}
 #catModal{z-index:60}
 #icoonModal{z-index:62}
 #infoModal{z-index:64}
+#checkModal{z-index:66}
 #filterModal{z-index:58}
 #picker{z-index:65}
 .savehint{font-size:16px;color:var(--muted);margin-top:6px;padding-left:2px}
@@ -517,6 +526,17 @@ svg{display:block}
   </div>
 </div>
 
+<!-- controle -->
+<div class="overlay" id="checkModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
+    <h3>Controle</h3>
+    <div id="checkBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="checkOk">Sluiten</button>
+    </div>
+  </div>
+</div>
+
 <!-- filter -->
 <div class="overlay" id="filterModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
@@ -628,6 +648,7 @@ svg{display:block}
       <button class="btn addrow" id="cfgPaasAdd">+ paasdag</button>
     </div>
     <div id="cfgExtra"></div>
+    <button class="btn addrow" id="cfgCheck">Bestand controleren</button>
     <div class="err" id="cfgErr"></div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
@@ -771,7 +792,20 @@ function encode(s){
   }
   return 'D' + pad(s.jaar,4) + pad(s.maand,2) + pad(s.dag,2);
 }
+/* Berekende waarden worden per datumcode onthouden. De sleutel is de code
+   zelf, dus een gewijzigd record krijgt vanzelf een nieuwe ingang. De dag- en
+   datumtabellen worden geleegd zodra het een dag later is. */
+var cacheDag = '', cacheDatum = {}, cacheDagen = {}, cacheLees = {}, cacheRegel = {};
+function verversCache(){
+  var d = dagsleutel();
+  if(d !== cacheDag){ cacheDag = d; cacheDatum = {}; cacheDagen = {}; }
+}
+
 function leesbaar(code){
+  if(code in cacheLees) return cacheLees[code];
+  return (cacheLees[code] = berekenLeesbaar(code));
+}
+function berekenLeesbaar(code){
   var s = decode(code);
   if(!s) return '?';
   if(s.mode === 'pasen'){
@@ -853,7 +887,12 @@ function korteDatum(d){
 /* de datum waarop dit event in het gevraagde jaar valt, of null */
 function eventDatum(r, jaar){
   if(r.raw !== undefined) return null;
-  var st = decode(r.code);
+  var k = r.code + '|' + jaar;
+  if(k in cacheDatum) return cacheDatum[k];
+  return (cacheDatum[k] = berekenEventDatum(r.code, jaar));
+}
+function berekenEventDatum(code, jaar){
+  var st = decode(code);
   if(!st) return null;
   if(st.mode === 'pasen'){
     var p = paasDatum(jaar);
@@ -872,18 +911,24 @@ function eventDatum(r, jaar){
    jaren nergens: dat is niet onbekend maar niet-bestaand. */
 function heeftDatumRegel(r){
   if(r.raw !== undefined) return false;
-  var st = decode(r.code);
-  if(!st) return false;
-  if(st.mode === 'pasen' || st.mode === 'wisselend') return true;
-  return !!(st.maand && st.dag);
+  if(r.code in cacheRegel) return cacheRegel[r.code];
+  var st = decode(r.code), uit = false;
+  if(st) uit = (st.mode === 'pasen' || st.mode === 'wisselend') ? true : !!(st.maand && st.dag);
+  return (cacheRegel[r.code] = uit);
 }
 
 /* dagen tot de eerstvolgende keer dat dit event valt; negatief = net geweest.
    Valt het dit jaar nergens, dan is er niets te tellen. */
 function dagenTov(r, jaar){
+  if(jaar === undefined) jaar = zichtJaar;
+  if(r.raw !== undefined) return null;
+  var k = r.code + '|' + jaar;
+  if(k in cacheDagen) return cacheDagen[k];
+  return (cacheDagen[k] = berekenDagenTov(r, jaar));
+}
+function berekenDagenTov(r, jaar){
   var vandaag = new Date(); vandaag.setHours(0,0,0,0);
   var nu = vandaag.getFullYear();
-  if(jaar === undefined) jaar = zichtJaar;
   var d = eventDatum(r, jaar);
   if(!d) return null;
   var beste = Math.round((d - vandaag) / 86400000);
@@ -1723,6 +1768,84 @@ function bewaarStandaardFilter(){
   if(Object.keys(f).length) cfg.filter = f; else delete cfg.filter;
   if(dirHandle && hasFSA) schrijfCfg().catch(function(){});
 }
+/* aantal verstreken jaren in het getoonde jaar, alleen bij een bekend jaartal */
+function aantalJaar(code, jaar){
+  var st = decode(code);
+  if(!st || st.mode !== 'vast' || st.jaar < 1000) return null;
+  var n = jaar - st.jaar;
+  return n > 0 ? n : null;
+}
+/* leest alleen, wijzigt niets: het bestand naast de cfg leggen */
+function controleer(){
+  var bevindingen = [];
+  function voeg(titel, regels){ if(regels.length) bevindingen.push({ titel:titel, regels:regels }); }
+
+  voeg('Onleesbare regels', records.filter(function(r){ return r.raw !== undefined; })
+    .map(function(r){ return r.raw.slice(0, 60); }));
+
+  var lege = records.filter(function(r){
+    return r.raw === undefined && (!r.sleutel.trim() || !r.naam.trim() || !r.type.trim());
+  }).map(function(r){ return (r.sleutel || '(leeg)') + ' \u2014 ontbrekend veld'; });
+  voeg('Lege velden', lege);
+
+  if(cfg.types && cfg.types.length){
+    var bekend = typeOpties().map(function(x){ return x.omschrijving; });
+    var vreemd = {};
+    records.forEach(function(r){
+      if(r.raw === undefined && bekend.indexOf(r.type) < 0) vreemd[r.type] = (vreemd[r.type] || 0) + 1;
+    });
+    voeg('Types die niet in de configuratie staan',
+      Object.keys(vreemd).map(function(t){ return t + ' (' + vreemd[t] + 'x)'; }));
+  }
+
+  var nrs = catOpties().map(function(o){ return +o[0]; });
+  var catFout = {};
+  records.forEach(function(r){
+    if(r.raw === undefined && nrs.indexOf(+r.cat) < 0) catFout[r.cat] = (catFout[r.cat] || 0) + 1;
+  });
+  voeg('Categorieen buiten de lijst',
+    Object.keys(catFout).map(function(c){ return 'categorie ' + c + ' (' + catFout[c] + 'x)'; }));
+
+  var gezien = {}, dubbel = [];
+  records.forEach(function(r){
+    if(r.raw !== undefined) return;
+    var k = r.sleutel + '|' + r.type + '|' + r.code;
+    if(gezien[k]) dubbel.push(r.sleutel + ' \u2014 ' + r.type + ' op ' + leesbaar(r.code));
+    gezien[k] = true;
+  });
+  voeg('Dubbele events', dubbel);
+
+  var datumFout = [];
+  records.forEach(function(r){
+    if(r.raw !== undefined) return;
+    var st = decode(r.code);
+    if(!st){ datumFout.push(r.sleutel + ' \u2014 onbekende datumcode ' + r.code); return; }
+    if(st.mode !== 'vast') return;
+    if(st.dag && !st.maand){ datumFout.push(r.sleutel + ' \u2014 dag zonder maand'); return; }
+    if(st.dag && st.dag > dagenInMaand(st.maand, st.jaar)){
+      datumFout.push(r.sleutel + ' \u2014 ' + r.code + ' bestaat niet');
+    }
+  });
+  voeg('Datums die niet kloppen', datumFout);
+
+  var scheiding = records.filter(function(r){
+    return r.raw === undefined && (r.notitie || '').indexOf(sep()) >= 0;
+  }).map(function(r){ return r.sleutel + ' \u2014 scheidingsteken in de notitie'; });
+  voeg('Velden met een scheidingsteken', scheiding);
+
+  return bevindingen;
+}
+function toonControle(){
+  var b = controleer();
+  $('checkBody').innerHTML = b.length
+    ? b.map(function(g){
+        return '<div class="checkkop">' + esc(g.titel) + ' (' + g.regels.length + ')</div>' +
+          g.regels.map(function(t){ return '<div class="checkregel">' + esc(t) + '</div>'; }).join('');
+      }).join('')
+    : '<div class="checkgoed">Geen bijzonderheden in ' +
+      records.length + ' regels.</div>';
+  $('checkModal').hidden = false;
+}
 function toonInfo(i){
   var r = records[i];
   if(!r || r.raw !== undefined) return;
@@ -1739,6 +1862,10 @@ function toonInfo(i){
       '<span class="wrd">' + typeIcon(r.type) + esc(r.type) + '</span></div>' +
     '<div class="inforij"><span class="lbl">' + jaar + '</span>' +
       '<span class="wrd">' + esc(datumInJaar(r.code, jaar)) + '</span></div>' +
+    (aantalJaar(r.code, jaar) !== null
+      ? '<div class="inforij"><span class="lbl">aantal jaar</span>' +
+        '<span class="wrd">' + aantalJaar(r.code, jaar) + '</span></div>'
+      : '') +
     '<div class="inforij"><span class="lbl">' + esc(veldNaam(3)) + '</span>' +
       '<span class="wrd">' + esc(leesbaar(r.code)) + '</span></div>' +
     (r.notitie
@@ -1762,6 +1889,7 @@ function renderAZ(){
   el.hidden = false;
 }
 function render(){
+  verversCache();
   renderFilebar();
   renderChips();
   /* zoeken en filteren sluiten elkaar uit: je ziet er altijd maar een van */
@@ -2228,6 +2356,9 @@ $('cfgCatAdd').onclick = function(){
   var v = $('cfgCats').querySelectorAll('[data-oms]');
   if(v.length) v[v.length-1].focus();
 };
+$('cfgCheck').onclick = toonControle;
+$('checkOk').onclick = function(){ $('checkModal').hidden = true; };
+$('checkModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
 $('cfgCancel').onclick = function(){ $('cfgModal').hidden = true; };
 $('cfgOk').onclick = bewaarCfg;
 $('cfgModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
@@ -2319,6 +2450,7 @@ document.addEventListener('keydown', function(e){
     else if(!$('weekdagModal').hidden) $('weekdagModal').hidden = true;
     else if(!$('picker').hidden) $('picker').hidden = true;
     else if(!$('infoModal').hidden) $('infoModal').hidden = true;
+    else if(!$('checkModal').hidden) $('checkModal').hidden = true;
     else if(!$('filterModal').hidden) $('filterModal').hidden = true;
     else if(zoekModus) zetZoeken(false);
     else if(!$('icoonModal').hidden) $('icoonModal').hidden = true;
