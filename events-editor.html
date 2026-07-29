@@ -149,6 +149,7 @@ svg{display:block}
 .list tbody tr:nth-child(even) td{background:rgba(255,255,255,.06)}
 .list tbody tr:hover td{background:#1a2028}
 .list tbody tr.sel td{background:rgba(122,162,247,.30)}
+.list tbody tr.vandaag td{border-top:2px solid var(--accent)}
 .list col.c-ic{width:31px}
 .list col.c-dag{width:3.2ch}
 .list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:6px}
@@ -260,6 +261,8 @@ svg{display:block}
 .icoonkeuze.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
 .icoonkeuze.selected span{color:var(--txt)}
 .source-row.wide{justify-content:center}
+/* twee bijzondere regels onder elkaar hebben wat lucht nodig */
+.source-row.wide + .source-row.wide{margin-top:8px}
 .source-row.wide.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
 .source-row{
   display:flex;align-items:center;gap:12px;width:100%;
@@ -269,6 +272,13 @@ svg{display:block}
 .source-row svg{width:23px;height:23px;flex:0 0 auto;color:var(--muted)}
 .source-row.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
 .source-row.selected svg{color:var(--txt)}
+.bijzonder{border-style:dashed;color:var(--accent)}
+.bijzonder .title{
+  font-family:var(--mono);font-size:17px;text-transform:uppercase;letter-spacing:.06em;
+}
+.bijzonder svg{width:22px;height:22px;flex:0 0 auto}
+.bijzonder.selected{border-color:var(--accent);border-style:dashed}
+.bijzonder.selected .title{color:var(--txt)}
 #typeModal,#pasenModal,#maandModal,#dagModal,#jaarModal,#ndeModal,#weekdagModal{z-index:60}
 .field textarea{min-height:0;overflow:hidden;white-space:pre-wrap;word-break:break-word;resize:none}
 .cfgstatic{
@@ -286,6 +296,7 @@ svg{display:block}
 .checkregel:last-child{border-bottom:none}
 .checkgoed{font-size:19px;color:var(--ok)}
 .checkregel.slecht{color:var(--danger)}
+.cbody{color:var(--txt);font-size:18px;line-height:1.4;overflow-wrap:anywhere}
 .statuslbl{font-family:var(--mono);font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .inforij{padding:10px 0;border-bottom:1px solid var(--line-soft)}
 .inforij:last-child{border-bottom:none}
@@ -391,7 +402,7 @@ svg{display:block}
             <button class="typefield compact" id="fMaand"><span id="fMaandTxt">maand</span></button>
             <button class="typefield compact" id="fJaar"><span id="fJaarTxt">jaar</span></button>
           </div>
-          <div class="hint">Kies *** onbekend *** als een deel van de datum niet bekend is.</div>
+          <div class="hint">Kies “onbekend” als een deel van de datum niet bekend is.</div>
         </div>
         <div id="paneWissel" hidden>
           <div class="grid3 grid3w">
@@ -460,7 +471,7 @@ svg{display:block}
 <div class="overlay" id="dagModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Dag kiezen</h3>
-    <button class="source-row wide" id="dagOnbekend"><span class="title">*** onbekend ***</span></button>
+    <button class="source-row wide bijzonder" id="dagOnbekend"></button>
     <div id="dagGrid" class="numgrid"></div>
     <div class="modal-actions">
       <button class="btn" id="dagCancel">Annuleren</button>
@@ -473,8 +484,8 @@ svg{display:block}
 <div class="overlay" id="jaarModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Jaar kiezen</h3>
-    <button class="source-row wide" id="jaarOnbekend"><span class="title">*** onbekend ***</span></button>
-    <button class="source-row wide" id="jaarDitJaar"><span class="title">*** dit jaar ***</span></button>
+    <button class="source-row wide bijzonder" id="jaarOnbekend"></button>
+    <button class="source-row wide bijzonder" id="jaarDitJaar"></button>
     <div class="jaarrij">
       <button class="icon-btn" id="jaarMin" aria-label="Jaar terug">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
@@ -580,6 +591,7 @@ svg{display:block}
     <button class="btn addrow" id="filterWis">Alles wissen</button>
     <button class="btn addrow" id="filterStd">Bewaar als standaard</button>
     <div class="hint" id="filterStdHint"></div>
+    <div class="err" id="filterErr"></div>
     <div class="modal-actions">
       <button class="btn" id="filterCancel">Annuleren</button>
       <button class="btn btn-primary" id="filterOk">OK</button>
@@ -681,7 +693,7 @@ svg{display:block}
 <div class="overlay" id="confirm" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:400px">
     <h3 id="cTitle">Weet je het zeker?</h3>
-    <div id="cBody" style="color:var(--muted);font-size:14px"></div>
+    <div id="cBody" class="cbody"></div>
     <div class="modal-actions">
       <button class="btn" id="cNo">Annuleren</button>
       <button class="btn btn-danger" id="cYes">Verwijderen</button>
@@ -770,6 +782,14 @@ var zoekterm = '';
 var zoekModus = false;   // zoeken en filteren sluiten elkaar uit
 var editIndex = -1;    // -1 = nieuw
 var negeerDubbel = false;
+var naamAuto = false;        // zolang waar, volgt het naamveld het eventveld
+
+/* "Albers, Sandra" wordt "Sandra Albers"; zonder komma blijft het zoals het is */
+function draaiNaam(t){
+  var i = t.indexOf(',');
+  if(i < 0) return t.trim();
+  return (t.slice(i + 1).trim() + ' ' + t.slice(0, i).trim()).trim();
+}
 var huidigType = 'Geboren';
 var typeKeuze = '';
 var pasenKeuze = 0;
@@ -1039,11 +1059,15 @@ function serialize(){
     return f.join(sep());
   }).join('\n') + '\n';
 }
+/* accenten weglaten, zodat zoeken en sorteren zich niets aantrekken van
+   een e met of zonder streepje */
+function zonderAccent(t){
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
 /* altijd alfabetisch op het eventveld: accenten tellen als de kale letter,
    verder op tekenvolgorde; gelijke sleutels houden hun onderlinge volgorde */
 function sorteerSleutel(r){
-  var t = r.raw !== undefined ? r.raw.split(sep())[0] : r.sleutel;
-  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return zonderAccent(r.raw !== undefined ? r.raw.split(sep())[0] : r.sleutel);
 }
 function sorteer(){
   records.sort(function(a,b){
@@ -1250,6 +1274,8 @@ function downloaden(){
 }
 
 /* ------------------ rendering ------------------ */
+var ICON_VRAAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.5.9c0 1.9-2.8 2.1-2.8 3.9"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/></svg>';
+var ICON_NU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/></svg>';
 var ICON_TRASH = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
 var ICON_REFRESH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>';
 var ICON_X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -1342,7 +1368,7 @@ function openIcoonKeuze(i){
   icoonRij = i;
   icoonKeuze = cfgTypes[i].icoon || '';
   tekenIcoonGrid();
-  $('icoonModal').hidden = false;
+  toonModaal('icoonModal');
 }
 function tekenCfgVelden(){
   $('cfgVelden').innerHTML = cfgVelden.map(function(v,i){
@@ -1419,7 +1445,8 @@ function openCfg(){
       '<div class="hint">Deze blijven ongewijzigd staan.</div></div>'
     : '';
   $('cfgErr').textContent = '';
-  $('cfgModal').hidden = false;
+  vormBijOpenen = vormNu('cfgModal');
+  toonModaal('cfgModal');
   groei($('cfgOmschrijving'));
 }
 function tekenPickLijst(){
@@ -1439,8 +1466,14 @@ function openBestandsKeuze(){
     pickLijst = lijst; pickKeuze = cfgBestand;
     tekenPickLijst();
     $('pickNew').value = ''; $('pickErr').textContent = '';
-    $('picker').hidden = false;
-  }).catch(function(){});
+    toonModaal('picker');
+  }).catch(function(){
+    pickLijst = []; pickKeuze = '';
+    tekenPickLijst();
+    $('pickNew').value = '';
+    $('pickErr').textContent = 'De map kan niet gelezen worden. Autoriseer de werkmap opnieuw.';
+    toonModaal('picker');
+  });
 }
 var VERBODEN = /[<>:"/\\|?*\x00-\x1f]/;
 var GERESERVEERD = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
@@ -1464,7 +1497,7 @@ function bevestigBestand(){
   cfgBestand = pickKeuze;
   $('cfgBestandTxt').textContent = cfgBestand;
   $('pickErr').textContent = '';
-  $('picker').hidden = true;
+  bergModaal('picker');
 }
 function sepConflicten(t){
   var raak = [];
@@ -1520,7 +1553,7 @@ function bewaarCfg(){
   if(types.length) cfg.types = types; else delete cfg.types;
   if(cats.length) cfg.categorieen = cats; else delete cfg.categorieen;
   schrijfCfg().then(function(){
-    $('cfgModal').hidden = true;
+    bergModaal('cfgModal');
     cfgFout = '';
     bestandsnaam = cfgBestand;
     fileState = 'ok';
@@ -1571,7 +1604,7 @@ function renderChips(){
 /* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
 function actiefDatumFilter(){ return zoekModus ? '' : datumFilter; }
 function zichtbaar(){
-  var q = zoekterm.toLowerCase();
+  var q = zonderAccent(zoekterm.toLowerCase());
   var jaar = zichtJaar;
   var df = actiefDatumFilter();
   var venster = isVenster(df) ? datumVenster(df) : null;
@@ -1585,8 +1618,8 @@ function zichtbaar(){
       if(filterNotitie && !r.notitie) return;
     }
     if(q){
-      var hay = (r.sleutel + ' ' + r.naam + ' ' + r.type + ' ' + r.code + ' ' +
-                 leesbaar(r.code) + ' ' + r.cat + ' ' + (r.notitie||'')).toLowerCase();
+      var hay = zonderAccent((r.sleutel + ' ' + r.naam + ' ' + r.type + ' ' + r.code + ' ' +
+                 leesbaar(r.code) + ' ' + r.cat + ' ' + (r.notitie||'')).toLowerCase());
       if(hay.indexOf(q) < 0) return;
     }
     if(df){
@@ -1627,6 +1660,14 @@ function renderLijst(){
   var df = actiefDatumFilter();
   var metDatum = !!df && df !== 'onbekend';
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
+  /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
+  var grens = -1;
+  if(metDatum){
+    var nu0 = new Date(); nu0.setHours(0,0,0,0);
+    for(var q = 0; q < idx.length; q++){
+      if(datumVan[idx[q]] && datumVan[idx[q]] >= nu0){ grens = q; break; }
+    }
+  }
   var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
   var metNot = idx.some(function(i){ return !!records[i].notitie; });
   var html = '<table><colgroup>' + (metDag ? '<col class="c-dag">' : '') + '<col>' +
@@ -1635,7 +1676,9 @@ function renderLijst(){
   idx.forEach(function(i, pos){
     var r = records[i];
     var n = dagen[pos];
-    html += '<tr' + (i === selIndex ? ' class="sel"' : '') + ' data-i="' + i + '" title="' + esc(r.type) + '">' +
+    var klassen = (i === selIndex ? 'sel' : '') + (pos === grens ? ' vandaag' : '');
+    html += '<tr' + (klassen.trim() ? ' class="' + klassen.trim() + '"' : '') +
+      ' data-i="' + i + '" title="' + esc(r.type) + '">' +
       (metDag ? '<td class="dag">' + (n !== null && Math.abs(n) < 10 ? esc(dagenKort(n)) : '') + '</td>' : '') +
       '<td>' + esc(r.sleutel) + '</td>' +
       (metDatum ? '<td class="dat">' + esc(korteDatum(datumVan[i])) + '</td>' : '') +
@@ -1739,7 +1782,7 @@ function openFilter(){
   $('filterJaarTxt').textContent = fJaar;
   tekenFilterTypes(); tekenFilterCats(); tekenFilterNot();
   $('filterStdHint').textContent = standaardTekst();
-  $('filterModal').hidden = false;
+  toonModaal('filterModal');
 }
 /* standaardfilter uit de cfg */
 function pasStandaardFilterToe(){
@@ -1786,7 +1829,8 @@ function bewaarStandaardFilter(){
   var off = zichtJaar - new Date().getFullYear();
   if(off) f.jaar = off;
   if(Object.keys(f).length) cfg.filter = f; else delete cfg.filter;
-  if(dirHandle && hasFSA) schrijfCfg().catch(function(){});
+  if(!(dirHandle && hasFSA)) return Promise.resolve(true);
+  return schrijfCfg().then(function(){ return true; }).catch(function(){ return false; });
 }
 /* aantal verstreken jaren in het getoonde jaar, alleen bij een bekend jaartal */
 function aantalJaar(code, jaar){
@@ -1815,7 +1859,7 @@ function toonAppStatus(){
     '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
     '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
   $('checkBody').innerHTML = vast;
-  $('checkModal').hidden = false;
+  toonModaal('checkModal');
 
   /* manifest ophalen en de sleutelvelden tonen */
   fetch('manifest.json', { cache:'no-store' }).then(function(r){
@@ -1953,7 +1997,7 @@ function toonControle(){
       }).join('')
     : '<div class="checkgoed">Geen bijzonderheden in ' +
       records.length + ' regels.</div>';
-  $('checkModal').hidden = false;
+  toonModaal('checkModal');
 }
 function toonInfo(i){
   var r = records[i];
@@ -1981,7 +2025,7 @@ function toonInfo(i){
       ? '<div class="inforij"><span class="lbl">' + esc(veldNaam(5)) + '</span>' +
         '<span class="wrd">' + esc(r.notitie) + '</span></div>'
       : '');
-  $('infoModal').hidden = false;
+  toonModaal('infoModal');
 }
 function renderAZ(){
   var el = $('azbar'), idx = zichtbaar();
@@ -2021,6 +2065,68 @@ function render(){
   $('panelTitel').parentNode.title = cfg.omschrijving || '';
 }
 
+
+/* ------------------ modals en de terugknop ------------------ */
+/* Elke open modal is een stap in de geschiedenis van de pagina. Daardoor sluit
+   de terugknop van het toestel de bovenste modal in plaats van de app te
+   verlaten. Sluiten via OK, Annuleren of Escape haalt die stap er weer af. */
+var modalStapel = [], eigenPops = 0;   /* aantal stappen dat we zelf terugzetten */
+
+function toonModaal(id){
+  $(id).hidden = false;
+  modalStapel.push(id);
+  try { history.pushState({ modaal:id }, ''); } catch(e){}
+}
+function bergModaal(id){
+  $(id).hidden = true;
+  var i = modalStapel.lastIndexOf(id);
+  if(i < 0) return;
+  modalStapel.splice(i, 1);
+  /* per gesloten modal precies een stap terug; twee modals in een keer sluiten
+     levert dus ook twee stappen op */
+  eigenPops++;
+  try { history.back(); } catch(e){ eigenPops--; }
+}
+/* sluiten zonder een stap terug te doen: de browser deed die stap al */
+function bergNaPop(id){
+  $(id).hidden = true;
+  var i = modalStapel.lastIndexOf(id);
+  if(i >= 0) modalStapel.splice(i, 1);
+}
+function bovensteModaal(){ return modalStapel[modalStapel.length - 1] || ''; }
+
+/* is er in de bewerk-modal of de configuratie iets veranderd? */
+var vormBijOpenen = '';
+function vormNu(id){
+  if(id === 'modal'){
+    return JSON.stringify([$('fSleutel').value, $('fNaam').value, huidigType,
+                           dstate, cat, $('fNotitie').value]);
+  }
+  if(id === 'cfgModal'){
+    return JSON.stringify([cfgBestand, $('cfgSep').value, $('cfgTitel').value,
+                           $('cfgOmschrijving').value, cfgVelden, cfgTypes, cfgCats, cfgPaas]);
+  }
+  return '';
+}
+function sluitBovenste(naPop){
+  var id = bovensteModaal();
+  if(!id) return false;
+  var berg = naPop ? bergNaPop : bergModaal;
+  if(id === 'confirm'){ berg('confirm'); confirmCb = null; return true; }
+  if((id === 'modal' || id === 'cfgModal') && vormNu(id) !== vormBijOpenen){
+    /* er staat iets op het spel: eerst vragen, en de stap terugzetten */
+    if(naPop){ try { history.pushState({ modaal:id }, ''); } catch(e){} }
+    vraag('Wijzigingen aangetroffen', 'Je hebt wijzigingen gemaakt die nog niet zijn opgeslagen.',
+          'Niet opslaan', function(){ bergModaal(id); });
+    return true;
+  }
+  berg(id);
+  return true;
+}
+window.addEventListener('popstate', function(){
+  if(eigenPops > 0){ eigenPops--; return; }
+  sluitBovenste(true);
+});
 /* ------------------ modal ------------------ */
 var NDE_OPTIES = [['1','1e'],['2','2e'],['3','3e'],['4','4e'],['5','5e'],['99','laatste']];
 function ndeLabel(n){
@@ -2066,8 +2172,11 @@ function alleTypes(){
 }
 function catOpties(){
   if(cfg.categorieen && cfg.categorieen.length){
+    /* de cfg kan met de hand of door een andere app zijn aangepast: nummers
+       hier afdwingen, zodat er nooit vreemde tekens in de opmaak belanden */
     return cfg.categorieen.map(function(c){
-      return [c.nr, c.omschrijving ? c.nr + ' \u2014 ' + c.omschrijving : String(c.nr)];
+      var n = +c.nr || 0;
+      return [n, c.omschrijving ? n + ' \u2014 ' + c.omschrijving : String(n)];
     });
   }
   return [[1,'1'],[2,'2'],[3,'3'],[4,'4']];
@@ -2104,7 +2213,7 @@ function tekenTypeLijst(){
 function openTypeKeuze(){
   typeKeuze = huidigType;
   tekenTypeLijst();
-  $('typeModal').hidden = false;
+  toonModaal('typeModal');
 }
 function schrikkeljaar(y){ return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0); }
 function dagenInMaand(m, y){
@@ -2126,12 +2235,13 @@ function tekenDagGrid(){
   Array.prototype.forEach.call($('dagGrid').children, function(b){
     b.onclick = function(){ dagKeuze = b.getAttribute('data-d'); tekenDagGrid(); };
   });
-  $('dagOnbekend').className = 'source-row wide' + (dagKeuze === '' ? ' selected' : '');
+  $('dagOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
+  $('dagOnbekend').className = 'source-row wide bijzonder' + (dagKeuze === '' ? ' selected' : '');
 }
 function openDagKeuze(){
   dagKeuze = dstate.dag || '';
   tekenDagGrid();
-  $('dagModal').hidden = false;
+  toonModaal('dagModal');
 }
 var JAAR_LAAG = 1800, JAAR_HOOG = 9999;
 function jaarGeldig(v){ return v !== '' && +v >= JAAR_LAAG && +v <= JAAR_HOOG; }
@@ -2139,10 +2249,12 @@ function tekenJaar(){
   var nu = new Date().getFullYear();
   $('jaarVeld').value = jaarKeuze === '' ? '' : jaarKeuze;
   $('jaarVeld').placeholder = jaarDoel === 'datum' ? 'onbekend' : String(nu);
-  $('jaarOnbekend').className = 'source-row wide' + (jaarKeuze === '' ? ' selected' : '');
+  $('jaarOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
+  $('jaarOnbekend').className = 'source-row wide bijzonder' + (jaarKeuze === '' ? ' selected' : '');
   $('jaarOnbekend').hidden = jaarDoel !== 'datum';
-  $('jaarDitJaar').className = 'source-row wide' + (+jaarKeuze === nu ? ' selected' : '');
-  $('jaarDitJaar').hidden = jaarDoel !== 'filter';
+  $('jaarDitJaar').innerHTML = ICON_NU + '<span class="title">dit jaar</span>';
+  $('jaarDitJaar').className = 'source-row wide bijzonder' + (+jaarKeuze === nu ? ' selected' : '');
+  $('jaarDitJaar').hidden = false;   /* zowel bij een event als bij het filter bruikbaar */
   var schrikkelEis = jaarDoel === 'datum' && +dstate.dag === 29 && +dstate.maand === 2;
   $('jaarMin').disabled = jaarKeuze !== '' && +jaarKeuze <= JAAR_LAAG;
   $('jaarPlus').disabled = jaarKeuze !== '' && +jaarKeuze >= JAAR_HOOG;
@@ -2171,18 +2283,20 @@ function openJaarKeuze(){
   jaarDoel = 'datum';
   jaarKeuze = dstate.jaar || '';
   tekenJaar();
-  $('jaarModal').hidden = false;
+  toonModaal('jaarModal');
 }
 function toonMaanden(){
   $('fMaandTxt').textContent = dstate.maand ? MAANDEN[dstate.maand-1] : 'maand';
   $('fWmaandTxt').textContent = MAANDEN[(dstate.wmaand || 1) - 1];
 }
 function tekenMaandLijst(){
-  var opties = maandDoel === 'vast' ? [['','*** onbekend ***']] : [];
+  var opties = maandDoel === 'vast' ? [['','onbekend']] : [];
   for(var i=1;i<=12;i++) opties.push([String(i), MAANDEN[i-1]]);
   $('maandList').innerHTML = opties.map(function(o){
-    return '<button class="source-row' + (String(maandKeuze||'') === o[0] ? ' selected' : '') + '" data-m="' + o[0] + '">' +
-           '<span class="title">' + o[1] + '</span></button>';
+    var apart = o[0] === '';
+    return '<button class="source-row' + (apart ? ' bijzonder' : '') +
+           (String(maandKeuze||'') === o[0] ? ' selected' : '') + '" data-m="' + o[0] + '">' +
+           (apart ? ICON_VRAAG : '') + '<span class="title">' + esc(o[1]) + '</span></button>';
   }).join('');
   Array.prototype.forEach.call($('maandList').children, function(b){
     b.onclick = function(){ maandKeuze = b.getAttribute('data-m'); tekenMaandLijst(); };
@@ -2192,16 +2306,19 @@ function openMaandKeuze(doel){
   maandDoel = doel;
   maandKeuze = doel === 'vast' ? (dstate.maand || '') : (dstate.wmaand || 1);
   tekenMaandLijst();
-  $('maandModal').hidden = false;
+  toonModaal('maandModal');
 }
 function bevestigMaand(){
   if(maandDoel === 'vast') dstate.maand = maandKeuze === '' ? '' : +maandKeuze;
   else dstate.wmaand = +maandKeuze || 1;
-  $('maandModal').hidden = true;
+  bergModaal('maandModal');
   toonMaanden(); updPreview();
 }
 function paasOpties(){
-  return (cfg.paasdagen && cfg.paasdagen.length) ? cfg.paasdagen : PAASDAGEN;
+  if(!(cfg.paasdagen && cfg.paasdagen.length)) return PAASDAGEN;
+  return cfg.paasdagen.map(function(x){
+    return { omschrijving:String(x.omschrijving || ''), dagen:+x.dagen || 0 };
+  });
 }
 function paasTekst(x){
   var d = +x.dagen || 0;
@@ -2230,16 +2347,16 @@ function tekenPasenLijst(){
 function openPasenKeuze(){
   pasenKeuze = dstate.offset;
   tekenPasenLijst();
-  $('pasenModal').hidden = false;
+  toonModaal('pasenModal');
 }
 function bevestigPasen(){
   dstate.offset = pasenKeuze;
-  $('pasenModal').hidden = true;
+  bergModaal('pasenModal');
   toonPasen(); updPreview();
 }
 function bevestigType(){
   huidigType = typeKeuze || huidigType;
-  $('typeModal').hidden = true;
+  bergModaal('typeModal');
   toonType();
 }
 
@@ -2294,14 +2411,16 @@ function openModal(i){
   toonPasen();
   $('mDel').hidden = editIndex < 0;
   negeerDubbel = false;
+  naamAuto = !r || !r.naam;
   $('mErr').textContent = '';
   toonDateMode();
-  $('modal').hidden = false;
+  vormBijOpenen = vormNu('modal');
+  toonModaal('modal');
   groei($('fSleutel'));
   groei($('fNotitie'));
   $('fSleutel').focus();
 }
-function sluitModal(){ $('modal').hidden = true; }
+function sluitModal(){ bergModaal('modal'); }
 function groei(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
 function bewaarModal(){
@@ -2351,7 +2470,7 @@ function vraag(titel, tekst, knop, cb){
   $('cBody').textContent = tekst;
   $('cYes').textContent = knop;
   confirmCb = cb;
-  $('confirm').hidden = false;
+  toonModaal('confirm');
 }
 
 /* ------------------ events ------------------ */
@@ -2373,19 +2492,28 @@ $('filterWis').onclick = function(){
 };
 $('filterStd').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
-  bewaarStandaardFilter();
-  $('filterModal').hidden = true; selIndex = -1; render();
+  zichtJaar = fJaar || new Date().getFullYear();
+  if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
+  $('filterErr').textContent = '';
+  Promise.resolve(bewaarStandaardFilter()).then(function(gelukt){
+    if(!gelukt){
+      $('filterErr').textContent = 'Opslaan in ' + CFG_NAAM + ' is mislukt; het filter is wel toegepast.';
+      selIndex = -1; render();
+      return;
+    }
+    bergModaal('filterModal'); selIndex = -1; render();
+  });
 };
-$('filterCancel').onclick = function(){ $('filterModal').hidden = true; };
+$('filterCancel').onclick = function(){ bergModaal('filterModal'); };
 $('filterOk').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
   zichtJaar = fJaar || new Date().getFullYear();
   if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
-  $('filterModal').hidden = true; selIndex = -1; render();
+  bergModaal('filterModal'); selIndex = -1; render();
 };
-$('filterModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
-$('infoOk').onclick = function(){ $('infoModal').hidden = true; };
-$('infoModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
+$('infoOk').onclick = function(){ bergModaal('infoModal'); };
+$('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
 /* letterbalk: tikken en slepen */
 (function(){
   var bar = $('azbar'), actief = false, vorige = '';
@@ -2444,20 +2572,20 @@ $('mDel').onclick = function(){
     records.splice(i,1); selIndex = -1; dirty = true; sluitModal(); render(); bewaar();
   });
 };
-$('pickCancel').onclick = function(){ $('picker').hidden = true; };
+$('pickCancel').onclick = function(){ bergModaal('picker'); };
 $('pickOk').onclick = bevestigBestand;
 $('pickNew').oninput = function(){
   $('pickErr').textContent = bestandsnaamFout(this.value.trim()) === 'Geef een naam op.' ? '' : bestandsnaamFout(this.value.trim());
   if(this.value.trim()){ pickKeuze = ''; tekenPickLijst(); }
 };
-$('picker').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('picker').onclick = function(e){ if(e.target === this) bergModaal('picker'); };
 $('cfgBestand').onclick = openBestandsKeuze;
-$('icoonCancel').onclick = function(){ $('icoonModal').hidden = true; };
+$('icoonCancel').onclick = function(){ bergModaal('icoonModal'); };
 $('icoonOk').onclick = function(){
   if(icoonRij >= 0) cfgTypes[icoonRij].icoon = icoonKeuze;
-  $('icoonModal').hidden = true; tekenCfgTypes();
+  bergModaal('icoonModal'); tekenCfgTypes();
 };
-$('icoonModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('icoonModal').onclick = function(e){ if(e.target === this) bergModaal('icoonModal'); };
 $('cfgPaasAdd').onclick = function(){
   cfgPaas.push({ dagen:0, omschrijving:'' });
   tekenCfgPaas();
@@ -2480,19 +2608,23 @@ $('cfgCatAdd').onclick = function(){
 };
 $('cfgCheck').onclick = toonControle;
 $('cfgStatus').onclick = toonAppStatus;
-$('checkOk').onclick = function(){ $('checkModal').hidden = true; };
-$('checkModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
-$('cfgCancel').onclick = function(){ $('cfgModal').hidden = true; };
+$('checkOk').onclick = function(){ bergModaal('checkModal'); };
+$('checkModal').onclick = function(e){ if(e.target === this) bergModaal('checkModal'); };
+$('cfgCancel').onclick = function(){ bergModaal('cfgModal'); };
 $('cfgOk').onclick = bewaarCfg;
-$('cfgModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('cfgModal').onclick = function(e){ if(e.target === this) bergModaal('cfgModal'); };
 
-$('fSleutel').oninput = function(){ groei(this); };
+$('fSleutel').oninput = function(){
+  groei(this);
+  if(naamAuto){ $('fNaam').value = draaiNaam(this.value.replace(/[\r\n]+/g, ' ')); }
+};
+$('fNaam').oninput = function(){ naamAuto = false; };
 $('cfgOmschrijving').oninput = function(){ groei(this); };
 $('fNotitie').oninput = function(){ groei(this); };
 $('fType').onclick = openTypeKeuze;
-$('typeCancel').onclick = function(){ $('typeModal').hidden = true; };
+$('typeCancel').onclick = function(){ bergModaal('typeModal'); };
 $('typeOk').onclick = bevestigType;
-$('typeModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('typeModal').onclick = function(e){ if(e.target === this) bergModaal('typeModal'); };
 $('mCancel').onclick = sluitModal;
 $('mOk').onclick = bewaarModal;
 $('modal').onclick = function(e){ if(e.target === this) sluitModal(); };
@@ -2500,32 +2632,32 @@ $('modal').onclick = function(e){ if(e.target === this) sluitModal(); };
 Array.prototype.forEach.call($('dateModes').children, function(b){
   b.onclick = function(){ leesDate(); dstate.mode = b.getAttribute('data-mode'); toonPasen(); toonMaanden(); toonDagJaar(); toonWissel(); toonDateMode(); };
 });
-$('fNde').onclick = function(){ ndeKeuze = dstate.nde || 1; tekenNdeLijst(); $('ndeModal').hidden = false; };
-$('ndeCancel').onclick = function(){ $('ndeModal').hidden = true; };
+$('fNde').onclick = function(){ ndeKeuze = dstate.nde || 1; tekenNdeLijst(); toonModaal('ndeModal'); };
+$('ndeCancel').onclick = function(){ bergModaal('ndeModal'); };
 $('ndeOk').onclick = function(){
-  dstate.nde = +ndeKeuze || 1; $('ndeModal').hidden = true; toonWissel(); updPreview();
+  dstate.nde = +ndeKeuze || 1; bergModaal('ndeModal'); toonWissel(); updPreview();
 };
-$('ndeModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
-$('fWeekdag').onclick = function(){ weekdagKeuze = dstate.weekdag || 7; tekenWeekdagLijst(); $('weekdagModal').hidden = false; };
-$('weekdagCancel').onclick = function(){ $('weekdagModal').hidden = true; };
+$('ndeModal').onclick = function(e){ if(e.target === this) bergModaal('ndeModal'); };
+$('fWeekdag').onclick = function(){ weekdagKeuze = dstate.weekdag || 7; tekenWeekdagLijst(); toonModaal('weekdagModal'); };
+$('weekdagCancel').onclick = function(){ bergModaal('weekdagModal'); };
 $('weekdagOk').onclick = function(){
-  dstate.weekdag = +weekdagKeuze || 7; $('weekdagModal').hidden = true; toonWissel(); updPreview();
+  dstate.weekdag = +weekdagKeuze || 7; bergModaal('weekdagModal'); toonWissel(); updPreview();
 };
-$('weekdagModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('weekdagModal').onclick = function(e){ if(e.target === this) bergModaal('weekdagModal'); };
 $('fDag').onclick = function(){ leesDate(); openDagKeuze(); };
 $('dagOnbekend').onclick = function(){ dagKeuze = ''; tekenDagGrid(); };
-$('dagCancel').onclick = function(){ $('dagModal').hidden = true; };
+$('dagCancel').onclick = function(){ bergModaal('dagModal'); };
 $('dagOk').onclick = function(){
   dstate.dag = dagKeuze === '' ? '' : +dagKeuze;
-  $('dagModal').hidden = true; toonDagJaar(); updPreview();
+  bergModaal('dagModal'); toonDagJaar(); updPreview();
 };
-$('dagModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('dagModal').onclick = function(e){ if(e.target === this) bergModaal('dagModal'); };
 $('fJaar').onclick = function(){ leesDate(); openJaarKeuze(); };
 $('filterJaar').onclick = function(){
   jaarDoel = 'filter';
   jaarKeuze = fJaar;
   tekenJaar();
-  $('jaarModal').hidden = false;
+  toonModaal('jaarModal');
 };
 $('jaarMin').onclick = function(){ stapJaar(-1); };
 $('jaarPlus').onclick = function(){ stapJaar(1); };
@@ -2545,11 +2677,11 @@ $('jaarVeld').onkeydown = function(e){
 };
 $('jaarOnbekend').onclick = function(){ jaarKeuze = ''; tekenJaar(); };
 $('jaarDitJaar').onclick = function(){ jaarKeuze = new Date().getFullYear(); tekenJaar(); };
-$('jaarCancel').onclick = function(){ $('jaarModal').hidden = true; };
+$('jaarCancel').onclick = function(){ bergModaal('jaarModal'); };
 $('jaarOk').onclick = function(){
   if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)){ tekenJaar(); return; }
   if(jaarDoel !== 'datum' && jaarKeuze === ''){ tekenJaar(); return; }
-  $('jaarModal').hidden = true;
+  bergModaal('jaarModal');
   if(jaarDoel === 'filter'){
     fJaar = +jaarKeuze || new Date().getFullYear();
     $('filterJaarTxt').textContent = fJaar;
@@ -2558,46 +2690,31 @@ $('jaarOk').onclick = function(){
   dstate.jaar = jaarKeuze === '' ? '' : +jaarKeuze;
   toonDagJaar(); updPreview();
 };
-$('jaarModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('jaarModal').onclick = function(e){ if(e.target === this) bergModaal('jaarModal'); };
 $('fMaand').onclick = function(){ leesDate(); openMaandKeuze('vast'); };
 $('fWmaand').onclick = function(){ leesDate(); openMaandKeuze('wisselend'); };
-$('maandCancel').onclick = function(){ $('maandModal').hidden = true; };
+$('maandCancel').onclick = function(){ bergModaal('maandModal'); };
 $('maandOk').onclick = bevestigMaand;
-$('maandModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('maandModal').onclick = function(e){ if(e.target === this) bergModaal('maandModal'); };
 $('fPasen').onclick = openPasenKeuze;
-$('pasenCancel').onclick = function(){ $('pasenModal').hidden = true; };
+$('pasenCancel').onclick = function(){ bergModaal('pasenModal'); };
 $('pasenOk').onclick = bevestigPasen;
-$('pasenModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
-$('fCat').onclick = function(){ catKeuze = cat; tekenCatLijst(); $('catModal').hidden = false; };
-$('catCancel').onclick = function(){ $('catModal').hidden = true; };
+$('pasenModal').onclick = function(e){ if(e.target === this) bergModaal('pasenModal'); };
+$('fCat').onclick = function(){ catKeuze = cat; tekenCatLijst(); toonModaal('catModal'); };
+$('catCancel').onclick = function(){ bergModaal('catModal'); };
 $('catOk').onclick = function(){
-  cat = +catKeuze || 1; $('catModal').hidden = true; toonCat();
+  cat = +catKeuze || 1; bergModaal('catModal'); toonCat();
 };
-$('catModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
+$('catModal').onclick = function(e){ if(e.target === this) bergModaal('catModal'); };
 
-$('cNo').onclick = function(){ $('confirm').hidden = true; confirmCb = null; };
-$('cYes').onclick = function(){ $('confirm').hidden = true; if(confirmCb) confirmCb(); confirmCb = null; };
-$('confirm').onclick = function(e){ if(e.target === this){ this.hidden = true; confirmCb = null; } };
+$('cNo').onclick = function(){ bergModaal('confirm'); confirmCb = null; };
+$('cYes').onclick = function(){ bergModaal('confirm'); if(confirmCb) confirmCb(); confirmCb = null; };
+$('confirm').onclick = function(e){ if(e.target === this){ bergModaal('confirm'); confirmCb = null; } };
 
 document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
-    if(!$('confirm').hidden){ $('confirm').hidden = true; confirmCb = null; }
-    else if(!$('typeModal').hidden) $('typeModal').hidden = true;
-    else if(!$('pasenModal').hidden) $('pasenModal').hidden = true;
-    else if(!$('maandModal').hidden) $('maandModal').hidden = true;
-    else if(!$('dagModal').hidden) $('dagModal').hidden = true;
-    else if(!$('jaarModal').hidden) $('jaarModal').hidden = true;
-    else if(!$('ndeModal').hidden) $('ndeModal').hidden = true;
-    else if(!$('weekdagModal').hidden) $('weekdagModal').hidden = true;
-    else if(!$('picker').hidden) $('picker').hidden = true;
-    else if(!$('infoModal').hidden) $('infoModal').hidden = true;
-    else if(!$('checkModal').hidden) $('checkModal').hidden = true;
-    else if(!$('filterModal').hidden) $('filterModal').hidden = true;
-    else if(zoekModus) zetZoeken(false);
-    else if(!$('icoonModal').hidden) $('icoonModal').hidden = true;
-    else if(!$('catModal').hidden) $('catModal').hidden = true;
-    else if(!$('cfgModal').hidden) $('cfgModal').hidden = true;
-    else if(!$('modal').hidden) sluitModal();
+    if(sluitBovenste(false)) return;
+    if(zoekModus) zetZoeken(false);
   }
   if((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); if(dirty) bewaar(); }
 });
