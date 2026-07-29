@@ -3,7 +3,7 @@
    op de achtergrond verversen. Verhoog CACHE_VERSION (of draai
    update_cache_version.py) om de oude cache op te ruimen. */
 
-const CACHE_VERSION = 35;
+const CACHE_VERSION = 37;
 const CACHE_NAME = 'events-editor-v' + CACHE_VERSION;
 
 const ASSETS = [
@@ -16,9 +16,14 @@ const ASSETS = [
 
 self.addEventListener('install', function(e){
   e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(function(c){ return c.addAll(ASSETS); })
-      .then(function(){ return self.skipWaiting(); })
+    caches.open(CACHE_NAME).then(function(c){
+      /* Elk bestand apart cachen. Met addAll zou een enkel ontbrekend bestand
+         de hele installatie afbreken, en dan is er geen service worker - en
+         zonder service worker beschouwt de browser de site niet als app. */
+      return Promise.all(ASSETS.map(function(u){
+        return c.add(u).catch(function(){ /* ontbreekt: later alsnog ophalen */ });
+      }));
+    }).then(function(){ return self.skipWaiting(); })
   );
 });
 
