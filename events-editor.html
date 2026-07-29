@@ -285,6 +285,8 @@ svg{display:block}
 .checkregel{font-size:17px;padding:4px 0;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere}
 .checkregel:last-child{border-bottom:none}
 .checkgoed{font-size:19px;color:var(--ok)}
+.checkregel.slecht{color:var(--danger)}
+.statuslbl{font-family:var(--mono);font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .inforij{padding:10px 0;border-bottom:1px solid var(--line-soft)}
 .inforij:last-child{border-bottom:none}
 .inforij .lbl{
@@ -546,7 +548,7 @@ svg{display:block}
 <!-- controle -->
 <div class="overlay" id="checkModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
-    <h3>Controle</h3>
+    <h3 id="checkTitel">Controle</h3>
     <div id="checkBody"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="checkOk">Sluiten</button>
@@ -666,6 +668,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <button class="btn addrow" id="cfgCheck">Bestand controleren</button>
+    <button class="btn addrow" id="cfgStatus">App-status</button>
     <div class="err" id="cfgErr"></div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
@@ -1792,6 +1795,94 @@ function aantalJaar(code, jaar){
   var n = jaar - st.jaar;
   return n > 0 ? n : null;
 }
+/* Meet hoe de app er als PWA voor staat. Puur informatief: dit toont de
+   werkelijke toestand in plaats van dat we moeten gissen waarom installeren
+   niet lukt. */
+function statusRegel(label, waarde, goed){
+  return '<div class="checkregel' + (goed === false ? ' slecht' : '') + '">' +
+         '<span class="statuslbl">' + esc(label) + '</span> ' + esc(waarde) + '</div>';
+}
+function toonAppStatus(){
+  $('checkTitel').textContent = 'App-status';
+  var vast =
+    '<div class="checkkop">Omgeving</div>' +
+    statusRegel('Adres', location.href) +
+    statusRegel('Verbinding', location.protocol + (window.isSecureContext ? ' (veilig)' : ' (NIET veilig)'),
+                window.isSecureContext) +
+    statusRegel('Weergave', (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+                ? 'standalone \u2014 als app geopend' : 'in de browser') +
+    '<div class="checkkop">Manifest</div><div id="stMan">bezig\u2026</div>' +
+    '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
+    '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
+  $('checkBody').innerHTML = vast;
+  $('checkModal').hidden = false;
+
+  /* manifest ophalen en de sleutelvelden tonen */
+  fetch('manifest.json', { cache:'no-store' }).then(function(r){
+    if(!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }).then(function(m){
+    var ic = (m.icons || []).map(function(i){ return i.src; }).join(', ') || 'geen';
+    $('stMan').innerHTML =
+      statusRegel('Gevonden', 'ja', true) +
+      statusRegel('name', m.name || '(leeg)', !!m.name) +
+      statusRegel('start_url', m.start_url || '(leeg)', !!m.start_url) +
+      statusRegel('display', m.display || '(leeg)', m.display === 'standalone') +
+      statusRegel('icons', ic, ic !== 'geen');
+    return fetch((m.icons && m.icons[0] && m.icons[0].src) || 'icon.svg', { cache:'no-store' });
+  }).then(function(r){
+    $('stMan').innerHTML += statusRegel('icoonbestand', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
+  }).catch(function(e){
+    $('stMan').innerHTML = statusRegel('Manifest', 'niet te laden \u2014 ' + e.message, false);
+  });
+
+  /* service worker: bestaat het bestand, en is hij geregistreerd? */
+  fetch('sw.js', { cache:'no-store' }).then(function(r){
+    $('stSw').innerHTML = statusRegel('sw.js', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
+  }).catch(function(e){
+    $('stSw').innerHTML = statusRegel('sw.js', 'niet te laden \u2014 ' + e.message, false);
+  }).then(function(){
+    if(!('serviceWorker' in navigator)){
+      $('stSw').innerHTML += statusRegel('Ondersteuning', 'deze browser kent geen service workers', false);
+      return;
+    }
+    return navigator.serviceWorker.getRegistration().then(function(reg){
+      if(!reg){
+        $('stSw').innerHTML += statusRegel('Registratie', 'geen \u2014 opnieuw proberen\u2026', false);
+        return navigator.serviceWorker.register('sw.js').then(function(r2){
+          $('stSw').innerHTML += statusRegel('Alsnog gelukt', 'scope ' + r2.scope, true);
+        }).catch(function(e){
+          $('stSw').innerHTML += statusRegel('Registratie mislukt', e.name + ': ' + e.message, false);
+        });
+      }
+      if(swFout) $('stSw').innerHTML += statusRegel('Fout bij opstarten', swFout, false);
+      var st = reg.active ? 'actief' : reg.installing ? 'wordt geïnstalleerd' : reg.waiting ? 'wacht' : 'onbekend';
+      $('stSw').innerHTML +=
+        statusRegel('Registratie', st, !!reg.active) +
+        statusRegel('Scope', reg.scope, true) +
+        statusRegel('Bestuurt deze pagina', navigator.serviceWorker.controller ? 'ja' : 'nee (herlaad de pagina)',
+                    !!navigator.serviceWorker.controller);
+    });
+  });
+
+  /* wat staat er in de cache? */
+  if(window.caches){
+    caches.keys().then(function(k){
+      if(!k.length){ $('stCache').innerHTML = statusRegel('Caches', 'geen', false); return; }
+      return caches.open(k[k.length-1]).then(function(c){ return c.keys(); }).then(function(items){
+        $('stCache').innerHTML =
+          statusRegel('Naam', k.join(', '), true) +
+          statusRegel('Bestanden', String(items.length), items.length > 0) +
+          items.map(function(i){ return statusRegel('', i.url.split('/').pop() || i.url); }).join('');
+      });
+    }).catch(function(e){
+      $('stCache').innerHTML = statusRegel('Caches', 'niet te lezen \u2014 ' + e.message, false);
+    });
+  } else {
+    $('stCache').innerHTML = statusRegel('Caches', 'niet beschikbaar', false);
+  }
+}
+
 /* leest alleen, wijzigt niets: het bestand naast de cfg leggen */
 function controleer(){
   var bevindingen = [];
@@ -1853,6 +1944,7 @@ function controleer(){
   return bevindingen;
 }
 function toonControle(){
+  $('checkTitel').textContent = 'Controle';
   var b = controleer();
   $('checkBody').innerHTML = b.length
     ? b.map(function(g){
@@ -2387,6 +2479,7 @@ $('cfgCatAdd').onclick = function(){
   if(v.length) v[v.length-1].focus();
 };
 $('cfgCheck').onclick = toonControle;
+$('cfgStatus').onclick = toonAppStatus;
 $('checkOk').onclick = function(){ $('checkModal').hidden = true; };
 $('checkModal').onclick = function(e){ if(e.target === this) this.hidden = true; };
 $('cfgCancel').onclick = function(){ $('cfgModal').hidden = true; };
@@ -2511,9 +2604,13 @@ document.addEventListener('keydown', function(e){
 window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault(); e.returnValue = ''; } });
 
 /* ------------------ start ------------------ */
+var swFout = '';
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.register('sw.js').catch(function(e){
+      /* bewaren zodat App-status kan tonen waarom het misging */
+      swFout = e.name + ': ' + e.message;
+    });
   });
 }
 
