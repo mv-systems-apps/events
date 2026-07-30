@@ -2643,8 +2643,10 @@ $('infoOk').onclick = function(){ bergModaal('infoModal'); };
 $('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
 $('btnUndo').onclick = function(){
   if(!terug) return;
-  records = terug.snap; terug = null; selIndex = -1;
-  dirty = true; render(); bewaar();
+  vraag('Ongedaan maken', 'Herstel ' + terug.tekst + '.', 'Herstellen', function(){
+    records = terug.snap; terug = null; selIndex = -1;
+    dirty = true; render(); bewaar();
+  });
 };
 $('btnCfg').onclick = openCfg;
 $('btnNew').onclick = function(){ openModal(); };
