@@ -153,6 +153,7 @@ svg{display:block}
 .list col.c-ic{width:31px}
 .list col.c-dag{width:2.6ch}
 .list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:0}
+.list td.dag svg{display:inline-block;width:18px;height:18px;vertical-align:-4px}
 .list col.c-wd{width:2.4ch}
 .list col.c-dat{width:5.6ch}
 /* accentkleur op het type-icoon betekent: bij dit event staat een notitie */
@@ -166,18 +167,6 @@ svg{display:block}
 .empty{padding:16px 8px 20px;text-align:center;color:var(--muted);font-size:19px}
 .body{flex:1 1 auto;display:flex;min-height:0}
 .body main{flex:1 1 auto;min-width:0}
-.azbar{
-  flex:0 0 auto;display:flex;flex-direction:column;justify-content:space-evenly;
-  touch-action:none;-webkit-user-select:none;user-select:none;
-  padding:6px 2px calc(6px + env(safe-area-inset-bottom));
-  border-left:1px solid var(--line-soft);
-}
-.azbar button{
-  font-family:var(--mono);font-size:13px;line-height:1;color:var(--accent);
-  width:28px;min-height:20px;padding:0;text-align:center;
-}
-.azbar button:active{color:var(--txt)}
-.azbar button:disabled{color:#454d5c}
 .bad{padding:8px;font-size:16px;color:var(--warn)}
 
 /* ---------- modal ---------- */
@@ -420,7 +409,6 @@ svg{display:block}
     <div class="list" id="lijst"></div>
     <div class="bad" id="bad"></div>
   </main>
-  <div class="azbar" id="azbar" hidden></div>
 </div>
 
 <!-- record editor -->
@@ -1057,6 +1045,10 @@ function berekenDagenTov(r, jaar){
   }
   return beste;
 }
+/* een schijf in een ring: precies nu, en symmetrisch genoeg voor een smalle kolom */
+var ICON_VANDAAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'role="img" aria-label="vandaag"><circle cx="12" cy="12" r="8"/>' +
+  '<circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg>';
 function dagenKort(n){
   if(n === null) return '';
   return n > 0 ? '+' + n : String(n);
@@ -1145,7 +1137,11 @@ function sorteerSleutel(r){
 function sorteer(){
   records.sort(function(a,b){
     var x = sorteerSleutel(a), y = sorteerSleutel(b);
-    return x < y ? -1 : x > y ? 1 : 0;
+    if(x !== y) return x < y ? -1 : 1;
+    /* zelfde event: dan op datum, en de code is al chronologisch opgebouwd */
+    var ca = a.raw !== undefined ? '' : a.code;
+    var cb = b.raw !== undefined ? '' : b.code;
+    return ca < cb ? -1 : ca > cb ? 1 : 0;
   });
 }
 
@@ -1742,7 +1738,13 @@ function zichtbaar(){
     out.push(i);
   });
   if(df && df !== 'onbekend'){
-    out.sort(function(a,b){ return datumVan[a] - datumVan[b]; });
+    out.sort(function(a,b){
+      var d = datumVan[a] - datumVan[b];
+      if(d) return d;
+      /* zelfde datum: dan alfabetisch */
+      var x = sorteerSleutel(records[a]), y = sorteerSleutel(records[b]);
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
   }
   return out;
 }
@@ -1780,8 +1782,12 @@ function renderLijst(){
     var klassen = (i === selIndex ? 'sel' : '') + (pos === grens ? ' vandaag' : '');
     html += '<tr' + (klassen.trim() ? ' class="' + klassen.trim() + '"' : '') +
       ' data-i="' + i + '">' +
-      (metDag ? '<td class="dag">' + (n !== null && Math.abs(n) < 10 ? esc(dagenKort(n)) : '') + '</td>' : '') +
-      '<td>' + esc(r.sleutel) + '</td>' +
+      (metDag
+        ? '<td class="dag"' + (n === 0 ? ' title="vandaag"' : '') + '>' +
+          (n === null || Math.abs(n) >= 10 ? '' : (n === 0 ? ICON_VANDAAG : esc(dagenKort(n)))) +
+          '</td>'
+        : '') +
+      '<td>' + esc(r.naam || r.sleutel) + '</td>' +
       (metDatum
         ? '<td class="dat wd">' + esc(weekdagKort(datumVan[i])) + '</td>' +
           '<td class="dat">' + esc(datumKort(datumVan[i])) + '</td>'
@@ -1803,33 +1809,8 @@ function renderLijst(){
   });
 }
 
-function letterVan(r){
-  var t = sorteerSleutel(r).charAt(0).toUpperCase();
-  return /[A-Z]/.test(t) ? t : '#';
-}
-var azEerste = {};   /* letter -> index in records, gevuld door renderAZ */
 
 /* zoek het element dat werkelijk scrolt en schuif de rij naar boven */
-function scrollNaarRij(rij){
-  var el = rij.parentNode;
-  while(el && el !== document.documentElement){
-    var stijl = window.getComputedStyle(el);
-    if(el.scrollHeight > el.clientHeight + 4 &&
-       (stijl.overflowY === 'auto' || stijl.overflowY === 'scroll')){
-      el.scrollTop += rij.getBoundingClientRect().top - el.getBoundingClientRect().top;
-      return true;
-    }
-    el = el.parentNode;
-  }
-  if(rij.scrollIntoView){ rij.scrollIntoView(true); return true; }
-  return false;
-}
-function springNaarLetter(L){
-  var i = azEerste[L];
-  if(i === undefined) return;
-  var rij = $('lijst').querySelector('tr[data-i="' + i + '"]');
-  if(rij) scrollNaarRij(rij);
-}
 var fType = '', fcVan = 0, fcTot = 0, fcBezig = false, fNot = false, fJaar = 0, fAan = true;
 
 function tekenFilterNot(){
@@ -2139,20 +2120,6 @@ function toonInfo(i){
       : '');
   toonModaal('infoModal');
 }
-function renderAZ(){
-  var el = $('azbar'), idx = zichtbaar();
-  if(fileState !== 'ok' || idx.length < 25){ el.hidden = true; return; }
-  azEerste = {};
-  idx.forEach(function(i){
-    var L = letterVan(records[i]);
-    if(azEerste[L] === undefined) azEerste[L] = i;
-  });
-  el.innerHTML = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(function(L){
-    return '<button type="button" data-l="' + L + '"' +
-           (azEerste[L] === undefined ? ' disabled' : '') + '>' + L + '</button>';
-  }).join('');
-  el.hidden = false;
-}
 function render(){
   verversCache();
   renderFilebar();
@@ -2164,7 +2131,6 @@ function render(){
   $('zoekKnop').innerHTML = zoekModus ? ICON_KRUIS : ICON_LOEP;
   $('zoekKnop').title = zoekModus ? 'Zoeken sluiten' : 'Zoeken';
   renderLijst();
-  renderAZ();
   var badCount = records.filter(function(r){ return r.raw !== undefined; }).length;
   $('bad').textContent = badCount ? badCount + ' regel(s) met een onbekend formaat blijven ongewijzigd bewaard.' : '';
   $('btnNew').hidden = selIndex >= 0;
@@ -2623,48 +2589,6 @@ $('filterOk').onclick = function(){
 $('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
 $('infoOk').onclick = function(){ bergModaal('infoModal'); };
 $('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
-/* letterbalk: tikken en slepen */
-(function(){
-  var bar = $('azbar'), actief = false, vorige = '';
-  function knopBij(y){
-    var k = bar.children;
-    for(var i=0;i<k.length;i++){
-      var r = k[i].getBoundingClientRect();
-      if(y >= r.top && y <= r.bottom) return k[i];
-    }
-    return null;
-  }
-  function behandel(y){
-    var b = knopBij(y);
-    if(!b || b.disabled) return;
-    var L = b.getAttribute('data-l');
-    if(L === vorige) return;
-    vorige = L;
-    springNaarLetter(L);
-  }
-  if(window.PointerEvent){
-    bar.addEventListener('pointerdown', function(e){
-      actief = true; vorige = '';
-      if(bar.setPointerCapture) { try { bar.setPointerCapture(e.pointerId); } catch(x){} }
-      behandel(e.clientY);
-      e.preventDefault();
-    });
-    bar.addEventListener('pointermove', function(e){
-      if(!actief) return;
-      behandel(e.clientY);
-      e.preventDefault();
-    });
-    ['pointerup','pointercancel'].forEach(function(n){
-      bar.addEventListener(n, function(){ actief = false; vorige = ''; });
-    });
-  } else {
-    bar.addEventListener('click', function(e){
-      var b = e.target;
-      while(b && b !== bar && b.tagName !== 'BUTTON') b = b.parentNode;
-      if(b && b !== bar && !b.disabled) springNaarLetter(b.getAttribute('data-l'));
-    });
-  }
-})();
 $('btnUndo').onclick = function(){
   if(!terug) return;
   records = terug.snap; terug = null; selIndex = -1;
