@@ -326,6 +326,8 @@ svg{display:block}
 .cfgstatic + .cfgstatic{margin-top:6px}
 /* links uitlijnen met de tekst in de velden erboven (rand 1 + padding 14),
    rechts zo dat de iconen op dezelfde lijn eindigen als die velden */
+.tweeveld{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tweeveld .veldkop{margin-top:0}
 .bestandstatus{display:flex;align-items:center;gap:10px;font-size:18px;padding:0 3px 0 15px}
 .bestandstatus .dot{flex:0 0 auto}
 .bestandstatus span:nth-child(2){flex:1;min-width:0}
@@ -701,8 +703,16 @@ svg{display:block}
           <button class="icon-btn" id="cfgRefresh" title="Opnieuw laden" aria-label="Opnieuw laden"></button>
           <button class="icon-btn danger" id="cfgUnlink" title="Werkmap ontkoppelen" aria-label="Werkmap ontkoppelen"></button>
         </div>
-        <div class="veldkop"><label for="cfgSep">Scheidingsteken</label></div>
-        <input id="cfgSep" type="text" maxlength="1" placeholder=";">
+        <div class="tweeveld">
+          <div>
+            <div class="veldkop"><label for="cfgSep">Scheidingsteken</label></div>
+            <input id="cfgSep" type="text" maxlength="1" placeholder=";">
+          </div>
+          <div>
+            <div class="veldkop"><label for="cfgOf">Of-teken</label></div>
+            <input id="cfgOf" type="text" maxlength="1" placeholder="|">
+          </div>
+        </div>
       </div>
     </div>
     <div class="field">
@@ -906,10 +916,10 @@ function encode(s){
 /* Berekende waarden worden per datumcode onthouden. De sleutel is de code
    zelf, dus een gewijzigd record krijgt vanzelf een nieuwe ingang. De dag- en
    datumtabellen worden geleegd zodra het een dag later is. */
-var cacheDag = '', cacheDatum = {}, cacheDagen = {}, cacheLees = {}, cacheRegel = {};
+var cacheDag = '', cacheDatum = {}, cacheDagen = {}, cacheLees = {}, cacheRegel = {}, cacheZoek = {};
 function verversCache(){
   var d = dagsleutel();
-  if(d !== cacheDag){ cacheDag = d; cacheDatum = {}; cacheDagen = {}; }
+  if(d !== cacheDag){ cacheDag = d; cacheDatum = {}; cacheDagen = {}; cacheZoek = {}; }
 }
 
 function leesbaar(code){
@@ -1020,6 +1030,26 @@ function berekenEventDatum(code, jaar){
 /* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
    Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
    jaren nergens: dat is niet onbekend maar niet-bestaand. */
+/* Extra vormen om op te zoeken, naast de gewone velden: de datum in cijfers
+   (16-10 en 16-10-2026), de oorspronkelijke datum, de leeftijd als 60jr en de
+   afgekorte weekdag tussen haakjes, zodat (zo) niet botst met woorden als zoon. */
+function zoekExtra(r, jaar){
+  var k = r.code + '|' + jaar;
+  if(k in cacheZoek) return cacheZoek[k];
+  var uit = [], st = decode(r.code), d = eventDatum(r, jaar);
+  if(d){
+    var dd = pad(d.getDate(), 2), mm = pad(d.getMonth() + 1, 2);
+    uit.push(dd + '-' + mm);
+    uit.push(dd + '-' + mm + '-' + d.getFullYear());
+    uit.push('(' + DAG_KORT[isoWeekdag(d) - 1] + ')');
+  }
+  if(st && st.mode === 'vast' && st.jaar >= 1000 && st.maand && st.dag){
+    uit.push(pad(st.dag, 2) + '-' + pad(st.maand, 2) + '-' + st.jaar);
+    var n = jaar - st.jaar;
+    if(n > 0) uit.push(n + 'jr');
+  }
+  return (cacheZoek[k] = uit.join(' '));
+}
 function heeftDatumRegel(r){
   if(r.raw !== undefined) return false;
   if(r.code in cacheRegel) return cacheRegel[r.code];
@@ -1109,6 +1139,11 @@ function datumLabel(v){
 function sep(){
   var t = cfg.scheidingsteken;
   return (typeof t === 'string' && t.length === 1) ? t : ';';
+}
+/* teken waarmee je in het zoekveld meerdere termen scheidt: een van beide volstaat */
+function ofTeken(){
+  var t = cfg.ofteken;
+  return (typeof t === 'string' && t.length === 1) ? t : '|';
 }
 function parse(text){
   var out = [];
@@ -1251,7 +1286,7 @@ function laadCfg(){
       }
     });
 }
-var CFG_VOLGORDE = ['bestand','titel','scheidingsteken','velden','types','categorieen','paasdagen','filter'];
+var CFG_VOLGORDE = ['bestand','titel','scheidingsteken','ofteken','velden','types','categorieen','paasdagen','filter'];
 function ordenCfg(c){
   var uit = {};
   CFG_VOLGORDE.forEach(function(k){ if(c[k] !== undefined) uit[k] = c[k]; });
@@ -1557,6 +1592,7 @@ function vulCfg(){
   cfgBestand = cfg.bestand || bestandsnaam || '';
   $('cfgBestandTxt').textContent = cfgBestand || 'kies een bestand';
   $('cfgSep').value = sep();
+  $('cfgOf').value = ofTeken();
   $('cfgMetaNaam').textContent = CFG_NAAM;
   tekenBestandStatus();
   $('cfgTitel').value = cfg.titel || '';
@@ -1661,6 +1697,13 @@ function bewaarCfg(){
   if(nieuwSep.length !== 1 || /\s/.test(nieuwSep)){
     $('cfgErr').textContent = 'Het scheidingsteken moet precies \u00e9\u00e9n teken zijn (geen spatie).'; return;
   }
+  var nieuwOf = $('cfgOf').value;
+  if(nieuwOf.length !== 1 || /\s/.test(nieuwOf)){
+    $('cfgErr').textContent = 'Het of-teken moet precies \u00e9\u00e9n teken zijn (geen spatie).'; return;
+  }
+  if(nieuwOf === nieuwSep){
+    $('cfgErr').textContent = 'Het of-teken mag niet hetzelfde zijn als het scheidingsteken.'; return;
+  }
   var sepGewijzigd = nieuwSep !== sep();
   if(sepGewijzigd){
     var bots = sepConflicten(nieuwSep);
@@ -1673,6 +1716,7 @@ function bewaarCfg(){
   var gewijzigd = cfg.bestand !== cfgBestand;
   cfg.bestand = cfgBestand;
   cfg.scheidingsteken = nieuwSep;
+  cfg.ofteken = nieuwOf;
   var titel = $('cfgTitel').value.trim();
   if(titel) cfg.titel = titel; else delete cfg.titel;
   delete cfg.omschrijving;   /* dit veld bestaat niet meer */
@@ -1741,7 +1785,8 @@ function renderChips(){
 /* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
 function actiefDatumFilter(){ return zoekModus ? '' : datumFilter; }
 function zichtbaar(){
-  var q = zonderAccent(zoekterm.toLowerCase());
+  var termen = zonderAccent(zoekterm.toLowerCase()).split(ofTeken())
+                 .map(function(t){ return t.trim(); }).filter(Boolean);
   var jaar = zichtJaar;
   var df = actiefDatumFilter();
   var venster = isVenster(df) ? datumVenster(df) : null;
@@ -1754,10 +1799,12 @@ function zichtbaar(){
       if(filterCatVan && (r.cat < filterCatVan || r.cat > filterCatTot)) return;
       if(filterNotitie && !r.notitie) return;
     }
-    if(q){
+    if(termen.length){
       var hay = zonderAccent((r.sleutel + ' ' + r.naam + ' ' + r.type + ' ' + r.code + ' ' +
-                 leesbaar(r.code) + ' ' + r.cat + ' ' + (r.notitie||'')).toLowerCase());
-      if(hay.indexOf(q) < 0) return;
+                 leesbaar(r.code) + ' ' + zoekExtra(r, jaar) + ' ' +
+                 r.cat + ' ' + (r.notitie||'')).toLowerCase());
+      var raakTekst = termen.some(function(t){ return hay.indexOf(t) >= 0; });
+      if(!raakTekst) return;
     }
     if(df){
       var d = eventDatum(r, jaar);
@@ -2236,7 +2283,7 @@ function vormNu(id){
                            dstate, cat, $('fNotitie').value]);
   }
   if(id === 'cfgModal'){
-    return JSON.stringify([cfgBestand, $('cfgSep').value, $('cfgTitel').value,
+    return JSON.stringify([cfgBestand, $('cfgSep').value, $('cfgOf').value, $('cfgTitel').value,
                            cfgVelden, cfgTypes, cfgCats, cfgPaas]);
   }
   return '';
