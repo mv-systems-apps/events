@@ -87,16 +87,11 @@ svg{display:block}
 
 /* ---------- file link ---------- */
 .filebar{margin-bottom:8px}
+.filebar:empty{display:none}
 .filebar-empty{display:flex;gap:10px}
 .filebar-empty .btn{flex:1}
-.filerow{
-  display:flex;align-items:center;gap:10px;
-  padding:0 0 0 2px;
-}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:0 0 auto}
 .dot.warn{background:var(--warn)}
-.filename{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-family:var(--mono);font-size:19px}
 
 .banner{
   display:flex;flex-direction:column;gap:10px;
@@ -329,6 +324,12 @@ svg{display:block}
   overflow-wrap:anywhere;
 }
 .cfgstatic + .cfgstatic{margin-top:6px}
+/* links uitlijnen met de tekst in de velden erboven (rand 1 + padding 14),
+   rechts zo dat de iconen op dezelfde lijn eindigen als die velden */
+.bestandstatus{display:flex;align-items:center;gap:10px;font-size:18px;padding:0 3px 0 15px}
+.bestandstatus .dot{flex:0 0 auto}
+.bestandstatus span:nth-child(2){flex:1;min-width:0}
+.bestandstatus .icon-btn{width:44px;height:44px;flex:0 0 auto}
 .checkkop{
   margin:14px 0 6px;font-family:var(--mono);font-size:16px;color:var(--accent);
   text-transform:uppercase;letter-spacing:.04em;
@@ -360,8 +361,6 @@ svg{display:block}
 #checkModal{z-index:66}
 #filterModal{z-index:58}
 #picker{z-index:65}
-.savehint{font-size:16px;color:var(--muted);margin-top:6px;padding-left:2px}
-.savehint.err{color:var(--danger)}
 .dot.err{background:var(--danger)}
 /* opvulling in plaats van marge: een marge zou samenvloeien met die van het
    laatste veld en dan blijft er maar tien pixel over */
@@ -695,6 +694,13 @@ svg{display:block}
         <div class="cfgstatic mono" id="cfgMetaNaam"></div>
         <div class="veldkop">Events-bestand</div>
         <button class="typefield" id="cfgBestand"><span id="cfgBestandTxt">—</span></button>
+        <div class="veldkop">Status</div>
+        <div class="bestandstatus">
+          <span class="dot" id="cfgDot"></span>
+          <span id="cfgStatusTxt"></span>
+          <button class="icon-btn" id="cfgRefresh" title="Opnieuw laden" aria-label="Opnieuw laden"></button>
+          <button class="icon-btn danger" id="cfgUnlink" title="Werkmap ontkoppelen" aria-label="Werkmap ontkoppelen"></button>
+        </div>
         <div class="veldkop"><label for="cfgSep">Scheidingsteken</label></div>
         <input id="cfgSep" type="text" maxlength="1" placeholder=";">
       </div>
@@ -1390,39 +1396,36 @@ function renderFilebar(){
   if(fileState === 'auth'){
     el.innerHTML =
       '<div class="banner">' +
-      '<div class="banner-text">' + esc(dirHandle ? dirHandle.name : 'de werkmap') + '</div>' +
-      '<button class="btn btn-warn" id="fAuth">Toegang autoriseren</button>' +
-      '<button class="btn" id="fUnl">Ontkoppelen</button></div>';
-    $('fAuth').onclick = autoriseer; $('fUnl').onclick = ontkoppel;
+      '<div class="banner-text">Geen toegang tot ' + esc(dirHandle ? dirHandle.name : 'de werkmap') + '.</div>' +
+      '<button class="btn btn-warn" id="fAuth">Toegang autoriseren</button></div>';
+    $('fAuth').onclick = autoriseer;
     return;
   }
   if(fileState === 'geencfg'){
     el.innerHTML =
       '<div class="banner">' +
       '<div class="banner-text">' + esc(cfgFout) + '</div>' +
-      '<button class="btn btn-warn" id="fCfg">Configuratie</button>' +
-      '<button class="btn" id="fUnl">Ontkoppelen</button></div>';
-    $('fCfg').onclick = openCfg; $('fUnl').onclick = ontkoppel;
+      '<button class="btn btn-warn" id="fCfg">Configuratie</button></div>';
+    $('fCfg').onclick = openCfg;
     return;
   }
-  var kleur = (saveState === 'fout' || saveState === 'extern') ? ' err' : (saveState === 'bezig' || dirty) ? ' warn' : '';
-  el.innerHTML =
-    '<div class="filerow"><span class="dot' + kleur + '"></span>' +
-    '<span class="filename">' + esc(bestandsnaam) + '</span>' +
-    '<button class="icon-btn" id="fRefresh" title="Opnieuw laden" aria-label="Opnieuw laden">' + ICON_REFRESH + '</button>' +
-    '<button class="icon-btn" id="fUnlink" title="Ontkoppelen" aria-label="Ontkoppelen">' + ICON_X + '</button></div>' +
-    (hasFSA ? '' : '<div class="savehint">Automatisch opslaan kan niet in deze browser.</div>' +
-      '<div class="filebar-empty" style="margin-top:10px"><button class="btn" id="fDl">Downloaden</button></div>') +
-    (saveState === 'fout' ? '<div class="savehint err">Opslaan mislukt. Controleer de toegang tot de map.</div>' : '') +
-    (saveState === 'extern' ? '<div class="savehint err">Niet opgeslagen: het bestand is buiten de app gewijzigd.</div>' : '');
+  /* alles in orde: dan hoort hier niets te staan */
+  var melding = '';
+  if(!hasFSA){
+    melding = '<div class="banner"><div class="banner-text">Automatisch opslaan kan niet in ' +
+      'deze browser.</div><button class="btn btn-warn" id="fDl">Downloaden</button></div>';
+  } else if(saveState === 'fout'){
+    melding = '<div class="banner"><div class="banner-text">Opslaan mislukt. Controleer de ' +
+      'toegang tot de map.</div><button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button></div>';
+  } else if(saveState === 'extern'){
+    melding = '<div class="banner"><div class="banner-text">Niet opgeslagen: het bestand is ' +
+      'buiten de app gewijzigd.</div><button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button>' +
+      '<button class="btn" id="fHerlaad">Opnieuw laden</button></div>';
+  }
+  el.innerHTML = melding;
   if($('fDl')) $('fDl').onclick = downloaden;
-  $('fRefresh').onclick = function(){
-    if(!hasFSA) return openenFallback();
-    laadCfg();
-  };
-  $('fUnlink').onclick = function(){
-    vraag('Werkmap ontkoppelen?', 'De koppeling wordt gewist. De bestanden zelf blijven ongewijzigd.', 'Ontkoppelen', ontkoppel);
-  };
+  if($('fOpnieuw')) $('fOpnieuw').onclick = bewaar;
+  if($('fHerlaad')) $('fHerlaad').onclick = laadCfg;
 }
 
 /* --- configuratiemodal --- */
@@ -1537,11 +1540,25 @@ function tekenCfgCats(){
     };
   });
 }
-function openCfg(){
+function tekenBestandStatus(){
+  var kleur = '', tekst = 'opgeslagen';
+  if(fileState === 'auth'){ kleur = ' err'; tekst = 'geen toegang tot de map'; }
+  else if(fileState === 'geencfg'){ kleur = ' err'; tekst = cfgFout; }
+  else if(saveState === 'fout'){ kleur = ' err'; tekst = 'opslaan mislukt'; }
+  else if(saveState === 'extern'){ kleur = ' err'; tekst = 'buiten de app gewijzigd'; }
+  else if(saveState === 'bezig'){ kleur = ' warn'; tekst = 'bezig met opslaan'; }
+  else if(dirty){ kleur = ' warn'; tekst = 'niet opgeslagen'; }
+  $('cfgDot').className = 'dot' + kleur;
+  $('cfgStatusTxt').textContent = tekst;
+  $('cfgRefresh').innerHTML = ICON_REFRESH;
+  $('cfgUnlink').innerHTML = ICON_X;
+}
+function vulCfg(){
   cfgBestand = cfg.bestand || bestandsnaam || '';
   $('cfgBestandTxt').textContent = cfgBestand || 'kies een bestand';
   $('cfgSep').value = sep();
   $('cfgMetaNaam').textContent = CFG_NAAM;
+  tekenBestandStatus();
   $('cfgTitel').value = cfg.titel || '';
   cfgTypes = alleTypes().map(function(x){ return { omschrijving:x.omschrijving, icoon:x.icoon || '' }; });
   cfgCats = (cfg.categorieen && cfg.categorieen.length)
@@ -1549,7 +1566,6 @@ function openCfg(){
     : [1,2,3,4].map(function(n){ return { nr:n, oms:'' }; });
   cfgVelden = VELDEN.map(function(v,i){ return veldNaam(i); });
   cfgPaas = paasOpties().map(function(x){ return { dagen:x.dagen, omschrijving:x.omschrijving || '' }; });
-  cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
   tekenCfgVelden(); tekenCfgTypes(); tekenCfgCats(); tekenCfgPaas(); tekenSecties();
   var extra = Object.keys(cfg).filter(function(k){ return BEKEND.indexOf(k) < 0; });
   $('cfgExtra').innerHTML = extra.length
@@ -1561,6 +1577,11 @@ function openCfg(){
     : '';
   $('cfgErr').textContent = '';
   vormBijOpenen = vormNu('cfgModal');
+}
+function openCfg(){
+  /* alleen bij openen beginnen de secties dicht; bij vernieuwen blijven ze staan */
+  cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
+  vulCfg();
   toonModaal('cfgModal');
 }
 function tekenPickLijst(){
@@ -2644,6 +2665,15 @@ $('pickNew').oninput = function(){
 };
 $('picker').onclick = function(e){ if(e.target === this) bergModaal('picker'); };
 $('cfgBestand').onclick = openBestandsKeuze;
+$('cfgRefresh').onclick = function(){
+  if(!hasFSA) return openenFallback();
+  /* opnieuw inlezen en de configuratie bijwerken, zonder het scherm te verlaten */
+  Promise.resolve(laadCfg()).then(vulCfg);
+};
+$('cfgUnlink').onclick = function(){
+  vraag('Werkmap ontkoppelen?', 'De koppeling wordt gewist. De bestanden zelf blijven ongewijzigd.',
+        'Ontkoppelen', function(){ bergModaal('cfgModal'); ontkoppel(); });
+};
 $('icoonCancel').onclick = function(){ bergModaal('icoonModal'); };
 $('icoonOk').onclick = function(){
   if(icoonRij >= 0) cfgTypes[icoonRij].icoon = icoonKeuze;
