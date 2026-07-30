@@ -1686,7 +1686,9 @@ function renderChips(){
     return '<button class="chip' + (datumFilter === o[0] ? ' on' : '') + '" data-d="' + o[0] + '"' +
            (isVenster(o[0]) && !ditJaar ? ' disabled' : '') + '>' + esc(o[1]) + '</button>';
   }).join('');
+  var bruikbaar = fileState === 'ok';
   Array.prototype.forEach.call(el.children, function(b){
+    if(!bruikbaar) b.disabled = true;
     b.onclick = function(){ datumFilter = b.getAttribute('data-d'); selIndex = -1; render(); };
   });
 
@@ -1762,7 +1764,7 @@ function renderLijst(){
       ? 'Koppel een bestand om te beginnen.'
       : (records.length
           ? (actiefDatumFilter() ? 'Geen events in ' + datumLabel(actiefDatumFilter()) + '.' : 'Geen events gevonden.')
-          : 'Nog geen events. Voeg er een toe met +.')) + '</div>';
+          : 'Geen events.')) + '</div>';
     return;
   }
   var df = actiefDatumFilter();
@@ -2146,8 +2148,11 @@ function render(){
   renderLijst();
   var badCount = records.filter(function(r){ return r.raw !== undefined; }).length;
   $('bad').textContent = badCount ? badCount + ' regel(s) met een onbekend formaat blijven ongewijzigd bewaard.' : '';
+  var bruikbaar = fileState === 'ok';
+  $('filterMode').disabled = !bruikbaar;
+  $('zoekKnop').disabled = !bruikbaar;
   $('btnNew').hidden = selIndex >= 0;
-  $('btnNew').disabled = fileState !== 'ok';
+  $('btnNew').disabled = !bruikbaar;
   $('btnEdit').hidden = selIndex < 0;
   $('btnCfg').disabled = fileState === 'leeg';
   $('btnUndo').hidden = !terug;
