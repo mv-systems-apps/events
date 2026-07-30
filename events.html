@@ -1764,11 +1764,16 @@ function zichtbaar(){
       if(df === 'onbekend'){
         if(heeftDatumRegel(r)) return;
       } else if(venster){
-        /* rond de jaarwisseling kan de volgende keer in het volgende jaar vallen */
-        var d2 = eventDatum(r, jaar + 1);
-        if(d && d >= venster[0] && d <= venster[1]) datumVan[i] = d;
-        else if(d2 && d2 >= venster[0] && d2 <= venster[1]) datumVan[i] = d2;
-        else return;
+        /* rond de jaarwisseling kan de keer die in het venster valt in het vorige
+           of het volgende jaar liggen: het venster kijkt drie dagen terug */
+        var raak = null;
+        [jaar, jaar + 1, jaar - 1].forEach(function(j){
+          if(raak) return;
+          var kandidaat = eventDatum(r, j);
+          if(kandidaat && kandidaat >= venster[0] && kandidaat <= venster[1]) raak = kandidaat;
+        });
+        if(!raak) return;
+        datumVan[i] = raak;
       } else {
         if(!d || (d.getMonth() + 1) !== +df) return;
         datumVan[i] = d;
