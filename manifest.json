@@ -1,8 +1,8 @@
 {
-  "name": "events-editor",
-  "short_name": "events-editor",
+  "name": "Events",
+  "short_name": "Events",
   "description": "Editor voor het events-bestand",
-  "start_url": "./events-editor.html",
+  "start_url": "./events.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
