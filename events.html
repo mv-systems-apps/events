@@ -1840,18 +1840,27 @@ function tekenFilterTypes(){
   });
 }
 function tekenFilterCats(){
-  $('filterCats').innerHTML = catOpties().map(function(o){
-    var n = +o[0], aan = fcVan && n >= fcVan && n <= fcTot;
-    return '<button class="chip' + (aan ? ' on' : '') + '" data-c="' + n + '">' + n + '</button>';
-  }).join('');
+  $('filterCats').innerHTML =
+    '<button class="chip' + (!fcVan ? ' on' : '') + '" data-c="0">alle</button>' +
+    catOpties().map(function(o){
+      var n = +o[0], aan = fcVan && n >= fcVan && n <= fcTot;
+      return '<button class="chip' + (aan ? ' on' : '') + '" data-c="' + n + '">' + n + '</button>';
+    }).join('');
   Array.prototype.forEach.call($('filterCats').children, function(b){
     b.onclick = function(){
       var n = +b.getAttribute('data-c');
+      /* alle: geen categoriefilter, en dezelfde toestand als een volledig bereik */
+      if(!n){ fcVan = fcTot = 0; fcBezig = false; tekenFilterCats(); return; }
       /* dezelfde enkele categorie nogmaals aantikken zet hem weer uit */
       if(fcVan === n && fcTot === n){ fcVan = fcTot = 0; fcBezig = false; }
       else if(!fcVan || !fcBezig){ fcVan = fcTot = n; fcBezig = true; }
       else if(n < fcVan){ fcVan = n; fcBezig = false; }
       else { fcTot = n; fcBezig = false; }
+      /* een bereik dat niets uitsluit is geen filter */
+      var alles = catOpties().map(function(o){ return +o[0]; });
+      if(fcVan && alles.every(function(n2){ return n2 >= fcVan && n2 <= fcTot; })){
+        fcVan = fcTot = 0; fcBezig = false;
+      }
       tekenFilterCats();
     };
   });
