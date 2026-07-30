@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Events</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -170,16 +170,20 @@ svg{display:block}
 .bad{padding:8px;font-size:16px;color:var(--warn)}
 
 /* ---------- modal ---------- */
+/* De viewport-instelling hierboven laat de browser het venster verkleinen zodra
+   het toetsenbord opkomt; dvh volgt dat, dus de modal krimpt vanzelf mee. */
 .overlay{
-  position:fixed;inset:0;background:rgba(8,10,14,.72);
+  position:fixed;left:0;right:0;top:0;
+  height:100vh;
+  height:100dvh;
+  background:rgba(8,10,14,.72);
   display:flex;align-items:flex-end;justify-content:center;z-index:50;
 }
 .modal{
   width:100%;max-width:520px;background:var(--panel);
   /* dvh rekent met het venster zoals je het ziet; vh telt de balken mee die
      tijdens scrollen verdwijnen, waardoor de onderkant onbereikbaar werd */
-  max-height:92vh;
-  max-height:92dvh;
+  max-height:94%;
   overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
   border:1px solid var(--line);border-radius:16px 16px 0 0;padding:16px;
   padding-bottom:calc(16px + env(safe-area-inset-bottom));
@@ -2504,7 +2508,8 @@ function openModal(i){
   toonModaal('modal');
   groei($('fSleutel'));
   groei($('fNotitie'));
-  $('fSleutel').focus();
+  /* bewust geen veld selecteren: anders schuift het toetsenbord meteen
+     over het halve formulier heen */
 }
 function sluitModal(){ bergModaal('modal'); }
 function groei(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
