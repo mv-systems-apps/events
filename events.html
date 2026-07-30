@@ -1,1 +1,2858 @@
 
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Events</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#12151b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Events">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+:root{
+  --bg:#12151b;
+  --panel:#1a1e26;
+  --line:#2a303b;
+  --line-soft:#222833;
+  --txt:#e7eaf0;
+  --muted:#8d96a6;
+  --accent:#7aa2f7;
+  --accent-dim:#2b3a5c;
+  --warn:#e0a458;
+  --danger:#e2686b;
+  --ok:#6fbf8b;
+  --radius:10px;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* eigen display-waarden winnen het van het hidden-attribuut; deze regel niet */
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--txt);
+  font-family:var(--sans);font-size:19px;line-height:1.4;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- app shell ---------- */
+header{
+  flex:0 0 auto;background:var(--bg);padding:8px 16px 0;
+  padding-top:calc(8px + env(safe-area-inset-top));
+  border-bottom:1px solid var(--line);
+}
+main{
+  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:0 16px calc(16px + env(safe-area-inset-bottom));
+}
+.list{position:relative}
+
+/* ---------- buttons ---------- */
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 18px;border:1px solid var(--line);border-radius:8px;
+  background:#28313f;color:var(--txt);font-size:20px;font-weight:650;white-space:nowrap;
+}
+.btn:hover{border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);color:#0e1219;border-color:var(--accent)}
+.btn-primary:hover{opacity:.88;border-color:var(--accent)}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary:disabled:hover{opacity:.35}
+.btn-danger{background:var(--danger);color:#2a0d0e;border-color:var(--danger)}
+.btn-danger:hover{opacity:.88;border-color:var(--danger)}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:44px;height:44px;border-radius:8px;
+  background:#28313f;border:1px solid var(--line);color:var(--txt);
+}
+.icon-btn:hover{border-color:var(--accent)}
+.icon-btn:active{transform:translateY(1px)}
+.icon-btn.prominent{
+  background:var(--accent);border-color:var(--accent);color:#0e1219;
+}
+.icon-btn.prominent:hover{opacity:.88;border-color:var(--accent)}
+.icon-btn.danger{color:var(--danger)}
+.icon-btn:disabled{opacity:.35;cursor:not-allowed}
+.icon-btn:disabled:hover{border-color:var(--line)}
+svg{display:block}
+
+/* ---------- file link ---------- */
+.filebar{margin-bottom:8px}
+.filebar-empty{display:flex;gap:10px}
+.filebar-empty .btn{flex:1}
+.filerow{
+  display:flex;align-items:center;gap:10px;
+  padding:0 0 0 2px;
+}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+.dot.warn{background:var(--warn)}
+.filename{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--mono);font-size:19px}
+
+.banner{
+  display:flex;flex-direction:column;gap:10px;
+  background:#2a2410;border:1px solid #55481a;border-radius:8px;padding:12px;
+}
+.banner-text{color:#f0d98a;font-size:17px;line-height:1.4}
+.banner .btn{width:100%;padding:11px 18px;font-size:17px;font-weight:650}
+.btn-warn{background:var(--warn);color:#2a1a02;border-color:var(--warn)}
+.btn-warn:hover{opacity:.88;border-color:var(--warn)}
+
+/* ---------- toolbar ---------- */
+.panel-head{
+  display:flex;align-items:center;gap:8px;margin:8px 0;
+}
+.panel-head h2{
+  margin:0;font-size:18px;color:var(--accent);flex:1;font-weight:400;
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;
+}
+.count{font-size:16px;color:var(--muted);font-weight:500;font-family:var(--mono)}
+.search{
+  flex:1 1 auto;min-width:0;padding:13px 14px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);color:var(--txt);font-family:var(--mono);font-size:19px;
+}
+.search::placeholder{color:#5f6878}
+.kopregel{display:flex;gap:6px;align-items:center}
+.modeknop{flex:1 1 auto;min-width:0;justify-content:flex-start;overflow:hidden}
+.modeknop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.catrij{flex-wrap:wrap;overflow:visible}
+.chip{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 15px;border:1px solid var(--line);border-radius:999px;background:#28313f;
+  font-size:17px;font-weight:600;color:var(--muted);white-space:nowrap;
+}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#0e1219}
+.chip:disabled{opacity:.35}
+.chip svg{width:21px;height:21px;flex:0 0 auto}
+
+/* ---------- list ---------- */
+.list table{
+  width:100%;border-collapse:collapse;table-layout:fixed;
+  font-family:var(--mono);font-size:20px;
+}
+.list td{
+  padding:6px 8px;border-bottom:1px solid #1d2229;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.list tbody tr{cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.list tbody tr:nth-child(even) td{background:rgba(255,255,255,.06)}
+.list tbody tr:hover td{background:#1a2028}
+.list tbody tr.sel td{background:rgba(122,162,247,.30)}
+.list tbody tr.vandaag td{border-top:2px solid var(--accent)}
+.list col.c-ic{width:31px}
+.list col.c-dag{width:2.6ch}
+.list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:0}
+.list col.c-wd{width:2.4ch}
+.list col.c-dat{width:5.6ch}
+/* accentkleur op het type-icoon betekent: bij dit event staat een notitie */
+.list td.ic.metnot{color:var(--accent)}
+.list td.dat{color:var(--muted);font-size:18px;cursor:pointer;text-align:left;padding-left:3px;padding-right:0}
+.list td.wd{text-align:right;padding-left:0;padding-right:0}
+.list td.ic{padding:6px 6px 6px 0;color:var(--muted);line-height:0;text-align:right;cursor:pointer}
+.list td.ic svg{width:23px;height:23px;margin-left:auto}
+.list tbody tr.sel td.ic{color:var(--txt)}
+.list tbody tr.sel td.ic.metnot{color:var(--accent)}
+.empty{padding:16px 8px 20px;text-align:center;color:var(--muted);font-size:19px}
+.body{flex:1 1 auto;display:flex;min-height:0}
+.body main{flex:1 1 auto;min-width:0}
+.azbar{
+  flex:0 0 auto;display:flex;flex-direction:column;justify-content:space-evenly;
+  touch-action:none;-webkit-user-select:none;user-select:none;
+  padding:6px 2px calc(6px + env(safe-area-inset-bottom));
+  border-left:1px solid var(--line-soft);
+}
+.azbar button{
+  font-family:var(--mono);font-size:13px;line-height:1;color:var(--accent);
+  width:28px;min-height:20px;padding:0;text-align:center;
+}
+.azbar button:active{color:var(--txt)}
+.azbar button:disabled{color:#454d5c}
+.bad{padding:8px;font-size:16px;color:var(--warn)}
+
+/* ---------- modal ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(8,10,14,.72);
+  display:flex;align-items:flex-end;justify-content:center;z-index:50;
+}
+.modal{
+  width:100%;max-width:520px;background:var(--panel);
+  /* dvh rekent met het venster zoals je het ziet; vh telt de balken mee die
+     tijdens scrollen verdwijnen, waardoor de onderkant onbereikbaar werd */
+  max-height:92vh;
+  max-height:92dvh;
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:16px 16px 0 0;padding:16px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom));
+}
+@media(min-width:560px){
+  .overlay{align-items:center}
+  .modal{border-radius:16px}
+}
+.modal h3{margin:0 0 22px;font-size:24px;font-weight:600;letter-spacing:.02em}
+.field{margin-bottom:10px}
+.field.rij{display:flex;align-items:center;gap:8px}
+.field.rij label{margin:0;flex:0 0 auto}
+.field.rij input{flex:1;min-width:0}
+.field label{display:block;font-size:17px;line-height:1.05;color:var(--muted);margin-bottom:6px;
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{
+  width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:8px;
+  background:#151920;color:var(--txt);font-family:var(--mono);font-size:19px;
+}
+.grid3{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:8px}
+.grid3w{grid-template-columns:.62fr 1.15fr 1.23fr}
+.seg{display:flex;gap:6px;margin-bottom:10px}
+.seg button{flex:1;padding:11px 4px;border:1px solid var(--line);border-radius:8px;
+  background:#28313f;font-size:17px;font-weight:600;color:var(--txt)}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#0e1219}
+.datebox{border:1px solid var(--line-soft);border-radius:10px;padding:11px;background:#151920}
+.preview{
+  margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+}
+.preview-txt{font-size:19px}
+.preview-code{font-size:17px;color:var(--muted);letter-spacing:.04em}
+.sectiekop{
+  width:100%;display:flex;align-items:center;gap:8px;
+  padding:12px 12px;border:1px solid var(--line);border-radius:8px;background:#28313f;
+  color:var(--txt);font-family:var(--mono);font-size:17px;
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.sectiekop:hover{border-color:var(--accent)}
+.sectiekop .aantal{color:var(--muted)}
+.sectiekop .chev{margin-left:auto;flex:0 0 auto}
+.sectiekop.open{border-color:var(--accent);color:var(--accent)}
+.sectiekop.open .chev{transform:rotate(90deg)}
+.sectiekop + div{margin-top:8px}
+.veldkop{
+  font-family:var(--mono);font-size:15px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;margin:12px 0 5px;
+}
+.veldkop:first-child{margin-top:0}
+.veldkop label{font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;margin:0}
+.editlist{display:flex;flex-direction:column;gap:8px}
+/* alle bewerkregels delen hetzelfde raster, zodat de kolommen uitlijnen */
+.editrow{display:grid;grid-template-columns:64px 1fr 44px;gap:8px;align-items:center}
+.editrow .nr{width:auto;text-align:center;padding-left:6px;padding-right:6px}
+.editrow input{min-width:0}
+.editrow .icon-btn{width:100%;height:44px}
+.editrow .icon-btn.danger{width:44px}
+.editrow .icon-btn svg{width:23px;height:23px;flex:0 0 auto}
+.btn.addrow{width:100%;margin-top:8px;font-size:17px;padding:10px 14px}
+.typefield{
+  width:100%;display:flex;align-items:center;gap:10px;
+  padding:13px 14px;border:1px solid var(--line);border-radius:8px;
+  background:#151920;color:var(--txt);font-family:var(--mono);font-size:19px;text-align:left;
+}
+.typefield:hover{border-color:var(--accent)}
+.typefield.compact{padding:13px 10px;gap:0}
+.typefield span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.typefield svg{width:23px;height:23px;flex:0 0 auto;color:var(--muted)}
+.rowlist{display:flex;flex-direction:column;gap:8px}
+.rowlist.twee{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kopmetschuif{display:flex;align-items:center;gap:10px}
+.schuif{
+  margin-left:auto;flex:0 0 auto;position:relative;
+  width:52px;height:30px;border-radius:15px;padding:0;
+  background:#28313f;border:1px solid var(--line);
+}
+.schuif span{
+  position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:var(--muted);transition:left .15s,background .15s;
+}
+.schuif.aan{background:var(--accent);border-color:var(--accent)}
+.schuif.aan span{left:26px;background:#0e1219}
+.catrij-wrap{display:flex;gap:8px;align-items:center}
+.catrij-wrap #filterCats{flex:1;min-width:0}
+.notknop{flex:0 0 auto;padding:8px 12px}
+.notknop svg{width:21px;height:21px}
+.rowlist.twee .source-row{min-width:0;padding:10px}
+.rowlist.twee .title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.numgrid{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;
+  max-height:46vh;overflow-y:auto;
+}
+.jaarrij{display:flex;gap:10px;align-items:center;margin-top:10px}
+.jaarrij .icon-btn{width:52px;height:52px;flex:0 0 auto}
+#jaarVeld{
+  flex:1;min-width:0;text-align:center;
+  font-family:var(--mono);font-size:30px;letter-spacing:.06em;
+  padding:10px 6px;border:1px solid var(--line);border-radius:8px;
+  background:#151920;color:var(--txt);
+}
+#jaarVeld::placeholder{color:#5f6878;letter-spacing:.04em}
+.numgrid button{
+  padding:11px 0;border:1px solid var(--line);border-radius:8px;background:#28313f;
+  color:var(--txt);font-family:var(--mono);font-size:18px;
+}
+.numgrid button.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
+.numgrid button:disabled{opacity:.28;cursor:not-allowed}
+.icoongrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow-y:auto}
+.icoonkeuze{
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;
+  border:1px solid var(--line);border-radius:8px;background:#28313f;color:var(--txt);
+}
+.icoonkeuze svg{width:26px;height:26px}
+.icoonkeuze span{font-size:14px;color:var(--muted);text-align:center;line-height:1.2}
+.icoonkeuze.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
+.icoonkeuze.selected span{color:var(--txt)}
+.source-row.wide{justify-content:center}
+/* twee bijzondere regels onder elkaar hebben wat lucht nodig */
+.source-row.wide + .source-row.wide{margin-top:8px}
+.source-row.wide.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
+.source-row{
+  display:flex;align-items:center;gap:12px;width:100%;
+  background:#28313f;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+}
+.source-row .title{font-weight:400;font-size:19px}
+.source-row svg{width:23px;height:23px;flex:0 0 auto;color:var(--muted)}
+.source-row.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
+.source-row.selected svg{color:var(--txt)}
+.bijzonder{border-style:dashed;color:var(--accent)}
+.bijzonder .title{
+  font-family:var(--mono);font-size:17px;text-transform:uppercase;letter-spacing:.06em;
+}
+.bijzonder svg{width:22px;height:22px;flex:0 0 auto}
+.bijzonder.selected{border-color:var(--accent);border-style:dashed}
+.bijzonder.selected .title{color:var(--txt)}
+#typeModal,#pasenModal,#maandModal,#dagModal,#jaarModal,#ndeModal,#weekdagModal{z-index:60}
+.field textarea{min-height:0;overflow:hidden;white-space:pre-wrap;word-break:break-word;resize:none}
+.cfgstatic{
+  padding:11px 14px;border:1px solid var(--line-soft);border-radius:8px;
+  background:#151920;color:var(--muted);font-size:18px;
+  overflow-wrap:anywhere;
+}
+.cfgstatic + .cfgstatic{margin-top:6px}
+.checkkop{
+  margin:14px 0 6px;font-family:var(--mono);font-size:16px;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.checkkop:first-child{margin-top:0}
+.checkregel{font-size:17px;padding:4px 0;border-bottom:1px solid var(--line-soft);overflow-wrap:anywhere}
+.checkregel:last-child{border-bottom:none}
+.checkgoed{font-size:19px;color:var(--ok)}
+.checkregel.slecht{color:var(--danger)}
+.cbody{color:var(--txt);font-size:18px;line-height:1.4;overflow-wrap:anywhere}
+.statuslbl{font-family:var(--mono);font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.inforij{padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.inforij:last-child{border-bottom:none}
+.inforij .lbl{
+  display:block;margin-bottom:3px;
+  font-family:var(--mono);font-size:15px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.inforij .wrd{display:block;font-size:19px;overflow-wrap:anywhere}
+.inforij.nu .wrd{color:var(--accent);font-weight:600}
+.inforij .wrd svg{
+  display:inline-block;width:22px;height:22px;
+  vertical-align:-4px;margin-right:8px;color:var(--muted);
+}
+#cfgModal{z-index:55}
+#catModal{z-index:60}
+#icoonModal{z-index:62}
+#infoModal{z-index:64}
+#checkModal{z-index:66}
+#filterModal{z-index:58}
+#picker{z-index:65}
+.savehint{font-size:16px;color:var(--muted);margin-top:6px;padding-left:2px}
+.savehint.err{color:var(--danger)}
+.dot.err{background:var(--danger)}
+/* opvulling in plaats van marge: een marge zou samenvloeien met die van het
+   laatste veld en dan blijft er maar tien pixel over */
+.modal-actions{display:flex;gap:8px;margin-top:0;padding-top:14px;align-items:stretch}
+.modal-actions .btn{flex:1}
+.modal-actions .icon-btn{width:52px;height:auto;align-self:stretch}
+#confirm{z-index:70}
+.err{color:var(--danger);font-size:17px;margin-top:0;min-height:0}
+/* lege hulpvakjes mogen geen hoogte innemen tussen het laatste veld en de knoppen */
+.err:empty,.hint:empty,#cfgExtra:empty{display:none}
+.hint{font-size:18px;color:var(--muted);margin-top:6px}
+@media(prefers-reduced-motion:no-preference){
+  .modal{animation:rise .16s ease-out}
+  @keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="filebar" id="filebar"></div>
+
+  <div class="kopregel">
+    <button class="chip modeknop" id="filterMode" title="Filter op jaar, type en categorie"></button>
+    <input class="search" id="zoek" type="search" placeholder="Zoek op naam, type, …" autocomplete="off" hidden>
+    <button class="icon-btn" id="zoekKnop" title="Zoeken" aria-label="Zoeken"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2"/></svg></button>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <div class="panel-head">
+    <h2><span id="panelTitel">Events</span> <span class="count" id="count"></span></h2>
+    <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="icon-btn" id="btnCfg" title="Configuratie" aria-label="Configuratie">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.4-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+    <button class="icon-btn prominent" id="btnNew" title="Nieuw event" aria-label="Nieuw event">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="icon-btn prominent" id="btnEdit" title="Wijzig geselecteerd event" aria-label="Wijzig" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="body">
+  <main>
+    <div class="list" id="lijst"></div>
+    <div class="bad" id="bad"></div>
+  </main>
+  <div class="azbar" id="azbar" hidden></div>
+</div>
+
+<!-- record editor -->
+<div class="overlay" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">Event</h3>
+
+    <div class="field">
+      <label for="fSleutel" id="lblSleutel">Event</label>
+      <textarea id="fSleutel" rows="1" placeholder="Achternaam, Voornaam"></textarea>
+    </div>
+    <div class="field">
+      <label for="fNaam" id="lblNaam">Naam</label>
+      <input id="fNaam" type="text" placeholder="Voornaam Achternaam">
+    </div>
+    <div class="field">
+      <label for="fType" id="lblType">Type</label>
+      <button class="typefield" id="fType"><span id="fTypeIc"></span><span id="fTypeTxt">Geboren</span></button>
+    </div>
+
+    <div class="field">
+      <label id="lblDatum">Datum</label>
+      <div class="seg" id="dateModes">
+        <button data-mode="vast">Datum</button>
+        <button data-mode="wisselend">Dag</button>
+        <button data-mode="pasen">Rond Pasen</button>
+      </div>
+      <div class="datebox">
+        <div id="paneVast">
+          <div class="grid3">
+            <button class="typefield compact" id="fDag"><span id="fDagTxt">dag</span></button>
+            <button class="typefield compact" id="fMaand"><span id="fMaandTxt">maand</span></button>
+            <button class="typefield compact" id="fJaar"><span id="fJaarTxt">jaar</span></button>
+          </div>
+          <div class="hint">Kies “onbekend” als een deel van de datum niet bekend is.</div>
+        </div>
+        <div id="paneWissel" hidden>
+          <div class="grid3 grid3w">
+            <button class="typefield compact" id="fNde"><span id="fNdeTxt">1e</span></button>
+            <button class="typefield compact" id="fWeekdag"><span id="fWeekdagTxt">zondag</span></button>
+            <button class="typefield compact" id="fWmaand"><span id="fWmaandTxt">januari</span></button>
+          </div>
+          <div class="hint">Bv. 3e dinsdag van september.</div>
+        </div>
+        <div id="panePasen" hidden>
+          <button class="typefield" id="fPasen"><span id="fPasenTxt">eerste paasdag</span></button>
+        </div>
+        <div class="preview">
+          <span class="preview-txt" id="dPreview">—</span>
+          <span class="preview-code mono" id="dCode">D00000000</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label id="lblCat">Categorie</label>
+      <button class="typefield" id="fCat"><span id="fCatTxt">2</span></button>
+    </div>
+
+    <div class="field">
+      <label for="fNotitie" id="lblNotitie">Notitie</label>
+      <textarea id="fNotitie" rows="1" placeholder="optioneel"></textarea>
+    </div>
+
+    <div class="err" id="mErr"></div>
+    <div class="modal-actions">
+      <button class="icon-btn danger" id="mDel" title="Event verwijderen" aria-label="Event verwijderen">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      </button>
+      <button class="btn" id="mCancel">Annuleren</button>
+      <button class="btn btn-primary" id="mOk">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- hoeveelste -->
+<div class="overlay" id="ndeModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Hoeveelste</h3>
+    <div id="ndeList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="ndeCancel">Annuleren</button>
+      <button class="btn btn-primary" id="ndeOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- weekdag -->
+<div class="overlay" id="weekdagModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Weekdag kiezen</h3>
+    <div id="weekdagList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="weekdagCancel">Annuleren</button>
+      <button class="btn btn-primary" id="weekdagOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- dagkeuze -->
+<div class="overlay" id="dagModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Dag kiezen</h3>
+    <button class="source-row wide bijzonder" id="dagOnbekend"></button>
+    <div id="dagGrid" class="numgrid"></div>
+    <div class="modal-actions">
+      <button class="btn" id="dagCancel">Annuleren</button>
+      <button class="btn btn-primary" id="dagOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- jaarkeuze -->
+<div class="overlay" id="jaarModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Jaar kiezen</h3>
+    <button class="source-row wide bijzonder" id="jaarOnbekend"></button>
+    <button class="source-row wide bijzonder" id="jaarDitJaar"></button>
+    <div class="jaarrij">
+      <button class="icon-btn" id="jaarMin" aria-label="Jaar terug">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <input id="jaarVeld" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Jaar">
+      <button class="icon-btn" id="jaarPlus" aria-label="Jaar vooruit">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <div class="hint" id="jaarHint"></div>
+    <div class="modal-actions">
+      <button class="btn" id="jaarCancel">Annuleren</button>
+      <button class="btn btn-primary" id="jaarOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- maandkeuze -->
+<div class="overlay" id="maandModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Maand kiezen</h3>
+    <div id="maandList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="maandCancel">Annuleren</button>
+      <button class="btn btn-primary" id="maandOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- paaskeuze -->
+<div class="overlay" id="pasenModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Dag rond Pasen</h3>
+    <div id="pasenList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="pasenCancel">Annuleren</button>
+      <button class="btn btn-primary" id="pasenOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- typekeuze -->
+<div class="overlay" id="typeModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Type kiezen</h3>
+    <div id="typeList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="typeCancel">Annuleren</button>
+      <button class="btn btn-primary" id="typeOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- bestandskeuze -->
+<div class="overlay" id="picker" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Events-bestand kiezen</h3>
+    <div id="pickList" class="rowlist"></div>
+    <div class="field" style="margin-top:14px">
+      <label for="pickNew">Of een nieuwe naam</label>
+      <input id="pickNew" type="text" placeholder="events.txt">
+    </div>
+    <div class="err" id="pickErr"></div>
+    <div class="modal-actions">
+      <button class="btn" id="pickCancel">Annuleren</button>
+      <button class="btn btn-primary" id="pickOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- controle -->
+<div class="overlay" id="checkModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
+    <h3 id="checkTitel">Bestandscontrole</h3>
+    <div id="checkBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="checkOk">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<!-- filter -->
+<div class="overlay" id="filterModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3 class="kopmetschuif">Filter
+      <button class="schuif" id="filterAanUit" role="switch" title="Filter aan of uit"><span></span></button>
+    </h3>
+    <div class="field rij">
+      <label>Jaar</label>
+      <button class="typefield" id="filterJaar"><span id="filterJaarTxt"></span></button>
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <div id="filterTypes" class="rowlist twee"></div>
+    </div>
+    <div class="field">
+      <label>Categorie &amp; notitie</label>
+      <div class="catrij-wrap">
+        <div id="filterCats" class="chips catrij"></div>
+        <button class="chip notknop" id="filterNotKnop" title="Alleen met notitie"></button>
+      </div>
+    </div>
+    <button class="btn addrow" id="filterStd">Bewaar als standaard</button>
+    <div class="hint" id="filterStdHint"></div>
+    <div class="err" id="filterErr"></div>
+    <div class="modal-actions">
+      <button class="btn" id="filterCancel">Annuleren</button>
+      <button class="btn btn-primary" id="filterOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- eventinfo -->
+<div class="overlay" id="infoModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3 id="infoTitel">Event</h3>
+    <div id="infoBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="infoOk">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<!-- icoonkeuze -->
+<div class="overlay" id="icoonModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Icoon kiezen</h3>
+    <div id="icoonGrid" class="icoongrid"></div>
+    <div class="modal-actions">
+      <button class="btn" id="icoonCancel">Annuleren</button>
+      <button class="btn btn-primary" id="icoonOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- categoriekeuze -->
+<div class="overlay" id="catModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Categorie kiezen</h3>
+    <div id="catList" class="rowlist"></div>
+    <div class="modal-actions">
+      <button class="btn" id="catCancel">Annuleren</button>
+      <button class="btn btn-primary" id="catOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- configuratie -->
+<div class="overlay" id="cfgModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
+    <h3>Configuratie</h3>
+    <div class="field rij">
+      <label for="cfgTitel">Titel</label>
+      <input id="cfgTitel" type="text" placeholder="Events">
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopBestand" aria-expanded="false">
+        Bestand <span class="aantal" id="aantalBestand"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakBestand" hidden>
+        <div class="veldkop">Metabestand</div>
+        <div class="cfgstatic mono" id="cfgMetaNaam"></div>
+        <div class="veldkop">Events-bestand</div>
+        <button class="typefield" id="cfgBestand"><span id="cfgBestandTxt">—</span></button>
+        <div class="veldkop"><label for="cfgSep">Scheidingsteken</label></div>
+        <input id="cfgSep" type="text" maxlength="1" placeholder=";">
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopVelden" aria-expanded="false">
+        Veldnamen <span class="aantal" id="aantalVelden"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakVelden" hidden>
+        <div id="cfgVelden" class="editlist"></div>
+        <div class="hint">De volgorde ligt vast in het bestandsformaat; alleen de namen zijn vrij.</div>
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopTypes" aria-expanded="false">
+        Types <span class="aantal" id="aantalTypes"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakTypes" hidden>
+        <div id="cfgTypes" class="editlist"></div>
+        <button class="btn addrow" id="cfgTypeAdd">+ type</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopCats" aria-expanded="false">
+        Categorieën <span class="aantal" id="aantalCats"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakCats" hidden>
+        <div id="cfgCats" class="editlist"></div>
+        <button class="btn addrow" id="cfgCatAdd">+ categorie</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopPaas" aria-expanded="false">
+        Paasdagen <span class="aantal" id="aantalPaas"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakPaas" hidden>
+        <div id="cfgPaas" class="editlist"></div>
+        <button class="btn addrow" id="cfgPaasAdd">+ paasdag</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopRapport" aria-expanded="false">
+        App &amp; Data <span class="aantal" id="aantalRapport"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakRapport" hidden>
+        <button class="btn addrow" id="cfgCheck">Bestand controleren</button>
+        <button class="btn addrow" id="cfgStatus">App-status</button>
+      </div>
+    </div>
+    <div id="cfgExtra"></div>
+    <div class="err" id="cfgErr"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cfgCancel">Annuleren</button>
+      <button class="btn btn-primary" id="cfgOk">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- confirm -->
+<div class="overlay" id="confirm" hidden>
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:400px">
+    <h3 id="cTitle">Weet je het zeker?</h3>
+    <div id="cBody" class="cbody"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cNo">Annuleren</button>
+      <button class="btn btn-danger" id="cYes">Verwijderen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ===================================================================
+   Formaat
+   sleutel;weergavenaam;type;datumcode;categorie[;notitie]
+
+   datumcode = "D" + 8 cijfers, jaarveld bepaalt de soort:
+     JJJJMMDD   vaste datum (0000/00 = onbekend)
+     000W MM NN wisselende dag: W=weekdag 1..7 (ma..zo),
+                MM=maand, NN=hoeveelste (1..5, 99=laatste)
+     0008 AA BB paasgerelateerd: verschuiving = AA - BB dagen
+   =================================================================== */
+
+var MAANDEN = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+var DAGEN = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
+/* tekeningen blijven in de code; welk icoon bij welk type hoort staat in de cfg */
+var ICONEN = {
+  'scheut':          '<path d="M12 21v-7"/><path d="M12 14c0-3.3 2.7-6 6-6 0 3.3-2.7 6-6 6z"/><path d="M12 14c0-2.2-1.8-4-4-4 0 2.2 1.8 4 4 4z"/>',
+  'grafsteen':       '<path d="M6.5 21h11"/><path d="M8 21V9a4 4 0 0 1 8 0v12"/>',
+  'ringen':          '<circle cx="9.5" cy="14" r="5"/><circle cx="14.5" cy="14" r="5"/>',
+  'gebroken ringen': '<circle cx="6.2" cy="14.5" r="4.5"/><circle cx="17.8" cy="14.5" r="4.5"/><path d="M12 6v17"/>',
+  'kaars':           '<path d="M12 3c1.6 1.7 2.5 2.9 2.5 4a2.5 2.5 0 0 1-5 0c0-1.1.9-2.3 2.5-4z"/><path d="M9.5 11h5v9h-5z"/><path d="M7 20h10"/>',
+  'ster':            '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/>',
+  'kalender':        '<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M3.5 10.5h17M8 3.5v4M16 3.5v4"/>',
+  'hart':            '<path d="M12 20.5S4.5 16 4.5 10.8A4 4 0 0 1 12 8.6a4 4 0 0 1 7.5 2.2c0 5.2-7.5 9.7-7.5 9.7z"/>',
+  'geschenk':        '<rect x="3.5" y="9.5" width="17" height="11" rx="1.5"/><path d="M3.5 13.5h17M12 9.5V20.5"/><path d="M12 9.5S10.5 5 8.5 5a2 2 0 1 0 0 4.5zM12 9.5S13.5 5 15.5 5a2 2 0 1 1 0 4.5z"/>',
+  'vlag':            '<path d="M6 21V4"/><path d="M6 5h11l-2 3.5L17 12H6z"/>',
+  'klok':            '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.2 2"/>',
+  'bolletje':        '<circle cx="12" cy="12" r="3.5"/>',
+  'notitie':         '<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>'
+};
+var TYPES = [
+  { omschrijving:'Geboren',     icoon:'scheut' },
+  { omschrijving:'Overleden',   icoon:'grafsteen' },
+  { omschrijving:'Getrouwd',    icoon:'ringen' },
+  { omschrijving:'Gescheiden',  icoon:'gebroken ringen' },
+  { omschrijving:'Gedenkdag',   icoon:'kaars' },
+  { omschrijving:'Feestdag',    icoon:'ster' },
+  { omschrijving:'Gebeurtenis', icoon:'kalender' }
+];
+function svgIcoon(naam, label){
+  var p = ICONEN[naam] || ICONEN['bolletje'];
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+         'stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="' + esc(label || naam || '') + '">' + p + '</svg>';
+}
+function typeIcoonNaam(t){
+  var lijst = typeOpties();
+  for(var i=0;i<lijst.length;i++){ if(lijst[i].omschrijving === t) return lijst[i].icoon || ''; }
+  return '';
+}
+function typeIcon(t){ return svgIcoon(typeIcoonNaam(t), t); }
+
+var PAASDAGEN = [
+  { omschrijving:'carnaval', dagen:-49 },
+  { omschrijving:'as woensdag', dagen:-46 },
+  { omschrijving:'palmzondag', dagen:-7 },
+  { omschrijving:'witte donderdag', dagen:-3 },
+  { omschrijving:'goede vrijdag', dagen:-2 },
+  { omschrijving:'eerste paasdag', dagen:0 },
+  { omschrijving:'tweede paasdag', dagen:1 },
+  { omschrijving:'hemelvaart', dagen:39 },
+  { omschrijving:'eerste pinksterdag', dagen:49 },
+  { omschrijving:'tweede pinksterdag', dagen:50 }
+];
+var VELDEN = ['Event','Naam','Type','Datum','Categorie','Notitie'];
+
+/* ------------------ state ------------------ */
+var records = [];      // {sleutel,naam,type,code,cat,notitie} of {raw:'...'}
+var dirty = false;
+var selIndex = -1;     // index in records
+var filterType = '';
+var filterCatVan = 0, filterCatTot = 0;   // 0 = geen categoriefilter
+var filterNotitie = false;                // alleen events met een notitie
+var filterAan = true;                     // staat het filter als geheel aan?
+var datumFilter = '';        // '' | ~dag | ~week | ~maand | 1..12 | onbekend
+var zichtJaar = new Date().getFullYear();   // jaar waarvoor de datums worden berekend
+var datumVan = {};           // index -> berekende datum, gevuld door zichtbaar()
+var zoekterm = '';
+var zoekModus = false;   // zoeken en filteren sluiten elkaar uit
+var editIndex = -1;    // -1 = nieuw
+var negeerDubbel = false;
+var naamAuto = false;        // zolang waar, volgt het naamveld het eventveld
+
+/* "Albers, Sandra" wordt "Sandra Albers"; zonder komma blijft het zoals het is */
+function draaiNaam(t){
+  var i = t.indexOf(',');
+  if(i < 0) return t.trim();
+  return (t.slice(i + 1).trim() + ' ' + t.slice(0, i).trim()).trim();
+}
+var huidigType = 'Geboren';
+var typeKeuze = '';
+var pasenKeuze = 0;
+var maandKeuze = '', maandDoel = 'vast';
+var jaarDoel = 'datum';      // 'datum' (in de bewerk-modal) of 'filter' (in de filtermodal)
+var dagKeuze = '', jaarKeuze = '';
+var ndeKeuze = 1, weekdagKeuze = 7;
+var catKeuze = 2;
+var terug = null;            // momentopname voor één stap ongedaan maken
+function onthoud(tekst){
+  terug = { tekst:tekst, snap:records.map(function(r){
+    return r.raw !== undefined ? { raw:r.raw }
+      : { sleutel:r.sleutel, naam:r.naam, type:r.type, code:r.code, cat:r.cat, notitie:r.notitie };
+  }) };
+}
+var dstate = { mode:'vast', dag:'', maand:'', jaar:'', nde:1, weekdag:7, wmaand:1, offset:0 };
+var cat = 2;
+var confirmCb = null;
+
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function pad(n,l){ n = String(Math.abs(parseInt(n,10)||0)); while(n.length<l) n='0'+n; return n; }
+
+/* ------------------ datumcode ------------------ */
+function decode(code){
+  if(!/^D\d{8}$/.test(code||'')) return null;
+  var y = code.slice(1,5), m = +code.slice(5,7), d = +code.slice(7,9);
+  if(y === '0008') return { mode:'pasen', offset:m - d };
+  var yn = +y;
+  if(yn >= 1 && yn <= 7) return { mode:'wisselend', weekdag:yn, wmaand:m, nde:d };
+  return { mode:'vast', jaar:yn, maand:m, dag:d };
+}
+function encode(s){
+  if(s.mode === 'pasen'){
+    var o = parseInt(s.offset,10) || 0;
+    return 'D0008' + (o >= 0 ? pad(o,2)+'00' : '00'+pad(-o,2));
+  }
+  if(s.mode === 'wisselend'){
+    return 'D000' + (parseInt(s.weekdag,10)||7) + pad(s.wmaand,2) + pad(s.nde,2);
+  }
+  return 'D' + pad(s.jaar,4) + pad(s.maand,2) + pad(s.dag,2);
+}
+/* Berekende waarden worden per datumcode onthouden. De sleutel is de code
+   zelf, dus een gewijzigd record krijgt vanzelf een nieuwe ingang. De dag- en
+   datumtabellen worden geleegd zodra het een dag later is. */
+var cacheDag = '', cacheDatum = {}, cacheDagen = {}, cacheLees = {}, cacheRegel = {};
+function verversCache(){
+  var d = dagsleutel();
+  if(d !== cacheDag){ cacheDag = d; cacheDatum = {}; cacheDagen = {}; }
+}
+
+function leesbaar(code){
+  if(code in cacheLees) return cacheLees[code];
+  return (cacheLees[code] = berekenLeesbaar(code));
+}
+function berekenLeesbaar(code){
+  var s = decode(code);
+  if(!s) return '?';
+  if(s.mode === 'pasen'){
+    if(s.offset === 0) return 'eerste paasdag';
+    return 'Pasen ' + (s.offset > 0 ? '+ ' : '\u2212 ') + Math.abs(s.offset) + ' dagen';
+  }
+  if(s.mode === 'wisselend'){
+    var n = s.nde === 99 ? 'laatste' : s.nde + 'e';
+    return n + ' ' + (DAGEN[s.weekdag-1]||'?') + ' van ' + (MAANDEN[s.wmaand-1]||'?');
+  }
+  if(s.dag && s.maand && s.jaar >= 1000){
+    var vol = new Date(s.jaar, s.maand - 1, s.dag);
+    if(vol.getMonth() === s.maand - 1 && vol.getDate() === s.dag) return datumTekst(vol);
+  }
+  var p = [];
+  if(s.dag) p.push(s.dag);
+  if(s.maand) p.push(MAANDEN[s.maand-1] || '?');
+  if(s.jaar) p.push(s.jaar);
+  return p.length ? p.join(' ') : 'onbekend';
+}
+
+/* ------------------ datum uitrekenen voor een jaar ------------------ */
+/* eerste paasdag volgens Meeus/Jones/Butcher */
+function paasDatum(j){
+  var a = j % 19, b = Math.floor(j / 100), c = j % 100;
+  var d = Math.floor(b / 4), e = b % 4;
+  var f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  var h = (19 * a + b - d - g + 15) % 30;
+  var i = Math.floor(c / 4), k = c % 4;
+  var l = (32 + 2 * e + 2 * i - h - k) % 7;
+  var m = Math.floor((a + 11 * h + 22 * l) / 451);
+  var maand = Math.floor((h + l - 7 * m + 114) / 31);
+  var dag = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(j, maand - 1, dag);
+}
+function isoWeekdag(d){ return ((d.getDay() + 6) % 7) + 1; }   /* 1 = maandag */
+function ndeWeekdag(j, maand, weekdag, nde){
+  var d;
+  if(nde === 99){
+    d = new Date(j, maand, 0);                                  /* laatste dag van de maand */
+    while(isoWeekdag(d) !== weekdag) d.setDate(d.getDate() - 1);
+    return d;
+  }
+  d = new Date(j, maand - 1, 1);
+  while(isoWeekdag(d) !== weekdag) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + (nde - 1) * 7);
+  return d.getMonth() === maand - 1 ? d : null;                 /* een 5e bestaat niet elk jaar */
+}
+function datumTekst(d){
+  return DAGEN[isoWeekdag(d) - 1] + ' ' + d.getDate() + ' ' + MAANDEN[d.getMonth()] + ' ' + d.getFullYear();
+}
+/* levert een leesbare datum voor het gevraagde jaar, of uitleg waarom dat niet kan */
+function datumInJaar(code, jaar){
+  var st = decode(code);
+  if(!st) return '?';
+  if(st.mode === 'pasen'){
+    var p = paasDatum(jaar);
+    p.setDate(p.getDate() + st.offset);
+    return datumTekst(p);
+  }
+  if(st.mode === 'wisselend'){
+    var w = ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
+    return w ? datumTekst(w) : 'bestaat niet in ' + jaar;
+  }
+  if(!st.maand || !st.dag) return 'onvolledige datum';
+  if(st.maand === 2 && st.dag === 29 && !schrikkeljaar(jaar)){
+    var v = jaar + 1;
+    while(!schrikkeljaar(v)) v++;
+    return '29 februari \u2014 niet in ' + jaar + ', eerstvolgend in ' + v;
+  }
+  return datumTekst(new Date(jaar, st.maand - 1, st.dag));
+}
+
+var DAG_KORT = ['ma','di','wo','do','vr','za','zo'];
+/* twee losse stukjes voor de tabel, elk in hun eigen kolom, zodat ze per soort
+   uitlijnen in plaats van per regel te verschuiven */
+function weekdagKort(d){ return d ? DAG_KORT[isoWeekdag(d) - 1] : ''; }
+function datumKort(d){ return d ? pad(d.getDate(),2) + '-' + pad(d.getMonth() + 1, 2) : '\u2014'; }
+/* de datum waarop dit event in het gevraagde jaar valt, of null */
+function eventDatum(r, jaar){
+  if(r.raw !== undefined) return null;
+  var k = r.code + '|' + jaar;
+  if(k in cacheDatum) return cacheDatum[k];
+  return (cacheDatum[k] = berekenEventDatum(r.code, jaar));
+}
+function berekenEventDatum(code, jaar){
+  var st = decode(code);
+  if(!st) return null;
+  if(st.mode === 'pasen'){
+    var p = paasDatum(jaar);
+    p.setDate(p.getDate() + st.offset);
+    return p;
+  }
+  if(st.mode === 'wisselend') return ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
+  if(!st.maand || !st.dag) return null;
+  /* een schrikkeldag bestaat alleen in een schrikkeljaar; in andere jaren
+     heeft dit event dus geen datum en valt het buiten elk filter */
+  if(st.maand === 2 && st.dag === 29 && !schrikkeljaar(jaar)) return null;
+  return new Date(jaar, st.maand - 1, st.dag);
+}
+/* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
+   Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
+   jaren nergens: dat is niet onbekend maar niet-bestaand. */
+function heeftDatumRegel(r){
+  if(r.raw !== undefined) return false;
+  if(r.code in cacheRegel) return cacheRegel[r.code];
+  var st = decode(r.code), uit = false;
+  if(st) uit = (st.mode === 'pasen' || st.mode === 'wisselend') ? true : !!(st.maand && st.dag);
+  return (cacheRegel[r.code] = uit);
+}
+
+/* dagen tot de eerstvolgende keer dat dit event valt; negatief = net geweest.
+   Valt het dit jaar nergens, dan is er niets te tellen. */
+function dagenTov(r, jaar){
+  if(jaar === undefined) jaar = zichtJaar;
+  if(r.raw !== undefined) return null;
+  var k = r.code + '|' + jaar;
+  if(k in cacheDagen) return cacheDagen[k];
+  return (cacheDagen[k] = berekenDagenTov(r, jaar));
+}
+function berekenDagenTov(r, jaar){
+  var vandaag = new Date(); vandaag.setHours(0,0,0,0);
+  var nu = vandaag.getFullYear();
+  var d = eventDatum(r, jaar);
+  if(!d) return null;
+  var beste = Math.round((d - vandaag) / 86400000);
+  /* in het lopende jaar telt de dichtstbijzijnde keer, zodat een event van
+     begin januari eind december \u22123 geeft in plaats van +362 */
+  if(jaar === nu){
+    [nu - 1, nu + 1].forEach(function(y){
+      var b = eventDatum(r, y);
+      if(!b) return;
+      var n = Math.round((b - vandaag) / 86400000);
+      if(Math.abs(n) < Math.abs(beste)) beste = n;
+    });
+  }
+  return beste;
+}
+function dagenKort(n){
+  if(n === null) return '';
+  return n > 0 ? '+' + n : String(n);
+}
+function dagenLang(n){
+  if(n === null) return '\u2014';
+  if(n === 0) return 'vandaag';
+  if(n === 1) return 'morgen';
+  if(n === -1) return 'gisteren';
+  return n > 0 ? 'over ' + n + ' dagen' : Math.abs(n) + ' dagen geleden';
+}
+
+/* ~dag   = vandaag en morgen
+   ~week  = drie dagen terug t/m de zondag van volgende week
+   ~maand = drie dagen terug t/m het einde van volgende maand
+   jaar   = vandaag t/m dezelfde datum volgend jaar min een dag, zodat elke
+            jaarlijkse datum er precies een keer in valt */
+function datumVenster(f){
+  var vandaag = new Date(); vandaag.setHours(0,0,0,0);
+  if(f === '~dag'){
+    var eind = new Date(vandaag); eind.setDate(eind.getDate() + 1);
+    return [vandaag, eind];
+  }
+  if(f === 'jaar'){
+    var over = new Date(vandaag);
+    over.setFullYear(over.getFullYear() + 1);
+    over.setDate(over.getDate() - 1);
+    return [vandaag, over];
+  }
+  var start = new Date(vandaag); start.setDate(start.getDate() - 3);
+  if(f === '~maand'){
+    return [start, new Date(vandaag.getFullYear(), vandaag.getMonth() + 2, 0)];
+  }
+  var zo = new Date(vandaag);
+  while(isoWeekdag(zo) !== 7) zo.setDate(zo.getDate() + 1);   /* eerstvolgende zondag */
+  zo.setDate(zo.getDate() + 7);                               /* die van volgende week */
+  return [start, zo];
+}
+function isVenster(f){ return f === '~dag' || f === '~week' || f === '~maand' || f === 'jaar'; }
+function datumLabel(v){
+  if(!v) return '';
+  if(v === 'jaar') return 'het komende jaar';
+  if(v === 'onbekend' || v.charAt(0) === '~') return v;
+  return MAANDEN[+v - 1] || v;
+}
+
+/* ------------------ parsen / serialiseren ------------------ */
+function sep(){
+  var t = cfg.scheidingsteken;
+  return (typeof t === 'string' && t.length === 1) ? t : ';';
+}
+function parse(text){
+  var out = [];
+  var lines = text.split(/\r?\n/);
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(line.trim() === '') continue;
+    var f = line.split(sep());
+    if(f.length < 5 || !/^D\d{8}$/.test(f[3].trim())){ out.push({ raw:line }); continue; }
+    out.push({
+      sleutel: f[0], naam: f[1], type: f[2], code: f[3].trim(),
+      cat: parseInt(f[4],10) || 2,
+      notitie: f.length > 5 ? f.slice(5).join(sep()) : ''
+    });
+  }
+  return out;
+}
+function serialize(){
+  return records.map(function(r){
+    if(r.raw !== undefined) return r.raw;
+    var f = [r.sleutel, r.naam, r.type, r.code, String(r.cat)];
+    if(r.notitie) f.push(r.notitie);
+    return f.join(sep());
+  }).join('\n') + '\n';
+}
+/* accenten weglaten, zodat zoeken en sorteren zich niets aantrekken van
+   een e met of zonder streepje */
+function zonderAccent(t){
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+/* altijd alfabetisch op het eventveld: accenten tellen als de kale letter,
+   verder op tekenvolgorde; gelijke sleutels houden hun onderlinge volgorde */
+function sorteerSleutel(r){
+  return zonderAccent(r.raw !== undefined ? r.raw.split(sep())[0] : r.sleutel);
+}
+function sorteer(){
+  records.sort(function(a,b){
+    var x = sorteerSleutel(a), y = sorteerSleutel(b);
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+}
+
+/* ------------------ werkmap, configuratie en bestand ------------------ */
+var DB = 'events', STORE = 'handles';
+var CFG_STANDAARD = 'events_cfg.json';
+/* De naam van het metabestand mag met ?cfg=... in de URL worden meegegeven.
+   Zonder die parameter blijft het events_cfg.json, dus er verandert niets.
+   Alleen een gewone bestandsnaam is toegestaan: geen pad, geen aanhalings-
+   tekens, zodat de app niet buiten de werkmap kan worden gestuurd. */
+var CFG_NAAM = (function(){
+  try {
+    var p = new URLSearchParams(location.search).get('cfg');
+    if(!p) return CFG_STANDAARD;
+    p = p.trim();
+    if(!/^[A-Za-z0-9 ._-]{1,120}$/.test(p)) return CFG_STANDAARD;
+    if(/^\.|\.$/.test(p)) return CFG_STANDAARD;
+    return /\.[a-z0-9]+$/i.test(p) ? p : p + '.json';
+  } catch(e){ return CFG_STANDAARD; }
+})();
+
+function idb(){
+  return new Promise(function(res,rej){
+    var q = indexedDB.open(DB,1);
+    q.onupgradeneeded = function(){ q.result.createObjectStore(STORE); };
+    q.onsuccess = function(){ res(q.result); };
+    q.onerror = function(){ rej(q.error); };
+  });
+}
+function idbPut(k,v){ return idb().then(function(db){ return new Promise(function(res){
+  var t = db.transaction(STORE,'readwrite'); t.objectStore(STORE).put(v,k); t.oncomplete = res; }); }); }
+function idbGet(k){ return idb().then(function(db){ return new Promise(function(res){
+  var t = db.transaction(STORE,'readonly'), q = t.objectStore(STORE).get(k); q.onsuccess = function(){ res(q.result); }; }); }); }
+function idbDel(k){ return idb().then(function(db){ return new Promise(function(res){
+  var t = db.transaction(STORE,'readwrite'); t.objectStore(STORE).delete(k); t.oncomplete = res; }); }); }
+
+var hasFSA = typeof window.showDirectoryPicker === 'function';
+var dirHandle = null;         // gekoppelde werkmap
+var cfg = {};                 // volledige inhoud van events_cfg.json
+var cfgCRLF = true;           // regeleindes van het cfg-bestand aanhouden
+var cfgFout = '';             // leesfout in de cfg
+var bestandsnaam = '';        // events-bestand volgens de cfg
+var fileState = 'leeg';       // leeg | ok | auth | geencfg
+var saveState = '';           // '' | bezig | ok | fout | extern
+var laatstGelezen = null;     // lastModified van het events-bestand bij inlezen
+
+function dagsleutel(){ var d = new Date(); return d.getFullYear() + pad(d.getMonth()+1,2) + pad(d.getDate(),2); }
+function backupNaam(n){ var i = n.lastIndexOf('.'); return i < 0 ? n + '_backup' : n.slice(0,i) + '_backup' + n.slice(i); }
+
+/* --- koppelen --- */
+function kiesWerkmap(){
+  if(!hasFSA) return openenFallback();
+  window.showDirectoryPicker({ mode:'readwrite' }).then(function(h){
+    dirHandle = h; bestandsnaam = ''; cfg = {}; cfgFout = '';
+    return idbPut('dir', h).then(laadCfg);
+  }).catch(function(){});
+}
+function bestandenInMap(){
+  return (async function(){
+    var lijst = [];
+    for await (var e of dirHandle.values()){
+      if(e.kind === 'file' && /\.(txt|csv)$/i.test(e.name) && !/_backup\.[^.]+$/i.test(e.name)) lijst.push(e.name);
+    }
+    lijst.sort();
+    return lijst;
+  })();
+}
+
+/* --- configuratie --- */
+function laadCfg(){
+  if(!dirHandle) return Promise.resolve();
+  return dirHandle.getFileHandle(CFG_NAAM).then(function(h){ return h.getFile(); })
+    .then(function(f){ return f.text(); })
+    .then(function(t){
+      cfgCRLF = /\r\n/.test(t);
+      cfg = JSON.parse(t);
+      cfgFout = '';
+      bestandsnaam = cfg.bestand || '';
+      pasStandaardFilterToe();
+      if(!bestandsnaam){
+        cfgFout = 'In ' + CFG_NAAM + ' staat geen "bestand".';
+        fileState = 'geencfg'; render(); return;
+      }
+      fileState = 'ok';
+      return laden();
+    })
+    .catch(function(e){
+      records = []; selIndex = -1; dirty = false;
+      if(e && e.name === 'NotFoundError'){
+        cfg = {}; cfgFout = CFG_NAAM + ' staat niet in deze map.';
+        fileState = 'geencfg'; render();
+      } else if(e instanceof SyntaxError){
+        cfgFout = CFG_NAAM + ' is geen geldige JSON: ' + e.message;
+        fileState = 'geencfg'; render();
+      } else {
+        fileState = 'auth'; render();
+      }
+    });
+}
+var CFG_VOLGORDE = ['bestand','titel','scheidingsteken','velden','types','categorieen','paasdagen','filter'];
+function ordenCfg(c){
+  var uit = {};
+  CFG_VOLGORDE.forEach(function(k){ if(c[k] !== undefined) uit[k] = c[k]; });
+  Object.keys(c).forEach(function(k){ if(!(k in uit)) uit[k] = c[k]; });
+  return uit;
+}
+function schrijfCfg(){
+  cfg = ordenCfg(cfg);
+  var tekst = JSON.stringify(cfg, null, 2) + '\n';
+  if(cfgCRLF) tekst = tekst.replace(/\n/g, '\r\n');
+  return maybeBackup(CFG_NAAM)
+    .then(function(){ return dirHandle.getFileHandle(CFG_NAAM, { create:true }); })
+    .then(function(h){ return h.createWritable(); })
+    .then(function(w){ return w.write(tekst).then(function(){ return w.close(); }); });
+}
+
+/* --- events-bestand --- */
+function laden(){
+  if(!dirHandle || !bestandsnaam) return Promise.resolve();
+  return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
+    .then(function(f){ laatstGelezen = f.lastModified; return f.text(); })
+    .then(function(t){
+      records = parse(t); sorteer(); selIndex = -1; dirty = false;
+      if(filterType && !records.some(function(r){ return r.type === filterType; })) filterType = '';
+      terug = null; fileState = 'ok'; saveState = ''; render();
+    })
+    .catch(function(e){
+      if(e && e.name === 'NotFoundError'){
+        records = []; selIndex = -1; dirty = false; fileState = 'ok'; saveState = ''; render();
+      } else { fileState = 'auth'; render(); }
+    });
+}
+function autoriseer(){
+  if(!dirHandle) return;
+  dirHandle.requestPermission({ mode:'readwrite' }).then(function(p){
+    if(p === 'granted') laadCfg(); else render();
+  });
+}
+function ontkoppel(){
+  dirHandle = null; bestandsnaam = ''; cfg = {}; cfgFout = '';
+  records = []; selIndex = -1; dirty = false; fileState = 'leeg'; saveState = '';
+  idbDel('dir'); render();
+}
+
+/* --- schrijven, met dagelijkse backup per bestand --- */
+function maybeBackup(naam){
+  var vandaag = dagsleutel(), sleutel = 'backup:' + naam;
+  return idbGet(sleutel).then(function(laatste){
+    if(laatste === vandaag) return;
+    return dirHandle.getFileHandle(naam).then(function(h){ return h.getFile(); })
+      .then(function(f){ return f.text(); })
+      .then(function(t){
+        return dirHandle.getFileHandle(backupNaam(naam), { create:true })
+          .then(function(bh){ return bh.createWritable(); })
+          .then(function(w){ return w.write(t).then(function(){ return w.close(); }); });
+      })
+      .catch(function(){ /* bestaat nog niet: niets te bewaren */ })
+      .then(function(){ return idbPut(sleutel, vandaag); });
+  }).catch(function(){});
+}
+/* is het bestand sinds het inlezen door iets anders aangeraakt? */
+function externGewijzigd(){
+  return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
+    .then(function(f){ return laatstGelezen !== null && f.lastModified !== laatstGelezen; })
+    .catch(function(){ return false; });   /* bestaat nog niet: niets te overschrijven */
+}
+function schrijfEvents(){
+  var tekst = serialize();
+  saveState = 'bezig'; render();
+  return maybeBackup(bestandsnaam)
+    .then(function(){ return dirHandle.getFileHandle(bestandsnaam, { create:true }); })
+    .then(function(h){ return h.createWritable(); })
+    .then(function(w){ return w.write(tekst).then(function(){ return w.close(); }); })
+    .then(function(){ return dirHandle.getFileHandle(bestandsnaam); })
+    .then(function(h){ return h.getFile(); })
+    .then(function(f){
+      laatstGelezen = f.lastModified;
+      dirty = false; saveState = 'ok'; render();
+    })
+    .catch(function(){ dirty = true; saveState = 'fout'; render(); });
+}
+function bewaar(){
+  if(!hasFSA || !dirHandle || !bestandsnaam){ dirty = true; render(); return; }
+  externGewijzigd().then(function(botsing){
+    if(!botsing) return schrijfEvents();
+    dirty = true; saveState = 'extern'; render();
+    vraag('Buiten de app gewijzigd',
+          bestandsnaam + ' is aangepast sinds de app het inlas. Opslaan overschrijft die wijziging; ' +
+          'vernieuwen gooit jouw wijziging weg.',
+          'Toch opslaan', schrijfEvents);
+  });
+}
+
+/* --- fallback zonder File System Access --- */
+function openenFallback(){
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.txt,.csv,text/plain';
+  inp.onchange = function(){
+    var f = inp.files[0]; if(!f) return;
+    f.text().then(function(t){
+      records = parse(t); selIndex = -1; dirty = false;
+      fileState = 'ok'; bestandsnaam = f.name; render();
+    });
+  };
+  inp.click();
+}
+function downloaden(){
+  var b = new Blob([serialize()], { type:'text/plain' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = bestandsnaam || 'events.txt'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  dirty = false; render();
+}
+
+/* ------------------ rendering ------------------ */
+var ICON_VRAAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.5.9c0 1.9-2.8 2.1-2.8 3.9"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/></svg>';
+var ICON_NU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/></svg>';
+var ICON_TRASH = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+var ICON_REFRESH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>';
+var ICON_X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+function renderFilebar(){
+  var el = $('filebar');
+  if(fileState === 'leeg'){
+    el.innerHTML = '<div class="filebar-empty"><button class="btn" id="fLink">' +
+      (hasFSA ? 'Werkmap koppelen' : 'Bestand openen') + '</button></div>';
+    $('fLink').onclick = kiesWerkmap;
+    return;
+  }
+  if(fileState === 'auth'){
+    el.innerHTML =
+      '<div class="banner">' +
+      '<div class="banner-text">' + esc(dirHandle ? dirHandle.name : 'de werkmap') + '</div>' +
+      '<button class="btn btn-warn" id="fAuth">Toegang autoriseren</button>' +
+      '<button class="btn" id="fUnl">Ontkoppelen</button></div>';
+    $('fAuth').onclick = autoriseer; $('fUnl').onclick = ontkoppel;
+    return;
+  }
+  if(fileState === 'geencfg'){
+    el.innerHTML =
+      '<div class="banner">' +
+      '<div class="banner-text">' + esc(cfgFout) + '</div>' +
+      '<button class="btn btn-warn" id="fCfg">Configuratie</button>' +
+      '<button class="btn" id="fUnl">Ontkoppelen</button></div>';
+    $('fCfg').onclick = openCfg; $('fUnl').onclick = ontkoppel;
+    return;
+  }
+  var kleur = (saveState === 'fout' || saveState === 'extern') ? ' err' : (saveState === 'bezig' || dirty) ? ' warn' : '';
+  el.innerHTML =
+    '<div class="filerow"><span class="dot' + kleur + '"></span>' +
+    '<span class="filename">' + esc(bestandsnaam) + '</span>' +
+    '<button class="icon-btn" id="fRefresh" title="Opnieuw laden" aria-label="Opnieuw laden">' + ICON_REFRESH + '</button>' +
+    '<button class="icon-btn" id="fUnlink" title="Ontkoppelen" aria-label="Ontkoppelen">' + ICON_X + '</button></div>' +
+    (hasFSA ? '' : '<div class="savehint">Automatisch opslaan kan niet in deze browser.</div>' +
+      '<div class="filebar-empty" style="margin-top:10px"><button class="btn" id="fDl">Downloaden</button></div>') +
+    (saveState === 'fout' ? '<div class="savehint err">Opslaan mislukt. Controleer de toegang tot de map.</div>' : '') +
+    (saveState === 'extern' ? '<div class="savehint err">Niet opgeslagen: het bestand is buiten de app gewijzigd.</div>' : '');
+  if($('fDl')) $('fDl').onclick = downloaden;
+  $('fRefresh').onclick = function(){
+    if(!hasFSA) return openenFallback();
+    laadCfg();
+  };
+  $('fUnlink').onclick = function(){
+    vraag('Werkmap ontkoppelen?', 'De koppeling wordt gewist. De bestanden zelf blijven ongewijzigd.', 'Ontkoppelen', ontkoppel);
+  };
+}
+
+/* --- configuratiemodal --- */
+var cfgBestand = '', pickLijst = [], pickKeuze = '';
+var cfgTypes = [], cfgCats = [], cfgVelden = [], cfgPaas = [];
+/* de drie lijsten starten ingeklapt; je verandert ze zelden */
+var cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
+function tekenSecties(){
+  var aantallen = { Velden:cfgVelden.length, Types:cfgTypes.length,
+                    Cats:cfgCats.length, Paas:cfgPaas.length };
+  ['Bestand','Velden','Types','Cats','Paas','Rapport'].forEach(function(k){
+    $('aantal' + k).textContent = aantallen[k] === undefined ? '' : '(' + aantallen[k] + ')';
+    $('vak' + k).hidden = !cfgOpen[k];
+    $('kop' + k).className = 'sectiekop' + (cfgOpen[k] ? ' open' : '');
+    $('kop' + k).setAttribute('aria-expanded', cfgOpen[k] ? 'true' : 'false');
+  });
+}
+var icoonRij = -1, icoonKeuze = '';
+
+var BEKEND = CFG_VOLGORDE;
+function tekenCfgTypes(){
+  if($('aantalTypes')) tekenSecties();
+  $('cfgTypes').innerHTML = cfgTypes.map(function(x,i){
+    return '<div class="editrow">' +
+      '<button class="icon-btn" data-ic="' + i + '" title="Icoon kiezen" aria-label="Icoon kiezen">' +
+        svgIcoon(x.icoon, x.omschrijving) + '</button>' +
+      '<input type="text" data-i="' + i + '" value="' + esc(x.omschrijving) + '" placeholder="omschrijving">' +
+      '<button class="icon-btn danger" data-del="' + i + '" aria-label="Verwijderen">' + ICON_TRASH + '</button></div>';
+  }).join('');
+  Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-i]'), function(inp){
+    inp.oninput = function(){ cfgTypes[+inp.getAttribute('data-i')].omschrijving = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-ic]'), function(b){
+    b.onclick = function(){ openIcoonKeuze(+b.getAttribute('data-ic')); };
+  });
+  Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-del]'), function(b){
+    b.onclick = function(){
+      var i = +b.getAttribute('data-del');
+      vraag('Type verwijderen?', cfgTypes[i].omschrijving || 'Naamloos type', 'Verwijderen', function(){
+        cfgTypes.splice(i,1); tekenCfgTypes();
+      });
+    };
+  });
+}
+function tekenIcoonGrid(){
+  $('icoonGrid').innerHTML = Object.keys(ICONEN).map(function(n){
+    return '<button class="icoonkeuze' + (n === icoonKeuze ? ' selected' : '') + '" data-n="' + esc(n) + '" title="' + esc(n) + '">' +
+           svgIcoon(n, n) + '<span>' + esc(n) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('icoonGrid').children, function(b){
+    b.onclick = function(){ icoonKeuze = b.getAttribute('data-n'); tekenIcoonGrid(); };
+  });
+}
+function openIcoonKeuze(i){
+  icoonRij = i;
+  icoonKeuze = cfgTypes[i].icoon || '';
+  tekenIcoonGrid();
+  toonModaal('icoonModal');
+}
+function tekenCfgVelden(){
+  $('cfgVelden').innerHTML = cfgVelden.map(function(v,i){
+    return '<div class="editrow"><span class="nr mono" style="color:var(--muted)">' + (i+1) + '</span>' +
+      '<input type="text" data-v="' + i + '" value="' + esc(v) + '" placeholder="veldnaam"></div>';
+  }).join('');
+  Array.prototype.forEach.call($('cfgVelden').querySelectorAll('[data-v]'), function(inp){
+    inp.oninput = function(){ cfgVelden[+inp.getAttribute('data-v')] = inp.value; };
+  });
+}
+function tekenCfgPaas(){
+  if($('aantalTypes')) tekenSecties();
+  $('cfgPaas').innerHTML = cfgPaas.map(function(x,i){
+    return '<div class="editrow">' +
+      '<input class="nr" type="number" min="-99" max="99" data-pd="' + i + '" value="' + esc(x.dagen) + '">' +
+      '<input type="text" data-po="' + i + '" value="' + esc(x.omschrijving || '') + '" placeholder="omschrijving">' +
+      '<button class="icon-btn danger" data-del="' + i + '" aria-label="Verwijderen">' + ICON_TRASH + '</button></div>';
+  }).join('');
+  Array.prototype.forEach.call($('cfgPaas').querySelectorAll('[data-pd]'), function(inp){
+    inp.oninput = function(){ cfgPaas[+inp.getAttribute('data-pd')].dagen = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgPaas').querySelectorAll('[data-po]'), function(inp){
+    inp.oninput = function(){ cfgPaas[+inp.getAttribute('data-po')].omschrijving = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgPaas').querySelectorAll('[data-del]'), function(b){
+    b.onclick = function(){
+      var i = +b.getAttribute('data-del'), x = cfgPaas[i];
+      vraag('Paasdag verwijderen?', x.omschrijving || ('Pasen ' + x.dagen), 'Verwijderen', function(){
+        cfgPaas.splice(i,1); tekenCfgPaas();
+      });
+    };
+  });
+}
+function tekenCfgCats(){
+  if($('aantalTypes')) tekenSecties();
+  $('cfgCats').innerHTML = cfgCats.map(function(c,i){
+    return '<div class="editrow">' +
+      '<input class="nr" type="number" min="0" max="9" data-nr="' + i + '" value="' + esc(c.nr) + '">' +
+      '<input type="text" data-oms="' + i + '" value="' + esc(c.oms || '') + '" placeholder="omschrijving">' +
+      '<button class="icon-btn danger" data-del="' + i + '" aria-label="Verwijderen">' + ICON_TRASH + '</button></div>';
+  }).join('');
+  Array.prototype.forEach.call($('cfgCats').querySelectorAll('[data-nr]'), function(inp){
+    inp.oninput = function(){ cfgCats[+inp.getAttribute('data-nr')].nr = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgCats').querySelectorAll('[data-oms]'), function(inp){
+    inp.oninput = function(){ cfgCats[+inp.getAttribute('data-oms')].oms = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgCats').querySelectorAll('[data-del]'), function(b){
+    b.onclick = function(){
+      var i = +b.getAttribute('data-del'), c = cfgCats[i];
+      vraag('Categorie verwijderen?', c.oms ? c.nr + ' \u2014 ' + c.oms : 'Categorie ' + c.nr, 'Verwijderen', function(){
+        cfgCats.splice(i,1); tekenCfgCats();
+      });
+    };
+  });
+}
+function openCfg(){
+  cfgBestand = cfg.bestand || bestandsnaam || '';
+  $('cfgBestandTxt').textContent = cfgBestand || 'kies een bestand';
+  $('cfgSep').value = sep();
+  $('cfgMetaNaam').textContent = CFG_NAAM;
+  $('cfgTitel').value = cfg.titel || '';
+  cfgTypes = alleTypes().map(function(x){ return { omschrijving:x.omschrijving, icoon:x.icoon || '' }; });
+  cfgCats = (cfg.categorieen && cfg.categorieen.length)
+    ? cfg.categorieen.map(function(c){ return { nr:c.nr, oms:c.omschrijving || '' }; })
+    : [1,2,3,4].map(function(n){ return { nr:n, oms:'' }; });
+  cfgVelden = VELDEN.map(function(v,i){ return veldNaam(i); });
+  cfgPaas = paasOpties().map(function(x){ return { dagen:x.dagen, omschrijving:x.omschrijving || '' }; });
+  cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
+  tekenCfgVelden(); tekenCfgTypes(); tekenCfgCats(); tekenCfgPaas(); tekenSecties();
+  var extra = Object.keys(cfg).filter(function(k){ return BEKEND.indexOf(k) < 0; });
+  $('cfgExtra').innerHTML = extra.length
+    ? '<div class="field"><label>Overige instellingen</label>' +
+      extra.map(function(k){
+        return '<div class="cfgstatic mono">' + esc(k) + ': ' + esc(JSON.stringify(cfg[k])) + '</div>';
+      }).join('') +
+      '<div class="hint">Deze blijven ongewijzigd staan.</div></div>'
+    : '';
+  $('cfgErr').textContent = '';
+  vormBijOpenen = vormNu('cfgModal');
+  toonModaal('cfgModal');
+}
+function tekenPickLijst(){
+  $('pickList').innerHTML = pickLijst.length
+    ? pickLijst.map(function(n){
+        return '<button class="source-row' + (n === pickKeuze ? ' selected' : '') + '" data-n="' + esc(n) + '">' +
+               '<span class="title">' + esc(n) + '</span></button>';
+      }).join('')
+    : '<div class="hint">Geen tekstbestanden in deze map.</div>';
+  Array.prototype.forEach.call($('pickList').querySelectorAll('.source-row'), function(b){
+    b.onclick = function(){ pickKeuze = b.getAttribute('data-n'); $('pickNew').value = ''; tekenPickLijst(); };
+  });
+}
+function openBestandsKeuze(){
+  if(!dirHandle) return;
+  bestandenInMap().then(function(lijst){
+    pickLijst = lijst; pickKeuze = cfgBestand;
+    tekenPickLijst();
+    $('pickNew').value = ''; $('pickErr').textContent = '';
+    toonModaal('picker');
+  }).catch(function(){
+    pickLijst = []; pickKeuze = '';
+    tekenPickLijst();
+    $('pickNew').value = '';
+    $('pickErr').textContent = 'De map kan niet gelezen worden. Autoriseer de werkmap opnieuw.';
+    toonModaal('picker');
+  });
+}
+var VERBODEN = /[<>:"/\\|?*\x00-\x1f]/;
+var GERESERVEERD = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+function bestandsnaamFout(n){
+  if(!n) return 'Geef een naam op.';
+  if(VERBODEN.test(n)) return 'Deze tekens kunnen niet: < > : " / \\ | ? *';
+  if(GERESERVEERD.test(n)) return 'Dit is een gereserveerde naam.';
+  if(/[. ]$/.test(n)) return 'Een naam mag niet op een punt of spatie eindigen.';
+  if(n.length > 120) return 'De naam is te lang.';
+  return '';
+}
+function bevestigBestand(){
+  var n = $('pickNew').value.trim();
+  if(n){
+    var fout = bestandsnaamFout(n);
+    if(fout){ $('pickErr').textContent = fout; return; }
+    if(!/\.[a-z0-9]+$/i.test(n)) n += '.txt';
+    pickKeuze = n;
+  }
+  if(!pickKeuze){ $('pickErr').textContent = 'Kies een bestand of geef een naam op.'; return; }
+  cfgBestand = pickKeuze;
+  $('cfgBestandTxt').textContent = cfgBestand;
+  $('pickErr').textContent = '';
+  bergModaal('picker');
+}
+function sepConflicten(t){
+  var raak = [];
+  records.forEach(function(r){
+    if(r.raw !== undefined){
+      if(r.raw.indexOf(t) >= 0) raak.push(r.raw.slice(0,30));
+    } else if((r.sleutel + r.naam + r.type + r.code + (r.notitie || '')).indexOf(t) >= 0){
+      raak.push(r.sleutel);
+    }
+  });
+  return raak;
+}
+function bewaarCfg(){
+  if(!cfgBestand){ $('cfgErr').textContent = 'Kies eerst een events-bestand.'; return; }
+  var types = cfgTypes.filter(function(x){ return x.omschrijving.trim(); })
+                      .map(function(x){
+                        var o = { omschrijving:x.omschrijving.trim() };
+                        if(x.icoon) o.icoon = x.icoon;
+                        return o;
+                      });
+  var cats = cfgCats.filter(function(c){ return String(c.nr).trim() !== ''; })
+                    .map(function(c){ var o = { nr:+c.nr }; if(c.oms.trim()) o.omschrijving = c.oms.trim(); return o; });
+  var nrs = cats.map(function(c){ return c.nr; });
+  if(nrs.length !== new Set(nrs).size){ $('cfgErr').textContent = 'Elk categorienummer mag maar \u00e9\u00e9n keer voorkomen.'; return; }
+  var nieuwSep = $('cfgSep').value;
+  if(nieuwSep.length !== 1 || /\s/.test(nieuwSep)){
+    $('cfgErr').textContent = 'Het scheidingsteken moet precies \u00e9\u00e9n teken zijn (geen spatie).'; return;
+  }
+  var sepGewijzigd = nieuwSep !== sep();
+  if(sepGewijzigd){
+    var bots = sepConflicten(nieuwSep);
+    if(bots.length){
+      $('cfgErr').textContent = 'Het teken ' + nieuwSep + ' staat al in ' + bots.length +
+        (bots.length === 1 ? ' event' : ' events') + ', bijvoorbeeld \u201c' + bots[0] + '\u201d. Kies een ander teken.';
+      return;
+    }
+  }
+  var gewijzigd = cfg.bestand !== cfgBestand;
+  cfg.bestand = cfgBestand;
+  cfg.scheidingsteken = nieuwSep;
+  var titel = $('cfgTitel').value.trim();
+  if(titel) cfg.titel = titel; else delete cfg.titel;
+  delete cfg.omschrijving;   /* dit veld bestaat niet meer */
+  var velden = cfgVelden.map(function(v){ return v.trim(); });
+  if(velden.some(function(v){ return !v; })){ $('cfgErr').textContent = 'Elke veldnaam moet ingevuld zijn.'; return; }
+  var paas = cfgPaas.filter(function(x){ return String(x.dagen).trim() !== '' && x.omschrijving.trim(); })
+                    .map(function(x){ return { omschrijving:x.omschrijving.trim(), dagen:+x.dagen }; });
+  var dgn = paas.map(function(x){ return x.dagen; });
+  if(dgn.length !== new Set(dgn).size){ $('cfgErr').textContent = 'Elk aantal dagen mag maar \u00e9\u00e9n keer voorkomen.'; return; }
+  cfg.velden = velden;
+  delete cfg.informatie;
+  if(paas.length) cfg.paasdagen = paas; else delete cfg.paasdagen;
+  if(types.length) cfg.types = types; else delete cfg.types;
+  if(cats.length) cfg.categorieen = cats; else delete cfg.categorieen;
+  schrijfCfg().then(function(){
+    bergModaal('cfgModal');
+    cfgFout = '';
+    bestandsnaam = cfgBestand;
+    fileState = 'ok';
+    if(gewijzigd) return laden();
+    if(sepGewijzigd && records.length){ dirty = true; render(); bewaar(); return; }
+    if(!records.length) return laden();
+    render();
+  }).catch(function(){
+    $('cfgErr').textContent = 'Opslaan van ' + CFG_NAAM + ' is mislukt.';
+  });
+}
+
+var ICON_LOEP = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2"/></svg>';
+var ICON_KRUIS = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+var ICON_FILTER = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h17l-6.5 7.6V20l-4-2.2v-4.7z"/></svg>';
+
+function catBereikTekst(van, tot){
+  if(!van) return '';
+  return van === tot ? String(van) : van + '\u2013' + tot;
+}
+function renderChips(){
+  var ditJaar = zichtJaar === new Date().getFullYear();
+  var opties = [['','alle'],['~dag','~dag'],['~week','~week'],['~maand','~maand'],['jaar','jaar']];
+  for(var m=1;m<=12;m++) opties.push([String(m), MAANDEN[m-1]]);
+  opties.push(['onbekend','onbekend']);
+  var el = $('chips');
+  el.innerHTML = opties.map(function(o){
+    return '<button class="chip' + (datumFilter === o[0] ? ' on' : '') + '" data-d="' + o[0] + '"' +
+           (isVenster(o[0]) && !ditJaar ? ' disabled' : '') + '>' + esc(o[1]) + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(el.children, function(b){
+    b.onclick = function(){ datumFilter = b.getAttribute('data-d'); selIndex = -1; render(); };
+  });
+
+  var mk = $('filterMode');
+  var stukken = [String(zichtJaar)];
+  if(filterAan && filterType) stukken.push(filterType);
+  if(filterAan && filterCatVan) stukken.push(catBereikTekst(filterCatVan, filterCatTot));
+  var actief = (filterAan && (filterType || filterCatVan || filterNotitie)) || !ditJaar;
+  mk.innerHTML = ICON_FILTER + '<span>' + esc(stukken.join(' \u00b7 ')) + '</span>' +
+    (filterAan && filterNotitie ? svgIcoon('notitie', 'alleen met notitie') : '');
+  mk.className = 'chip modeknop' + (actief ? ' on' : '');
+  mk.title = 'Filter op type en categorie';
+  mk.onclick = openFilter;
+
+}
+
+/* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
+function actiefDatumFilter(){ return zoekModus ? '' : datumFilter; }
+function zichtbaar(){
+  var q = zonderAccent(zoekterm.toLowerCase());
+  var jaar = zichtJaar;
+  var df = actiefDatumFilter();
+  var venster = isVenster(df) ? datumVenster(df) : null;
+  var out = [];
+  datumVan = {};
+  records.forEach(function(r,i){
+    if(r.raw !== undefined) return;
+    if(!zoekModus && filterAan){
+      if(filterType && r.type !== filterType) return;
+      if(filterCatVan && (r.cat < filterCatVan || r.cat > filterCatTot)) return;
+      if(filterNotitie && !r.notitie) return;
+    }
+    if(q){
+      var hay = zonderAccent((r.sleutel + ' ' + r.naam + ' ' + r.type + ' ' + r.code + ' ' +
+                 leesbaar(r.code) + ' ' + r.cat + ' ' + (r.notitie||'')).toLowerCase());
+      if(hay.indexOf(q) < 0) return;
+    }
+    if(df){
+      var d = eventDatum(r, jaar);
+      if(df === 'onbekend'){
+        if(heeftDatumRegel(r)) return;
+      } else if(venster){
+        /* rond de jaarwisseling kan de volgende keer in het volgende jaar vallen */
+        var d2 = eventDatum(r, jaar + 1);
+        if(d && d >= venster[0] && d <= venster[1]) datumVan[i] = d;
+        else if(d2 && d2 >= venster[0] && d2 <= venster[1]) datumVan[i] = d2;
+        else return;
+      } else {
+        if(!d || (d.getMonth() + 1) !== +df) return;
+        datumVan[i] = d;
+      }
+    }
+    out.push(i);
+  });
+  if(df && df !== 'onbekend'){
+    out.sort(function(a,b){ return datumVan[a] - datumVan[b]; });
+  }
+  return out;
+}
+
+function renderLijst(){
+  var idx = zichtbaar();
+  $('count').textContent = idx.length + (records.length !== idx.length ? ' / ' + records.filter(function(r){ return r.raw === undefined; }).length : '');
+  var el = $('lijst');
+  if(!idx.length){
+    el.innerHTML = '<div class="empty">' + (fileState === 'leeg'
+      ? 'Koppel een bestand om te beginnen.'
+      : (records.length
+          ? (actiefDatumFilter() ? 'Geen events in ' + datumLabel(actiefDatumFilter()) + '.' : 'Geen events gevonden.')
+          : 'Nog geen events. Voeg er een toe met +.')) + '</div>';
+    return;
+  }
+  var df = actiefDatumFilter();
+  var metDatum = !!df && df !== 'onbekend';
+  var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
+  /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
+  var grens = -1;
+  if(metDatum){
+    var nu0 = new Date(); nu0.setHours(0,0,0,0);
+    for(var q = 0; q < idx.length; q++){
+      if(datumVan[idx[q]] && datumVan[idx[q]] >= nu0){ grens = q; break; }
+    }
+  }
+  var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
+  var html = '<table><colgroup>' + (metDag ? '<col class="c-dag">' : '') + '<col>' +
+             (metDatum ? '<col class="c-wd"><col class="c-dat">' : '') +
+             '<col class="c-ic"></colgroup><tbody>';
+  idx.forEach(function(i, pos){
+    var r = records[i];
+    var n = dagen[pos];
+    var klassen = (i === selIndex ? 'sel' : '') + (pos === grens ? ' vandaag' : '');
+    html += '<tr' + (klassen.trim() ? ' class="' + klassen.trim() + '"' : '') +
+      ' data-i="' + i + '">' +
+      (metDag ? '<td class="dag">' + (n !== null && Math.abs(n) < 10 ? esc(dagenKort(n)) : '') + '</td>' : '') +
+      '<td>' + esc(r.sleutel) + '</td>' +
+      (metDatum
+        ? '<td class="dat wd">' + esc(weekdagKort(datumVan[i])) + '</td>' +
+          '<td class="dat">' + esc(datumKort(datumVan[i])) + '</td>'
+        : '') +
+      '<td class="ic' + (r.notitie ? ' metnot' : '') + '" title="' +
+        esc(r.type + (r.notitie ? ' \u2014 met notitie' : '')) + '">' + typeIcon(r.type) + '</td></tr>';
+  });
+  el.innerHTML = html + '</tbody></table>';
+  Array.prototype.forEach.call(el.querySelectorAll('tbody tr'), function(row){
+    row.onclick = function(e){
+      var i = +row.getAttribute('data-i');
+      var cel = e.target;
+      while(cel && cel !== row && cel.tagName !== 'TD') cel = cel.parentNode;
+      var k = (cel && cel.className) || '';
+      if(k.indexOf('ic') >= 0 || k.indexOf('dat') >= 0){ toonInfo(i); return; }
+      selIndex = (selIndex === i ? -1 : i);
+      render();
+    };
+  });
+}
+
+function letterVan(r){
+  var t = sorteerSleutel(r).charAt(0).toUpperCase();
+  return /[A-Z]/.test(t) ? t : '#';
+}
+var azEerste = {};   /* letter -> index in records, gevuld door renderAZ */
+
+/* zoek het element dat werkelijk scrolt en schuif de rij naar boven */
+function scrollNaarRij(rij){
+  var el = rij.parentNode;
+  while(el && el !== document.documentElement){
+    var stijl = window.getComputedStyle(el);
+    if(el.scrollHeight > el.clientHeight + 4 &&
+       (stijl.overflowY === 'auto' || stijl.overflowY === 'scroll')){
+      el.scrollTop += rij.getBoundingClientRect().top - el.getBoundingClientRect().top;
+      return true;
+    }
+    el = el.parentNode;
+  }
+  if(rij.scrollIntoView){ rij.scrollIntoView(true); return true; }
+  return false;
+}
+function springNaarLetter(L){
+  var i = azEerste[L];
+  if(i === undefined) return;
+  var rij = $('lijst').querySelector('tr[data-i="' + i + '"]');
+  if(rij) scrollNaarRij(rij);
+}
+var fType = '', fcVan = 0, fcTot = 0, fcBezig = false, fNot = false, fJaar = 0, fAan = true;
+
+function tekenFilterNot(){
+  $('filterNotKnop').innerHTML = svgIcoon('notitie', 'notitie');
+  $('filterNotKnop').className = 'chip notknop' + (fNot ? ' on' : '');
+  $('filterNotKnop').title = fNot ? 'Alleen met notitie' : 'Notitie telt niet mee';
+}
+function tekenFilterAan(){
+  $('filterAanUit').className = 'schuif' + (fAan ? ' aan' : '');
+  $('filterAanUit').setAttribute('aria-checked', fAan ? 'true' : 'false');
+  ['filterTypes','filterCats','filterNotKnop'].forEach(function(id){
+    $(id).style.opacity = fAan ? '' : '.4';
+    $(id).style.pointerEvents = fAan ? '' : 'none';
+  });
+}
+
+function tekenFilterTypes(){
+  var rijen = [{ omschrijving:'alle', icoon:'' }].concat(alleTypes());
+  $('filterTypes').innerHTML = rijen.map(function(x,n){
+    var w = n === 0 ? '' : x.omschrijving;
+    return '<button class="source-row' + (w === fType ? ' selected' : '') + '" data-t="' + esc(w) + '">' +
+           (n === 0 ? '' : svgIcoon(x.icoon, w)) +
+           '<span class="title">' + esc(x.omschrijving) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('filterTypes').children, function(b){
+    b.onclick = function(){ fType = b.getAttribute('data-t'); tekenFilterTypes(); };
+  });
+}
+function tekenFilterCats(){
+  $('filterCats').innerHTML = catOpties().map(function(o){
+    var n = +o[0], aan = fcVan && n >= fcVan && n <= fcTot;
+    return '<button class="chip' + (aan ? ' on' : '') + '" data-c="' + n + '">' + n + '</button>';
+  }).join('');
+  Array.prototype.forEach.call($('filterCats').children, function(b){
+    b.onclick = function(){
+      var n = +b.getAttribute('data-c');
+      /* dezelfde enkele categorie nogmaals aantikken zet hem weer uit */
+      if(fcVan === n && fcTot === n){ fcVan = fcTot = 0; fcBezig = false; }
+      else if(!fcVan || !fcBezig){ fcVan = fcTot = n; fcBezig = true; }
+      else if(n < fcVan){ fcVan = n; fcBezig = false; }
+      else { fcTot = n; fcBezig = false; }
+      tekenFilterCats();
+    };
+  });
+}
+function openFilter(){
+  fType = filterType; fcVan = filterCatVan; fcTot = filterCatTot; fcBezig = false;
+  fNot = filterNotitie; fJaar = zichtJaar; fAan = filterAan;
+  $('filterJaarTxt').textContent = fJaar;
+  tekenFilterTypes(); tekenFilterCats(); tekenFilterNot(); tekenFilterAan();
+  $('filterStdHint').textContent = standaardTekst();
+  toonModaal('filterModal');
+}
+/* standaardfilter uit de cfg */
+function pasStandaardFilterToe(){
+  var f = (cfg.filter && typeof cfg.filter === 'object') ? cfg.filter : {};
+  datumFilter = typeof f.periode === 'string' ? f.periode : '';
+  filterType = typeof f.type === 'string' ? f.type : '';
+  filterNotitie = f.notitie === true;
+  filterCatVan = filterCatTot = 0;
+  if(typeof f.categorie === 'number'){
+    filterCatVan = filterCatTot = f.categorie;
+  } else if(f.categorie && f.categorie.length){
+    filterCatVan = +f.categorie[0] || 0;
+    filterCatTot = +f.categorie[1] || filterCatVan;
+  }
+  if(filterCatTot < filterCatVan) filterCatTot = filterCatVan;
+  /* het jaar staat relatief in de cfg: 0 is dit jaar, 1 volgend jaar */
+  var nu = new Date().getFullYear();
+  var off = (typeof f.jaar === 'number' && isFinite(f.jaar)) ? Math.round(f.jaar) : 0;
+  if(off < -100 || off > 100) off = 0;
+  zichtJaar = nu + off;
+  /* ~dag, ~week en ~maand horen bij vandaag en gaan niet samen met een ander jaar */
+  if(off !== 0 && isVenster(datumFilter)) datumFilter = '';
+}
+function standaardTekst(){
+  var f = cfg.filter;
+  if(!f) return 'Nu geen standaard';
+  var d = [];
+  if(f.periode) d.push(datumLabel(f.periode));
+  if(f.type) d.push(f.type);
+  if(typeof f.categorie === 'number') d.push(String(f.categorie));
+  else if(f.categorie && f.categorie.length) d.push(catBereikTekst(+f.categorie[0], +f.categorie[1]));
+  if(f.notitie) d.push('met notitie');
+  if(f.jaar === 1) d.push('volgend jaar');
+  else if(f.jaar === -1) d.push('vorig jaar');
+  else if(f.jaar) d.push((f.jaar > 0 ? '+' : '') + f.jaar + ' jaar');
+  return 'Nu: ' + (d.length ? d.join(' \u00b7 ') : 'alles');
+}
+function bewaarStandaardFilter(){
+  var f = {};
+  if(datumFilter) f.periode = datumFilter;
+  if(filterAan && filterType) f.type = filterType;
+  if(filterAan && filterCatVan) f.categorie = (filterCatVan === filterCatTot) ? filterCatVan : [filterCatVan, filterCatTot];
+  if(filterAan && filterNotitie) f.notitie = true;
+  var off = zichtJaar - new Date().getFullYear();
+  if(off) f.jaar = off;
+  if(Object.keys(f).length) cfg.filter = f; else delete cfg.filter;
+  if(!(dirHandle && hasFSA)) return Promise.resolve(true);
+  return schrijfCfg().then(function(){ return true; }).catch(function(){ return false; });
+}
+/* aantal verstreken jaren in het getoonde jaar, alleen bij een bekend jaartal */
+function aantalJaar(code, jaar){
+  var st = decode(code);
+  if(!st || st.mode !== 'vast' || st.jaar < 1000) return null;
+  var n = jaar - st.jaar;
+  return n > 0 ? n : null;
+}
+/* Meet hoe de app er als PWA voor staat. Puur informatief: dit toont de
+   werkelijke toestand in plaats van dat we moeten gissen waarom installeren
+   niet lukt. */
+function statusRegel(label, waarde, goed){
+  return '<div class="checkregel' + (goed === false ? ' slecht' : '') + '">' +
+         '<span class="statuslbl">' + esc(label) + '</span> ' + esc(waarde) + '</div>';
+}
+function vulAppStatus(){
+  var vast =
+    '<div class="checkkop">Omgeving</div>' +
+    statusRegel('Adres', location.href) +
+    statusRegel('Verbinding', location.protocol + (window.isSecureContext ? ' (veilig)' : ' (NIET veilig)'),
+                window.isSecureContext) +
+    statusRegel('Weergave', (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+                ? 'standalone \u2014 als app geopend' : 'in de browser') +
+    statusRegel('Configuratie', CFG_NAAM + (CFG_NAAM === CFG_STANDAARD ? '' : ' (via de URL)')) +
+    statusRegel('Ander metabestand (voorbeeld)', location.origin + location.pathname + '?cfg=' +
+                (CFG_NAAM === CFG_STANDAARD ? 'events_cfg_werk.json' : CFG_NAAM)) +
+    '<div class="checkkop">Manifest</div><div id="stMan">bezig\u2026</div>' +
+    '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
+    '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
+  $('checkBody').innerHTML = vast;
+
+  /* manifest ophalen en de sleutelvelden tonen */
+  fetch('manifest.json', { cache:'no-store' }).then(function(r){
+    if(!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }).then(function(m){
+    var ic = (m.icons || []).map(function(i){ return i.src; }).join(', ') || 'geen';
+    $('stMan').innerHTML =
+      statusRegel('Gevonden', 'ja', true) +
+      statusRegel('name', m.name || '(leeg)', !!m.name) +
+      statusRegel('start_url', m.start_url || '(leeg)', !!m.start_url) +
+      statusRegel('display', m.display || '(leeg)', m.display === 'standalone') +
+      statusRegel('icons', ic, ic !== 'geen');
+    return fetch((m.icons && m.icons[0] && m.icons[0].src) || 'icon.svg', { cache:'no-store' });
+  }).then(function(r){
+    $('stMan').innerHTML += statusRegel('icoonbestand', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
+  }).catch(function(e){
+    $('stMan').innerHTML = statusRegel('Manifest', 'niet te laden \u2014 ' + e.message, false);
+  });
+
+  /* service worker: bestaat het bestand, en is hij geregistreerd? */
+  fetch('sw.js', { cache:'no-store' }).then(function(r){
+    $('stSw').innerHTML = statusRegel('sw.js', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
+  }).catch(function(e){
+    $('stSw').innerHTML = statusRegel('sw.js', 'niet te laden \u2014 ' + e.message, false);
+  }).then(function(){
+    if(!('serviceWorker' in navigator)){
+      $('stSw').innerHTML += statusRegel('Ondersteuning', 'deze browser kent geen service workers', false);
+      return;
+    }
+    return navigator.serviceWorker.getRegistration().then(function(reg){
+      if(!reg){
+        $('stSw').innerHTML += statusRegel('Registratie', 'geen \u2014 opnieuw proberen\u2026', false);
+        return navigator.serviceWorker.register('sw.js').then(function(r2){
+          $('stSw').innerHTML += statusRegel('Alsnog gelukt', 'scope ' + r2.scope, true);
+        }).catch(function(e){
+          $('stSw').innerHTML += statusRegel('Registratie mislukt', e.name + ': ' + e.message, false);
+        });
+      }
+      if(swFout) $('stSw').innerHTML += statusRegel('Fout bij opstarten', swFout, false);
+      var st = reg.active ? 'actief' : reg.installing ? 'wordt geïnstalleerd' : reg.waiting ? 'wacht' : 'onbekend';
+      $('stSw').innerHTML +=
+        statusRegel('Registratie', st, !!reg.active) +
+        statusRegel('Scope', reg.scope, true) +
+        statusRegel('Bestuurt deze pagina', navigator.serviceWorker.controller ? 'ja' : 'nee (herlaad de pagina)',
+                    !!navigator.serviceWorker.controller);
+    });
+  });
+
+  /* wat staat er in de cache? */
+  if(window.caches){
+    caches.keys().then(function(alle){
+      /* de cache hoort bij het hele domein, dus hier staan ook de caches van
+         andere apps op github.io; alleen die van deze app is interessant */
+      var eigen = alle.filter(function(n){ return n.indexOf('events-v') === 0; });
+      if(!eigen.length){
+        $('stCache').innerHTML = statusRegel('Cache', 'geen \u2014 de service worker heeft nog niets bewaard', false);
+        return;
+      }
+      eigen.sort();
+      var naam = eigen[eigen.length - 1];
+      return caches.open(naam).then(function(c){ return c.keys(); }).then(function(items){
+        $('stCache').innerHTML =
+          statusRegel('Naam', naam, true) +
+          statusRegel('Bestanden', String(items.length), items.length > 0) +
+          items.map(function(i){ return statusRegel('', i.url.split('/').pop() || i.url); }).join('') +
+          (eigen.length > 1 ? statusRegel('Oude caches', String(eigen.length - 1), false) : '');
+      });
+    }).catch(function(e){
+      $('stCache').innerHTML = statusRegel('Cache', 'niet te lezen \u2014 ' + e.message, false);
+    });
+  } else {
+    $('stCache').innerHTML = statusRegel('Cache', 'niet beschikbaar', false);
+  }
+}
+
+/* leest alleen, wijzigt niets: het bestand naast de cfg leggen */
+function controleer(){
+  var bevindingen = [];
+  function voeg(titel, regels){ if(regels.length) bevindingen.push({ titel:titel, regels:regels }); }
+
+  voeg('Onleesbare regels', records.filter(function(r){ return r.raw !== undefined; })
+    .map(function(r){ return r.raw.slice(0, 60); }));
+
+  var lege = records.filter(function(r){
+    return r.raw === undefined && (!r.sleutel.trim() || !r.naam.trim() || !r.type.trim());
+  }).map(function(r){ return (r.sleutel || '(leeg)') + ' \u2014 ontbrekend veld'; });
+  voeg('Lege velden', lege);
+
+  if(cfg.types && cfg.types.length){
+    var bekend = typeOpties().map(function(x){ return x.omschrijving; });
+    var vreemd = {};
+    records.forEach(function(r){
+      if(r.raw === undefined && bekend.indexOf(r.type) < 0) vreemd[r.type] = (vreemd[r.type] || 0) + 1;
+    });
+    voeg('Types die niet in de configuratie staan',
+      Object.keys(vreemd).map(function(t){ return t + ' (' + vreemd[t] + 'x)'; }));
+  }
+
+  var nrs = catOpties().map(function(o){ return +o[0]; });
+  var catFout = {};
+  records.forEach(function(r){
+    if(r.raw === undefined && nrs.indexOf(+r.cat) < 0) catFout[r.cat] = (catFout[r.cat] || 0) + 1;
+  });
+  voeg('Categorieen buiten de lijst',
+    Object.keys(catFout).map(function(c){ return 'categorie ' + c + ' (' + catFout[c] + 'x)'; }));
+
+  var gezien = {}, dubbel = [];
+  records.forEach(function(r){
+    if(r.raw !== undefined) return;
+    var k = r.sleutel + '|' + r.type + '|' + r.code;
+    if(gezien[k]) dubbel.push(r.sleutel + ' \u2014 ' + r.type + ' op ' + leesbaar(r.code));
+    gezien[k] = true;
+  });
+  voeg('Dubbele events', dubbel);
+
+  var datumFout = [];
+  records.forEach(function(r){
+    if(r.raw !== undefined) return;
+    var st = decode(r.code);
+    if(!st){ datumFout.push(r.sleutel + ' \u2014 onbekende datumcode ' + r.code); return; }
+    if(st.mode !== 'vast') return;
+    if(st.dag && !st.maand){ datumFout.push(r.sleutel + ' \u2014 dag zonder maand'); return; }
+    if(st.dag && st.dag > dagenInMaand(st.maand, st.jaar)){
+      datumFout.push(r.sleutel + ' \u2014 ' + r.code + ' bestaat niet');
+    }
+  });
+  voeg('Datums die niet kloppen', datumFout);
+
+  var scheiding = records.filter(function(r){
+    return r.raw === undefined && (r.notitie || '').indexOf(sep()) >= 0;
+  }).map(function(r){ return r.sleutel + ' \u2014 scheidingsteken in de notitie'; });
+  voeg('Velden met een scheidingsteken', scheiding);
+
+  return bevindingen;
+}
+function rapport(welk){
+  $('checkTitel').textContent = welk === 'app' ? 'App-status' : 'Bestandscontrole';
+  if(welk === 'app') vulAppStatus(); else vulControle();
+  if($('checkModal').hidden) toonModaal('checkModal');
+}
+function vulControle(){
+  var b = controleer();
+  $('checkBody').innerHTML = b.length
+    ? b.map(function(g){
+        return '<div class="checkkop">' + esc(g.titel) + ' (' + g.regels.length + ')</div>' +
+          g.regels.map(function(t){ return '<div class="checkregel">' + esc(t) + '</div>'; }).join('');
+      }).join('')
+    : '<div class="checkgoed">Geen bijzonderheden in ' +
+      records.length + ' regels.</div>';
+}
+function toonInfo(i){
+  var r = records[i];
+  if(!r || r.raw !== undefined) return;
+  var jaar = zichtJaar;
+  $('infoTitel').textContent = r.sleutel;
+  $('infoBody').innerHTML =
+    '<div class="inforij nu"><span class="lbl">tov vandaag</span>' +
+      '<span class="wrd">' + esc(
+        (dagenTov(r, jaar) === null && heeftDatumRegel(r)) ? 'bestaat niet in ' + jaar : dagenLang(dagenTov(r, jaar))
+      ) + '</span></div>' +
+    '<div class="inforij"><span class="lbl">' + esc(veldNaam(1)) + '</span>' +
+      '<span class="wrd">' + esc(r.naam) + '</span></div>' +
+    '<div class="inforij"><span class="lbl">' + esc(veldNaam(2)) + '</span>' +
+      '<span class="wrd">' + typeIcon(r.type) + esc(r.type) + '</span></div>' +
+    '<div class="inforij"><span class="lbl">' + jaar + '</span>' +
+      '<span class="wrd">' + esc(datumInJaar(r.code, jaar)) + '</span></div>' +
+    (aantalJaar(r.code, jaar) !== null
+      ? '<div class="inforij"><span class="lbl">aantal jaar</span>' +
+        '<span class="wrd">' + aantalJaar(r.code, jaar) + '</span></div>'
+      : '') +
+    '<div class="inforij"><span class="lbl">' + esc(veldNaam(3)) + '</span>' +
+      '<span class="wrd">' + esc(leesbaar(r.code)) + '</span></div>' +
+    (r.notitie
+      ? '<div class="inforij"><span class="lbl">' + esc(veldNaam(5)) + '</span>' +
+        '<span class="wrd">' + esc(r.notitie) + '</span></div>'
+      : '');
+  toonModaal('infoModal');
+}
+function renderAZ(){
+  var el = $('azbar'), idx = zichtbaar();
+  if(fileState !== 'ok' || idx.length < 25){ el.hidden = true; return; }
+  azEerste = {};
+  idx.forEach(function(i){
+    var L = letterVan(records[i]);
+    if(azEerste[L] === undefined) azEerste[L] = i;
+  });
+  el.innerHTML = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(function(L){
+    return '<button type="button" data-l="' + L + '"' +
+           (azEerste[L] === undefined ? ' disabled' : '') + '>' + L + '</button>';
+  }).join('');
+  el.hidden = false;
+}
+function render(){
+  verversCache();
+  renderFilebar();
+  renderChips();
+  /* zoeken en filteren sluiten elkaar uit: je ziet er altijd maar een van */
+  $('filterMode').hidden = zoekModus;
+  $('zoek').hidden = !zoekModus;
+  $('chips').hidden = zoekModus;
+  $('zoekKnop').innerHTML = zoekModus ? ICON_KRUIS : ICON_LOEP;
+  $('zoekKnop').title = zoekModus ? 'Zoeken sluiten' : 'Zoeken';
+  renderLijst();
+  renderAZ();
+  var badCount = records.filter(function(r){ return r.raw !== undefined; }).length;
+  $('bad').textContent = badCount ? badCount + ' regel(s) met een onbekend formaat blijven ongewijzigd bewaard.' : '';
+  $('btnNew').hidden = selIndex >= 0;
+  $('btnNew').disabled = fileState !== 'ok';
+  $('btnEdit').hidden = selIndex < 0;
+  $('btnCfg').disabled = fileState === 'leeg';
+  $('btnUndo').hidden = !terug;
+  $('btnUndo').title = terug ? 'Ongedaan maken: ' + terug.tekst : 'Ongedaan maken';
+  $('panelTitel').textContent = cfg.titel || 'Events';
+}
+
+
+/* ------------------ modals en de terugknop ------------------ */
+/* Elke open modal is een stap in de geschiedenis van de pagina. Daardoor sluit
+   de terugknop van het toestel de bovenste modal in plaats van de app te
+   verlaten. Sluiten via OK, Annuleren of Escape haalt die stap er weer af. */
+var modalStapel = [], eigenPops = 0;   /* aantal stappen dat we zelf terugzetten */
+
+function toonModaal(id){
+  $(id).hidden = false;
+  modalStapel.push(id);
+  try { history.pushState({ modaal:id }, ''); } catch(e){}
+}
+function bergModaal(id){
+  $(id).hidden = true;
+  var i = modalStapel.lastIndexOf(id);
+  if(i < 0) return;
+  modalStapel.splice(i, 1);
+  /* per gesloten modal precies een stap terug; twee modals in een keer sluiten
+     levert dus ook twee stappen op */
+  eigenPops++;
+  try { history.back(); } catch(e){ eigenPops--; }
+}
+/* sluiten zonder een stap terug te doen: de browser deed die stap al */
+function bergNaPop(id){
+  $(id).hidden = true;
+  var i = modalStapel.lastIndexOf(id);
+  if(i >= 0) modalStapel.splice(i, 1);
+}
+function bovensteModaal(){ return modalStapel[modalStapel.length - 1] || ''; }
+
+/* is er in de bewerk-modal of de configuratie iets veranderd? */
+var vormBijOpenen = '';
+function vormNu(id){
+  if(id === 'modal'){
+    return JSON.stringify([$('fSleutel').value, $('fNaam').value, huidigType,
+                           dstate, cat, $('fNotitie').value]);
+  }
+  if(id === 'cfgModal'){
+    return JSON.stringify([cfgBestand, $('cfgSep').value, $('cfgTitel').value,
+                           cfgVelden, cfgTypes, cfgCats, cfgPaas]);
+  }
+  return '';
+}
+function sluitBovenste(naPop){
+  var id = bovensteModaal();
+  if(!id) return false;
+  var berg = naPop ? bergNaPop : bergModaal;
+  if(id === 'confirm'){ berg('confirm'); confirmCb = null; return true; }
+  if((id === 'modal' || id === 'cfgModal') && vormNu(id) !== vormBijOpenen){
+    /* er staat iets op het spel: eerst vragen, en de stap terugzetten */
+    if(naPop){ try { history.pushState({ modaal:id }, ''); } catch(e){} }
+    vraag('Wijzigingen aangetroffen', 'Je hebt wijzigingen gemaakt die nog niet zijn opgeslagen.',
+          'Niet opslaan', function(){ bergModaal(id); });
+    return true;
+  }
+  berg(id);
+  return true;
+}
+window.addEventListener('popstate', function(){
+  if(eigenPops > 0){ eigenPops--; return; }
+  sluitBovenste(true);
+});
+/* ------------------ modal ------------------ */
+var NDE_OPTIES = [['1','1e'],['2','2e'],['3','3e'],['4','4e'],['5','5e'],['99','laatste']];
+function ndeLabel(n){
+  for(var i=0;i<NDE_OPTIES.length;i++){ if(+NDE_OPTIES[i][0] === +n) return NDE_OPTIES[i][1]; }
+  return n + 'e';
+}
+function toonWissel(){
+  $('fNdeTxt').textContent = ndeLabel(dstate.nde || 1);
+  $('fWeekdagTxt').textContent = DAGEN[(dstate.weekdag || 7) - 1];
+}
+function tekenNdeLijst(){
+  $('ndeList').innerHTML = NDE_OPTIES.map(function(o){
+    return '<button class="source-row' + (+ndeKeuze === +o[0] ? ' selected' : '') + '" data-n="' + o[0] + '">' +
+           '<span class="title">' + o[1] + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('ndeList').children, function(b){
+    b.onclick = function(){ ndeKeuze = b.getAttribute('data-n'); tekenNdeLijst(); };
+  });
+}
+function tekenWeekdagLijst(){
+  $('weekdagList').innerHTML = DAGEN.map(function(d,i){
+    return '<button class="source-row' + (+weekdagKeuze === i+1 ? ' selected' : '') + '" data-w="' + (i+1) + '">' +
+           '<span class="title">' + d + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('weekdagList').children, function(b){
+    b.onclick = function(){ weekdagKeuze = b.getAttribute('data-w'); tekenWeekdagLijst(); };
+  });
+}
+function typeOpties(){
+  var lijst = (cfg.types && cfg.types.length) ? cfg.types : TYPES;
+  return lijst.map(function(x){
+    return (typeof x === 'string')
+      ? { omschrijving:x, icoon:'' }
+      : { omschrijving:x.omschrijving || '', icoon:x.icoon || '' };
+  });
+}
+function alleTypes(){
+  var lijst = typeOpties().slice(), namen = lijst.map(function(x){ return x.omschrijving; });
+  records.forEach(function(r){
+    if(r.type && namen.indexOf(r.type) < 0){ namen.push(r.type); lijst.push({ omschrijving:r.type, icoon:'' }); }
+  });
+  return lijst;
+}
+function catOpties(){
+  if(cfg.categorieen && cfg.categorieen.length){
+    /* de cfg kan met de hand of door een andere app zijn aangepast: nummers
+       hier afdwingen, zodat er nooit vreemde tekens in de opmaak belanden */
+    return cfg.categorieen.map(function(c){
+      var n = +c.nr || 0;
+      return [n, c.omschrijving ? n + ' \u2014 ' + c.omschrijving : String(n)];
+    });
+  }
+  return [[1,'1'],[2,'2'],[3,'3'],[4,'4']];
+}
+function catLabel(n){
+  var o = catOpties();
+  for(var i=0;i<o.length;i++){ if(+o[i][0] === +n) return o[i][1]; }
+  return String(n);
+}
+function toonCat(){ $('fCatTxt').textContent = catLabel(cat); }
+function tekenCatLijst(){
+  $('catList').innerHTML = catOpties().map(function(o){
+    return '<button class="source-row' + (+catKeuze === +o[0] ? ' selected' : '') + '" data-c="' + o[0] + '">' +
+           '<span class="title">' + esc(o[1]) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('catList').children, function(b){
+    b.onclick = function(){ catKeuze = b.getAttribute('data-c'); tekenCatLijst(); };
+  });
+}
+function toonType(){
+  $('fTypeIc').innerHTML = typeIcon(huidigType);
+  $('fTypeTxt').textContent = huidigType;
+}
+function tekenTypeLijst(){
+  $('typeList').innerHTML = alleTypes().map(function(x){
+    var t = x.omschrijving;
+    return '<button class="source-row' + (t === typeKeuze ? ' selected' : '') + '" data-t="' + esc(t) + '">' +
+           svgIcoon(x.icoon, t) + '<span class="title">' + esc(t) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('typeList').children, function(b){
+    b.onclick = function(){ typeKeuze = b.getAttribute('data-t'); tekenTypeLijst(); };
+  });
+}
+function openTypeKeuze(){
+  typeKeuze = huidigType;
+  tekenTypeLijst();
+  toonModaal('typeModal');
+}
+function schrikkeljaar(y){ return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0); }
+function dagenInMaand(m, y){
+  if(!m) return 31;
+  if(m === 2) return y ? (schrikkeljaar(y) ? 29 : 28) : 29;  /* jaar onbekend: 29 februari kan */
+  return [31,28,31,30,31,30,31,31,30,31,30,31][m-1];
+}
+function toonDagJaar(){
+  $('fDagTxt').textContent = dstate.dag ? dstate.dag : 'dag';
+  $('fJaarTxt').textContent = dstate.jaar ? dstate.jaar : 'jaar';
+}
+function tekenDagGrid(){
+  var max = dagenInMaand(+dstate.maand || 0, +dstate.jaar || 0), h = '';
+  for(var d=1; d<=31; d++){
+    h += '<button' + (+dagKeuze === d ? ' class="selected"' : '') +
+         (d > max ? ' disabled' : '') + ' data-d="' + d + '">' + d + '</button>';
+  }
+  $('dagGrid').innerHTML = h;
+  Array.prototype.forEach.call($('dagGrid').children, function(b){
+    b.onclick = function(){ dagKeuze = b.getAttribute('data-d'); tekenDagGrid(); };
+  });
+  $('dagOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
+  $('dagOnbekend').className = 'source-row wide bijzonder' + (dagKeuze === '' ? ' selected' : '');
+}
+function openDagKeuze(){
+  dagKeuze = dstate.dag || '';
+  tekenDagGrid();
+  toonModaal('dagModal');
+}
+var JAAR_LAAG = 1800, JAAR_HOOG = 9999;
+function jaarGeldig(v){ return v !== '' && +v >= JAAR_LAAG && +v <= JAAR_HOOG; }
+function tekenJaar(){
+  var nu = new Date().getFullYear();
+  $('jaarVeld').value = jaarKeuze === '' ? '' : jaarKeuze;
+  $('jaarVeld').placeholder = jaarDoel === 'datum' ? 'onbekend' : String(nu);
+  $('jaarOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
+  $('jaarOnbekend').className = 'source-row wide bijzonder' + (jaarKeuze === '' ? ' selected' : '');
+  $('jaarOnbekend').hidden = jaarDoel !== 'datum';
+  $('jaarDitJaar').innerHTML = ICON_NU + '<span class="title">dit jaar</span>';
+  $('jaarDitJaar').className = 'source-row wide bijzonder' + (+jaarKeuze === nu ? ' selected' : '');
+  $('jaarDitJaar').hidden = false;   /* zowel bij een event als bij het filter bruikbaar */
+  var schrikkelEis = jaarDoel === 'datum' && +dstate.dag === 29 && +dstate.maand === 2;
+  $('jaarMin').disabled = jaarKeuze !== '' && +jaarKeuze <= JAAR_LAAG;
+  $('jaarPlus').disabled = jaarKeuze !== '' && +jaarKeuze >= JAAR_HOOG;
+  var h = JAAR_LAAG + ' t/m ' + JAAR_HOOG;
+  if(schrikkelEis) h += ' \u2014 alleen een schrikkeljaar heeft 29 februari';
+  if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)) h = 'Vul een jaar in tussen ' + JAAR_LAAG + ' en ' + JAAR_HOOG + '.';
+  else if(schrikkelEis && jaarGeldig(jaarKeuze) && !schrikkeljaar(+jaarKeuze)) h = jaarKeuze + ' is geen schrikkeljaar.';
+  $('jaarHint').textContent = h;
+}
+/* tijdens typen alles bijwerken behalve het invoerveld zelf */
+function tekenJaarBehoudCursor(){
+  var v = $('jaarVeld').value;
+  tekenJaar();
+  $('jaarVeld').value = v;
+}
+/* stap een jaar op of terug; vanuit een leeg veld beginnen we bij dit jaar */
+function stapJaar(richting){
+  var nu = new Date().getFullYear();
+  var v = jaarKeuze === '' ? nu : +jaarKeuze + richting;
+  if(v < JAAR_LAAG) v = JAAR_LAAG;
+  if(v > JAAR_HOOG) v = JAAR_HOOG;
+  jaarKeuze = v;
+  tekenJaar();
+}
+function openJaarKeuze(){
+  jaarDoel = 'datum';
+  jaarKeuze = dstate.jaar || '';
+  tekenJaar();
+  toonModaal('jaarModal');
+}
+function toonMaanden(){
+  $('fMaandTxt').textContent = dstate.maand ? MAANDEN[dstate.maand-1] : 'maand';
+  $('fWmaandTxt').textContent = MAANDEN[(dstate.wmaand || 1) - 1];
+}
+function tekenMaandLijst(){
+  var opties = maandDoel === 'vast' ? [['','onbekend']] : [];
+  for(var i=1;i<=12;i++) opties.push([String(i), MAANDEN[i-1]]);
+  $('maandList').innerHTML = opties.map(function(o){
+    var apart = o[0] === '';
+    return '<button class="source-row' + (apart ? ' bijzonder' : '') +
+           (String(maandKeuze||'') === o[0] ? ' selected' : '') + '" data-m="' + o[0] + '">' +
+           (apart ? ICON_VRAAG : '') + '<span class="title">' + esc(o[1]) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('maandList').children, function(b){
+    b.onclick = function(){ maandKeuze = b.getAttribute('data-m'); tekenMaandLijst(); };
+  });
+}
+function openMaandKeuze(doel){
+  maandDoel = doel;
+  maandKeuze = doel === 'vast' ? (dstate.maand || '') : (dstate.wmaand || 1);
+  tekenMaandLijst();
+  toonModaal('maandModal');
+}
+function bevestigMaand(){
+  if(maandDoel === 'vast') dstate.maand = maandKeuze === '' ? '' : +maandKeuze;
+  else dstate.wmaand = +maandKeuze || 1;
+  bergModaal('maandModal');
+  toonMaanden(); updPreview();
+}
+function paasOpties(){
+  if(!(cfg.paasdagen && cfg.paasdagen.length)) return PAASDAGEN;
+  return cfg.paasdagen.map(function(x){
+    return { omschrijving:String(x.omschrijving || ''), dagen:+x.dagen || 0 };
+  });
+}
+function paasTekst(x){
+  var d = +x.dagen || 0;
+  return d === 0 ? x.omschrijving
+                 : x.omschrijving + ' (' + (d > 0 ? '+' : '\u2212') + Math.abs(d) + ')';
+}
+function veldNaam(i){
+  var v = cfg.velden;
+  return (v && v[i]) ? v[i] : VELDEN[i];
+}
+function pasenLabel(o){
+  var lijst = paasOpties();
+  for(var i=0;i<lijst.length;i++){ if(+lijst[i].dagen === +o) return paasTekst(lijst[i]); }
+  return leesbaar(encode({ mode:'pasen', offset:o }));
+}
+function toonPasen(){ $('fPasenTxt').textContent = pasenLabel(dstate.offset); }
+function tekenPasenLijst(){
+  $('pasenList').innerHTML = paasOpties().map(function(x){
+    return '<button class="source-row' + (+x.dagen === +pasenKeuze ? ' selected' : '') + '" data-o="' + x.dagen + '">' +
+           '<span class="title">' + esc(paasTekst(x)) + '</span></button>';
+  }).join('');
+  Array.prototype.forEach.call($('pasenList').children, function(b){
+    b.onclick = function(){ pasenKeuze = b.getAttribute('data-o'); tekenPasenLijst(); };
+  });
+}
+function openPasenKeuze(){
+  pasenKeuze = dstate.offset;
+  tekenPasenLijst();
+  toonModaal('pasenModal');
+}
+function bevestigPasen(){
+  dstate.offset = pasenKeuze;
+  bergModaal('pasenModal');
+  toonPasen(); updPreview();
+}
+function bevestigType(){
+  huidigType = typeKeuze || huidigType;
+  bergModaal('typeModal');
+  toonType();
+}
+
+function toonDateMode(){
+  $('paneVast').hidden = dstate.mode !== 'vast';
+  $('paneWissel').hidden = dstate.mode !== 'wisselend';
+  $('panePasen').hidden = dstate.mode !== 'pasen';
+  Array.prototype.forEach.call($('dateModes').children, function(b){
+    b.classList.toggle('on', b.getAttribute('data-mode') === dstate.mode);
+  });
+  updPreview();
+}
+function leesDate(){
+  /* alle datumvelden komen uit hun eigen modal en staan al in dstate */
+}
+function updPreview(){
+  leesDate();
+  var code = encode(dstate);
+  $('dCode').textContent = code;
+  $('dPreview').textContent = leesbaar(code);
+}
+
+function openModal(i){
+  editIndex = (i === undefined ? -1 : i);
+  var r = editIndex >= 0 ? records[editIndex] : null;
+  $('lblSleutel').textContent = veldNaam(0);
+  $('lblNaam').textContent = veldNaam(1);
+  $('lblType').textContent = veldNaam(2);
+  $('lblDatum').textContent = veldNaam(3);
+  $('lblCat').textContent = veldNaam(4);
+  $('lblNotitie').textContent = veldNaam(5);
+  $('modalTitle').textContent = r ? 'Event bewerken' : 'Nieuw event';
+  $('fSleutel').value = r ? r.sleutel : '';
+  $('fNaam').value = r ? r.naam : '';
+  huidigType = r ? r.type : 'Geboren';
+  toonType();
+  $('fNotitie').value = r ? (r.notitie || '') : '';
+  cat = r ? r.cat : 2;
+  toonCat();
+  var s = r ? decode(r.code) : null;
+  dstate = { mode:'vast', dag:'', maand:'', jaar:'', nde:1, weekdag:7, wmaand:1, offset:0 };
+  if(s){
+    dstate.mode = s.mode;
+    if(s.mode === 'vast'){ dstate.dag = s.dag || ''; dstate.maand = s.maand || ''; dstate.jaar = s.jaar || ''; }
+    else if(s.mode === 'wisselend'){
+      /* een 0 kan niet en zou de schermtekst laten afwijken van wat er wordt opgeslagen */
+      dstate.nde = s.nde || 1; dstate.weekdag = s.weekdag || 7; dstate.wmaand = s.wmaand || 1;
+    }
+    else { dstate.offset = s.offset; }
+  }
+  toonDagJaar(); toonMaanden(); toonWissel();
+  toonPasen();
+  $('mDel').hidden = editIndex < 0;
+  negeerDubbel = false;
+  naamAuto = !r || !r.naam;
+  $('mErr').textContent = '';
+  toonDateMode();
+  vormBijOpenen = vormNu('modal');
+  toonModaal('modal');
+  groei($('fSleutel'));
+  groei($('fNotitie'));
+  $('fSleutel').focus();
+}
+function sluitModal(){ bergModaal('modal'); }
+function groei(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
+
+function bewaarModal(){
+  leesDate();
+  var sleutel = $('fSleutel').value.replace(/[\r\n]+/g,' ').trim();
+  var naam = $('fNaam').value.trim();
+  var type = huidigType;
+  var notitie = $('fNotitie').value.replace(/[\r\n]+/g,' ').trim();
+  if(!sleutel || !naam || !type){ $('mErr').textContent = 'Sleutel, weergavenaam en type zijn verplicht.'; return; }
+  if((sleutel + naam + type + notitie).indexOf(sep()) >= 0){
+    $('mErr').textContent = 'Het teken ' + sep() + ' kan niet: dat scheidt de velden in het bestand.'; return;
+  }
+  if(dstate.mode === 'vast'){
+    var d = +dstate.dag || 0, m = +dstate.maand || 0, y = +dstate.jaar || 0;
+    if(d && !m){ $('mErr').textContent = 'Bij een dag hoort ook een maand.'; return; }
+    if(d && d > dagenInMaand(m, y)){
+      $('mErr').textContent = MAANDEN[m-1] + (y ? ' ' + y : '') + ' heeft ' + dagenInMaand(m, y) + ' dagen.';
+      return;
+    }
+  }
+  var code = encode(dstate);
+  if(!negeerDubbel){
+    var dubbel = -1;
+    for(var q=0;q<records.length;q++){
+      var x = records[q];
+      if(q !== editIndex && x.raw === undefined && x.sleutel === sleutel && x.type === type && x.code === code){ dubbel = q; break; }
+    }
+    if(dubbel >= 0){
+      vraag('Bestaat al',
+            'Er is al een event ' + sleutel + ' \u2014 ' + type + ' op ' + leesbaar(code) + '.',
+            'Toch opslaan', function(){ negeerDubbel = true; bewaarModal(); });
+      return;
+    }
+  }
+  var rec = { sleutel:sleutel, naam:naam, type:type, code:code, cat:cat, notitie:notitie };
+  onthoud(editIndex >= 0 ? 'wijziging van ' + sleutel : 'toevoegen van ' + sleutel);
+  if(editIndex >= 0) records[editIndex] = rec; else records.push(rec);
+  sorteer();
+  var pos = records.indexOf(rec);
+  selIndex = (zichtbaar().indexOf(pos) >= 0) ? pos : -1;   /* valt hij buiten het filter, dan geen selectie */
+  dirty = true; sluitModal(); render(); bewaar();
+}
+
+/* ------------------ bevestiging ------------------ */
+function vraag(titel, tekst, knop, cb){
+  $('cTitle').textContent = titel;
+  $('cBody').textContent = tekst;
+  $('cYes').textContent = knop;
+  confirmCb = cb;
+  toonModaal('confirm');
+}
+
+/* ------------------ events ------------------ */
+$('zoek').oninput = function(){ zoekterm = this.value.trim(); selIndex = -1; render(); };
+function zetZoeken(aan){
+  zoekModus = aan;
+  if(!aan){ $('zoek').value = ''; zoekterm = ''; }
+  selIndex = -1;
+  render();
+  if(aan) $('zoek').focus();
+}
+$('zoekKnop').onclick = function(){ zetZoeken(!zoekModus); };
+$('zoek').onfocus = function(){ if(selIndex >= 0){ selIndex = -1; render(); } };
+$('filterAanUit').onclick = function(){ fAan = !fAan; tekenFilterAan(); };
+$('filterNotKnop').onclick = function(){ fNot = !fNot; tekenFilterNot(); };
+$('filterStd').onclick = function(){
+  filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
+  filterAan = fAan;
+  zichtJaar = fJaar || new Date().getFullYear();
+  if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
+  $('filterErr').textContent = '';
+  Promise.resolve(bewaarStandaardFilter()).then(function(gelukt){
+    if(!gelukt){
+      $('filterErr').textContent = 'Opslaan in ' + CFG_NAAM + ' is mislukt; het filter is wel toegepast.';
+      selIndex = -1; render();
+      return;
+    }
+    bergModaal('filterModal'); selIndex = -1; render();
+  });
+};
+$('filterCancel').onclick = function(){ bergModaal('filterModal'); };
+$('filterOk').onclick = function(){
+  filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
+  filterAan = fAan;
+  zichtJaar = fJaar || new Date().getFullYear();
+  if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
+  bergModaal('filterModal'); selIndex = -1; render();
+};
+$('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
+$('infoOk').onclick = function(){ bergModaal('infoModal'); };
+$('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
+/* letterbalk: tikken en slepen */
+(function(){
+  var bar = $('azbar'), actief = false, vorige = '';
+  function knopBij(y){
+    var k = bar.children;
+    for(var i=0;i<k.length;i++){
+      var r = k[i].getBoundingClientRect();
+      if(y >= r.top && y <= r.bottom) return k[i];
+    }
+    return null;
+  }
+  function behandel(y){
+    var b = knopBij(y);
+    if(!b || b.disabled) return;
+    var L = b.getAttribute('data-l');
+    if(L === vorige) return;
+    vorige = L;
+    springNaarLetter(L);
+  }
+  if(window.PointerEvent){
+    bar.addEventListener('pointerdown', function(e){
+      actief = true; vorige = '';
+      if(bar.setPointerCapture) { try { bar.setPointerCapture(e.pointerId); } catch(x){} }
+      behandel(e.clientY);
+      e.preventDefault();
+    });
+    bar.addEventListener('pointermove', function(e){
+      if(!actief) return;
+      behandel(e.clientY);
+      e.preventDefault();
+    });
+    ['pointerup','pointercancel'].forEach(function(n){
+      bar.addEventListener(n, function(){ actief = false; vorige = ''; });
+    });
+  } else {
+    bar.addEventListener('click', function(e){
+      var b = e.target;
+      while(b && b !== bar && b.tagName !== 'BUTTON') b = b.parentNode;
+      if(b && b !== bar && !b.disabled) springNaarLetter(b.getAttribute('data-l'));
+    });
+  }
+})();
+$('btnUndo').onclick = function(){
+  if(!terug) return;
+  records = terug.snap; terug = null; selIndex = -1;
+  dirty = true; render(); bewaar();
+};
+$('btnCfg').onclick = openCfg;
+$('btnNew').onclick = function(){ openModal(); };
+$('btnEdit').onclick = function(){ if(selIndex >= 0) openModal(selIndex); };
+$('mDel').onclick = function(){
+  if(editIndex < 0) return;
+  var i = editIndex, r = records[i];
+  vraag('Event verwijderen?', r.naam + ' \u2014 ' + r.type + ' (' + leesbaar(r.code) + ')', 'Verwijderen', function(){
+    onthoud('verwijderen van ' + r.sleutel);
+    records.splice(i,1); selIndex = -1; dirty = true; sluitModal(); render(); bewaar();
+  });
+};
+$('pickCancel').onclick = function(){ bergModaal('picker'); };
+$('pickOk').onclick = bevestigBestand;
+$('pickNew').oninput = function(){
+  $('pickErr').textContent = bestandsnaamFout(this.value.trim()) === 'Geef een naam op.' ? '' : bestandsnaamFout(this.value.trim());
+  if(this.value.trim()){ pickKeuze = ''; tekenPickLijst(); }
+};
+$('picker').onclick = function(e){ if(e.target === this) bergModaal('picker'); };
+$('cfgBestand').onclick = openBestandsKeuze;
+$('icoonCancel').onclick = function(){ bergModaal('icoonModal'); };
+$('icoonOk').onclick = function(){
+  if(icoonRij >= 0) cfgTypes[icoonRij].icoon = icoonKeuze;
+  bergModaal('icoonModal'); tekenCfgTypes();
+};
+$('icoonModal').onclick = function(e){ if(e.target === this) bergModaal('icoonModal'); };
+$('cfgPaasAdd').onclick = function(){
+  cfgPaas.push({ dagen:0, omschrijving:'' });
+  tekenCfgPaas();
+  var v = $('cfgPaas').querySelectorAll('[data-po]');
+  if(v.length) v[v.length-1].focus();
+};
+['Bestand','Velden','Types','Cats','Paas','Rapport'].forEach(function(k){
+  $('kop' + k).onclick = function(){ cfgOpen[k] = !cfgOpen[k]; tekenSecties(); };
+});
+$('cfgTypeAdd').onclick = function(){
+  cfgTypes.push({ omschrijving:'', icoon:'' });
+  tekenCfgTypes();
+  var v = $('cfgTypes').querySelectorAll('[data-i]');
+  if(v.length) v[v.length-1].focus();
+};
+$('cfgCatAdd').onclick = function(){
+  var m = 0;
+  cfgCats.forEach(function(c){ if(+c.nr > m) m = +c.nr; });
+  cfgCats.push({ nr:m + 1, oms:'' });
+  tekenCfgCats();
+  var v = $('cfgCats').querySelectorAll('[data-oms]');
+  if(v.length) v[v.length-1].focus();
+};
+$('cfgCheck').onclick = function(){ rapport('bestand'); };
+$('cfgStatus').onclick = function(){ rapport('app'); };
+$('checkOk').onclick = function(){ bergModaal('checkModal'); };
+$('checkModal').onclick = function(e){ if(e.target === this) bergModaal('checkModal'); };
+$('cfgCancel').onclick = function(){ bergModaal('cfgModal'); };
+$('cfgOk').onclick = bewaarCfg;
+$('cfgModal').onclick = function(e){ if(e.target === this) bergModaal('cfgModal'); };
+
+$('fSleutel').oninput = function(){
+  groei(this);
+  if(naamAuto){ $('fNaam').value = draaiNaam(this.value.replace(/[\r\n]+/g, ' ')); }
+};
+$('fNaam').oninput = function(){ naamAuto = false; };
+$('fNotitie').oninput = function(){ groei(this); };
+$('fType').onclick = openTypeKeuze;
+$('typeCancel').onclick = function(){ bergModaal('typeModal'); };
+$('typeOk').onclick = bevestigType;
+$('typeModal').onclick = function(e){ if(e.target === this) bergModaal('typeModal'); };
+$('mCancel').onclick = sluitModal;
+$('mOk').onclick = bewaarModal;
+$('modal').onclick = function(e){ if(e.target === this) sluitModal(); };
+
+Array.prototype.forEach.call($('dateModes').children, function(b){
+  b.onclick = function(){ leesDate(); dstate.mode = b.getAttribute('data-mode'); toonPasen(); toonMaanden(); toonDagJaar(); toonWissel(); toonDateMode(); };
+});
+$('fNde').onclick = function(){ ndeKeuze = dstate.nde || 1; tekenNdeLijst(); toonModaal('ndeModal'); };
+$('ndeCancel').onclick = function(){ bergModaal('ndeModal'); };
+$('ndeOk').onclick = function(){
+  dstate.nde = +ndeKeuze || 1; bergModaal('ndeModal'); toonWissel(); updPreview();
+};
+$('ndeModal').onclick = function(e){ if(e.target === this) bergModaal('ndeModal'); };
+$('fWeekdag').onclick = function(){ weekdagKeuze = dstate.weekdag || 7; tekenWeekdagLijst(); toonModaal('weekdagModal'); };
+$('weekdagCancel').onclick = function(){ bergModaal('weekdagModal'); };
+$('weekdagOk').onclick = function(){
+  dstate.weekdag = +weekdagKeuze || 7; bergModaal('weekdagModal'); toonWissel(); updPreview();
+};
+$('weekdagModal').onclick = function(e){ if(e.target === this) bergModaal('weekdagModal'); };
+$('fDag').onclick = function(){ leesDate(); openDagKeuze(); };
+$('dagOnbekend').onclick = function(){ dagKeuze = ''; tekenDagGrid(); };
+$('dagCancel').onclick = function(){ bergModaal('dagModal'); };
+$('dagOk').onclick = function(){
+  dstate.dag = dagKeuze === '' ? '' : +dagKeuze;
+  bergModaal('dagModal'); toonDagJaar(); updPreview();
+};
+$('dagModal').onclick = function(e){ if(e.target === this) bergModaal('dagModal'); };
+$('fJaar').onclick = function(){ leesDate(); openJaarKeuze(); };
+$('filterJaar').onclick = function(){
+  jaarDoel = 'filter';
+  jaarKeuze = fJaar;
+  tekenJaar();
+  toonModaal('jaarModal');
+};
+$('jaarMin').onclick = function(){ stapJaar(-1); };
+$('jaarPlus').onclick = function(){ stapJaar(1); };
+$('jaarVeld').oninput = function(){
+  /* alleen cijfers, hooguit vier */
+  var schoon = this.value.replace(/\D/g, '').slice(0, 4);
+  if(schoon !== this.value) this.value = schoon;
+  jaarKeuze = schoon === '' ? '' : schoon;
+  tekenJaarBehoudCursor();
+};
+$('jaarVeld').onkeydown = function(e){
+  var toegestaan = ['Backspace','Delete','Tab','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+  if(e.key === 'ArrowUp'){ e.preventDefault(); stapJaar(1); return; }
+  if(e.key === 'ArrowDown'){ e.preventDefault(); stapJaar(-1); return; }
+  if(e.ctrlKey || e.metaKey || toegestaan.indexOf(e.key) >= 0) return;
+  if(!/^[0-9]$/.test(e.key)) e.preventDefault();
+};
+$('jaarOnbekend').onclick = function(){ jaarKeuze = ''; tekenJaar(); };
+$('jaarDitJaar').onclick = function(){ jaarKeuze = new Date().getFullYear(); tekenJaar(); };
+$('jaarCancel').onclick = function(){ bergModaal('jaarModal'); };
+$('jaarOk').onclick = function(){
+  if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)){ tekenJaar(); return; }
+  if(jaarDoel !== 'datum' && jaarKeuze === ''){ tekenJaar(); return; }
+  bergModaal('jaarModal');
+  if(jaarDoel === 'filter'){
+    fJaar = +jaarKeuze || new Date().getFullYear();
+    $('filterJaarTxt').textContent = fJaar;
+    return;
+  }
+  dstate.jaar = jaarKeuze === '' ? '' : +jaarKeuze;
+  toonDagJaar(); updPreview();
+};
+$('jaarModal').onclick = function(e){ if(e.target === this) bergModaal('jaarModal'); };
+$('fMaand').onclick = function(){ leesDate(); openMaandKeuze('vast'); };
+$('fWmaand').onclick = function(){ leesDate(); openMaandKeuze('wisselend'); };
+$('maandCancel').onclick = function(){ bergModaal('maandModal'); };
+$('maandOk').onclick = bevestigMaand;
+$('maandModal').onclick = function(e){ if(e.target === this) bergModaal('maandModal'); };
+$('fPasen').onclick = openPasenKeuze;
+$('pasenCancel').onclick = function(){ bergModaal('pasenModal'); };
+$('pasenOk').onclick = bevestigPasen;
+$('pasenModal').onclick = function(e){ if(e.target === this) bergModaal('pasenModal'); };
+$('fCat').onclick = function(){ catKeuze = cat; tekenCatLijst(); toonModaal('catModal'); };
+$('catCancel').onclick = function(){ bergModaal('catModal'); };
+$('catOk').onclick = function(){
+  cat = +catKeuze || 1; bergModaal('catModal'); toonCat();
+};
+$('catModal').onclick = function(e){ if(e.target === this) bergModaal('catModal'); };
+
+$('cNo').onclick = function(){ bergModaal('confirm'); confirmCb = null; };
+$('cYes').onclick = function(){ bergModaal('confirm'); if(confirmCb) confirmCb(); confirmCb = null; };
+$('confirm').onclick = function(e){ if(e.target === this){ bergModaal('confirm'); confirmCb = null; } };
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    if(sluitBovenste(false)) return;
+    if(zoekModus) zetZoeken(false);
+  }
+  if((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); if(dirty) bewaar(); }
+});
+window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault(); e.returnValue = ''; } });
+
+/* ------------------ start ------------------ */
+var swFout = '';
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(e){
+      /* bewaren zodat App-status kan tonen waarom het misging */
+      swFout = e.name + ': ' + e.message;
+    });
+  });
+}
+
+if(hasFSA){
+  idbGet('dir').then(function(h){
+    if(!h) return render();
+    dirHandle = h;
+    return dirHandle.queryPermission({ mode:'readwrite' }).then(function(p){
+      if(p !== 'granted'){ fileState = 'auth'; render(); return; }
+      return laadCfg();
+    });
+  }).catch(function(){ render(); });
+} else {
+  render();
+}
+</script>
+</body>
+</html>
