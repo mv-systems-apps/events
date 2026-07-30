@@ -1,15 +1,15 @@
-/* Service worker voor de events-editor.
+/* Service worker voor Events.
    Strategie: stale-while-revalidate — meteen uit de cache serveren en
    op de achtergrond verversen. Verhoog CACHE_VERSION (of draai
    update_cache_version.py) om de oude cache op te ruimen. */
 
-const CACHE_VERSION = 38;
-const CACHE_NAME = 'events-editor-v' + CACHE_VERSION;
+const CACHE_VERSION = 46;
+const CACHE_NAME = 'events-v' + CACHE_VERSION;
 
 const ASSETS = [
   './',
   './index.html',
-  './events-editor.html',
+  './events.html',
   './manifest.json',
   './icon.svg'
 ];
