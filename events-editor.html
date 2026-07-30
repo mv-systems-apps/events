@@ -151,16 +151,18 @@ svg{display:block}
 .list tbody tr.sel td{background:rgba(122,162,247,.30)}
 .list tbody tr.vandaag td{border-top:2px solid var(--accent)}
 .list col.c-ic{width:31px}
-.list col.c-dag{width:3.2ch}
-.list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:6px}
-.list col.c-dat{width:10ch}
-.list col.c-not{width:26px}
-.list td.notic{padding:6px 2px 6px 0;text-align:right}
-.list td.notic svg{margin-left:auto;width:21px;height:21px}
-.list td.dat{color:var(--muted);text-align:right;font-size:18px;cursor:pointer}
+.list col.c-dag{width:2.6ch}
+.list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:0}
+.list col.c-wd{width:2.4ch}
+.list col.c-dat{width:5.6ch}
+/* accentkleur op het type-icoon betekent: bij dit event staat een notitie */
+.list td.ic.metnot{color:var(--accent)}
+.list td.dat{color:var(--muted);font-size:18px;cursor:pointer;text-align:left;padding-left:3px;padding-right:0}
+.list td.wd{text-align:right;padding-left:0;padding-right:0}
 .list td.ic{padding:6px 6px 6px 0;color:var(--muted);line-height:0;text-align:right;cursor:pointer}
 .list td.ic svg{width:23px;height:23px;margin-left:auto}
 .list tbody tr.sel td.ic{color:var(--txt)}
+.list tbody tr.sel td.ic.metnot{color:var(--accent)}
 .empty{padding:16px 8px 20px;text-align:center;color:var(--muted);font-size:19px}
 .body{flex:1 1 auto;display:flex;min-height:0}
 .body main{flex:1 1 auto;min-width:0}
@@ -184,7 +186,12 @@ svg{display:block}
   display:flex;align-items:flex-end;justify-content:center;z-index:50;
 }
 .modal{
-  width:100%;max-width:520px;max-height:92vh;overflow-y:auto;background:var(--panel);
+  width:100%;max-width:520px;background:var(--panel);
+  /* dvh rekent met het venster zoals je het ziet; vh telt de balken mee die
+     tijdens scrollen verdwijnen, waardoor de onderkant onbereikbaar werd */
+  max-height:92vh;
+  max-height:92dvh;
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
   border:1px solid var(--line);border-radius:16px 16px 0 0;padding:16px;
   padding-bottom:calc(16px + env(safe-area-inset-bottom));
 }
@@ -194,6 +201,9 @@ svg{display:block}
 }
 .modal h3{margin:0 0 16px;font-size:24px;font-weight:600;letter-spacing:.02em}
 .field{margin-bottom:12px}
+.field.rij{display:flex;align-items:center;gap:8px}
+.field.rij label{margin:0;flex:0 0 auto}
+.field.rij input{flex:1;min-width:0}
 .field label{display:block;font-size:17px;color:var(--muted);margin-bottom:6px;
   font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
 .field input,.field select,.field textarea{
@@ -213,6 +223,24 @@ svg{display:block}
 }
 .preview-txt{font-size:19px}
 .preview-code{font-size:17px;color:var(--muted);letter-spacing:.04em}
+.sectiekop{
+  width:100%;display:flex;align-items:center;gap:8px;
+  padding:12px 12px;border:1px solid var(--line);border-radius:8px;background:#28313f;
+  color:var(--txt);font-family:var(--mono);font-size:17px;
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.sectiekop:hover{border-color:var(--accent)}
+.sectiekop .aantal{color:var(--muted)}
+.sectiekop .chev{margin-left:auto;flex:0 0 auto}
+.sectiekop.open{border-color:var(--accent);color:var(--accent)}
+.sectiekop.open .chev{transform:rotate(90deg)}
+.sectiekop + div{margin-top:8px}
+.veldkop{
+  font-family:var(--mono);font-size:15px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;margin:12px 0 5px;
+}
+.veldkop:first-child{margin-top:0}
+.veldkop label{font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;margin:0}
 .editlist{display:flex;flex-direction:column;gap:8px}
 /* alle bewerkregels delen hetzelfde raster, zodat de kolommen uitlijnen */
 .editrow{display:grid;grid-template-columns:64px 1fr 44px;gap:8px;align-items:center}
@@ -559,7 +587,7 @@ svg{display:block}
 <!-- controle -->
 <div class="overlay" id="checkModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
-    <h3 id="checkTitel">Controle</h3>
+    <h3 id="checkTitel">Bestandscontrole</h3>
     <div id="checkBody"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="checkOk">Sluiten</button>
@@ -638,49 +666,69 @@ svg{display:block}
 <div class="overlay" id="cfgModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Configuratie</h3>
-    <div class="field">
-      <label>Metabestand</label>
-      <div class="cfgstatic mono">events_cfg.json</div>
-    </div>
-    <div class="field">
-      <label>Events-bestand</label>
-      <button class="typefield" id="cfgBestand"><span id="cfgBestandTxt">—</span></button>
-    </div>
-    <div class="field">
-      <label for="cfgOmschrijving">Omschrijving</label>
-      <textarea id="cfgOmschrijving" rows="1"></textarea>
-    </div>
-    <div class="field">
+    <div class="field rij">
       <label for="cfgTitel">Titel</label>
       <input id="cfgTitel" type="text" placeholder="Events">
     </div>
     <div class="field">
-      <label for="cfgSep">Scheidingsteken</label>
-      <input id="cfgSep" type="text" maxlength="1" placeholder=";">
+      <button class="sectiekop" id="kopBestand" aria-expanded="false">
+        Bestand <span class="aantal" id="aantalBestand"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakBestand" hidden>
+        <div class="veldkop">Metabestand</div>
+        <div class="cfgstatic mono" id="cfgMetaNaam"></div>
+        <div class="veldkop">Events-bestand</div>
+        <button class="typefield" id="cfgBestand"><span id="cfgBestandTxt">—</span></button>
+        <div class="veldkop"><label for="cfgSep">Scheidingsteken</label></div>
+        <input id="cfgSep" type="text" maxlength="1" placeholder=";">
+      </div>
     </div>
     <div class="field">
-      <label>Veldnamen</label>
-      <div id="cfgVelden" class="editlist"></div>
-      <div class="hint">De volgorde ligt vast in het bestandsformaat; alleen de namen zijn vrij.</div>
+      <button class="sectiekop" id="kopVelden" aria-expanded="false">
+        Veldnamen <span class="aantal" id="aantalVelden"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakVelden" hidden>
+        <div id="cfgVelden" class="editlist"></div>
+        <div class="hint">De volgorde ligt vast in het bestandsformaat; alleen de namen zijn vrij.</div>
+      </div>
     </div>
     <div class="field">
-      <label>Types</label>
-      <div id="cfgTypes" class="editlist"></div>
-      <button class="btn addrow" id="cfgTypeAdd">+ type</button>
+      <button class="sectiekop" id="kopTypes" aria-expanded="false">
+        Types <span class="aantal" id="aantalTypes"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakTypes" hidden>
+        <div id="cfgTypes" class="editlist"></div>
+        <button class="btn addrow" id="cfgTypeAdd">+ type</button>
+      </div>
     </div>
     <div class="field">
-      <label>Categorieën</label>
-      <div id="cfgCats" class="editlist"></div>
-      <button class="btn addrow" id="cfgCatAdd">+ categorie</button>
+      <button class="sectiekop" id="kopCats" aria-expanded="false">
+        Categorieën <span class="aantal" id="aantalCats"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakCats" hidden>
+        <div id="cfgCats" class="editlist"></div>
+        <button class="btn addrow" id="cfgCatAdd">+ categorie</button>
+      </div>
     </div>
     <div class="field">
-      <label>Paasdagen</label>
-      <div id="cfgPaas" class="editlist"></div>
-      <button class="btn addrow" id="cfgPaasAdd">+ paasdag</button>
+      <button class="sectiekop" id="kopPaas" aria-expanded="false">
+        Paasdagen <span class="aantal" id="aantalPaas"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakPaas" hidden>
+        <div id="cfgPaas" class="editlist"></div>
+        <button class="btn addrow" id="cfgPaasAdd">+ paasdag</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="sectiekop" id="kopRapport" aria-expanded="false">
+        App &amp; Data <span class="aantal" id="aantalRapport"></span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div id="vakRapport" hidden>
+        <button class="btn addrow" id="cfgCheck">Bestand controleren</button>
+        <button class="btn addrow" id="cfgStatus">App-status</button>
+      </div>
     </div>
     <div id="cfgExtra"></div>
-    <button class="btn addrow" id="cfgCheck">Bestand controleren</button>
-    <button class="btn addrow" id="cfgStatus">App-status</button>
     <div class="err" id="cfgErr"></div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
@@ -920,10 +968,10 @@ function datumInJaar(code, jaar){
 }
 
 var DAG_KORT = ['ma','di','wo','do','vr','za','zo'];
-var MND_KORT = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
-function korteDatum(d){
-  return d ? DAG_KORT[isoWeekdag(d) - 1] + ' ' + d.getDate() + ' ' + MND_KORT[d.getMonth()] : '\u2014';
-}
+/* twee losse stukjes voor de tabel, elk in hun eigen kolom, zodat ze per soort
+   uitlijnen in plaats van per regel te verschuiven */
+function weekdagKort(d){ return d ? DAG_KORT[isoWeekdag(d) - 1] : ''; }
+function datumKort(d){ return d ? pad(d.getDate(),2) + '-' + pad(d.getMonth() + 1, 2) : '\u2014'; }
 /* de datum waarop dit event in het gevraagde jaar valt, of null */
 function eventDatum(r, jaar){
   if(r.raw !== undefined) return null;
@@ -1078,7 +1126,21 @@ function sorteer(){
 
 /* ------------------ werkmap, configuratie en bestand ------------------ */
 var DB = 'events-editor', STORE = 'handles';
-var CFG_NAAM = 'events_cfg.json';
+var CFG_STANDAARD = 'events_cfg.json';
+/* De naam van het metabestand mag met ?cfg=... in de URL worden meegegeven.
+   Zonder die parameter blijft het events_cfg.json, dus er verandert niets.
+   Alleen een gewone bestandsnaam is toegestaan: geen pad, geen aanhalings-
+   tekens, zodat de app niet buiten de werkmap kan worden gestuurd. */
+var CFG_NAAM = (function(){
+  try {
+    var p = new URLSearchParams(location.search).get('cfg');
+    if(!p) return CFG_STANDAARD;
+    p = p.trim();
+    if(!/^[A-Za-z0-9 ._-]{1,120}$/.test(p)) return CFG_STANDAARD;
+    if(/^\.|\.$/.test(p)) return CFG_STANDAARD;
+    return /\.[a-z0-9]+$/i.test(p) ? p : p + '.json';
+  } catch(e){ return CFG_STANDAARD; }
+})();
 
 function idb(){
   return new Promise(function(res,rej){
@@ -1158,7 +1220,7 @@ function laadCfg(){
       }
     });
 }
-var CFG_VOLGORDE = ['bestand','omschrijving','titel','scheidingsteken','velden','types','categorieen','paasdagen','filter'];
+var CFG_VOLGORDE = ['bestand','titel','scheidingsteken','velden','types','categorieen','paasdagen','filter'];
 function ordenCfg(c){
   var uit = {};
   CFG_VOLGORDE.forEach(function(k){ if(c[k] !== undefined) uit[k] = c[k]; });
@@ -1329,10 +1391,23 @@ function renderFilebar(){
 /* --- configuratiemodal --- */
 var cfgBestand = '', pickLijst = [], pickKeuze = '';
 var cfgTypes = [], cfgCats = [], cfgVelden = [], cfgPaas = [];
+/* de drie lijsten starten ingeklapt; je verandert ze zelden */
+var cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
+function tekenSecties(){
+  var aantallen = { Velden:cfgVelden.length, Types:cfgTypes.length,
+                    Cats:cfgCats.length, Paas:cfgPaas.length };
+  ['Bestand','Velden','Types','Cats','Paas','Rapport'].forEach(function(k){
+    $('aantal' + k).textContent = aantallen[k] === undefined ? '' : '(' + aantallen[k] + ')';
+    $('vak' + k).hidden = !cfgOpen[k];
+    $('kop' + k).className = 'sectiekop' + (cfgOpen[k] ? ' open' : '');
+    $('kop' + k).setAttribute('aria-expanded', cfgOpen[k] ? 'true' : 'false');
+  });
+}
 var icoonRij = -1, icoonKeuze = '';
 
 var BEKEND = CFG_VOLGORDE;
 function tekenCfgTypes(){
+  if($('aantalTypes')) tekenSecties();
   $('cfgTypes').innerHTML = cfgTypes.map(function(x,i){
     return '<div class="editrow">' +
       '<button class="icon-btn" data-ic="' + i + '" title="Icoon kiezen" aria-label="Icoon kiezen">' +
@@ -1380,6 +1455,7 @@ function tekenCfgVelden(){
   });
 }
 function tekenCfgPaas(){
+  if($('aantalTypes')) tekenSecties();
   $('cfgPaas').innerHTML = cfgPaas.map(function(x,i){
     return '<div class="editrow">' +
       '<input class="nr" type="number" min="-99" max="99" data-pd="' + i + '" value="' + esc(x.dagen) + '">' +
@@ -1402,6 +1478,7 @@ function tekenCfgPaas(){
   });
 }
 function tekenCfgCats(){
+  if($('aantalTypes')) tekenSecties();
   $('cfgCats').innerHTML = cfgCats.map(function(c,i){
     return '<div class="editrow">' +
       '<input class="nr" type="number" min="0" max="9" data-nr="' + i + '" value="' + esc(c.nr) + '">' +
@@ -1427,15 +1504,16 @@ function openCfg(){
   cfgBestand = cfg.bestand || bestandsnaam || '';
   $('cfgBestandTxt').textContent = cfgBestand || 'kies een bestand';
   $('cfgSep').value = sep();
+  $('cfgMetaNaam').textContent = CFG_NAAM;
   $('cfgTitel').value = cfg.titel || '';
-  $('cfgOmschrijving').value = cfg.omschrijving || '';
   cfgTypes = alleTypes().map(function(x){ return { omschrijving:x.omschrijving, icoon:x.icoon || '' }; });
   cfgCats = (cfg.categorieen && cfg.categorieen.length)
     ? cfg.categorieen.map(function(c){ return { nr:c.nr, oms:c.omschrijving || '' }; })
     : [1,2,3,4].map(function(n){ return { nr:n, oms:'' }; });
   cfgVelden = VELDEN.map(function(v,i){ return veldNaam(i); });
   cfgPaas = paasOpties().map(function(x){ return { dagen:x.dagen, omschrijving:x.omschrijving || '' }; });
-  tekenCfgVelden(); tekenCfgTypes(); tekenCfgCats(); tekenCfgPaas();
+  cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
+  tekenCfgVelden(); tekenCfgTypes(); tekenCfgCats(); tekenCfgPaas(); tekenSecties();
   var extra = Object.keys(cfg).filter(function(k){ return BEKEND.indexOf(k) < 0; });
   $('cfgExtra').innerHTML = extra.length
     ? '<div class="field"><label>Overige instellingen</label>' +
@@ -1447,7 +1525,6 @@ function openCfg(){
   $('cfgErr').textContent = '';
   vormBijOpenen = vormNu('cfgModal');
   toonModaal('cfgModal');
-  groei($('cfgOmschrijving'));
 }
 function tekenPickLijst(){
   $('pickList').innerHTML = pickLijst.length
@@ -1538,9 +1615,9 @@ function bewaarCfg(){
   var gewijzigd = cfg.bestand !== cfgBestand;
   cfg.bestand = cfgBestand;
   cfg.scheidingsteken = nieuwSep;
-  var titel = $('cfgTitel').value.trim(), oms = $('cfgOmschrijving').value.replace(/[\r\n]+/g,' ').trim();
+  var titel = $('cfgTitel').value.trim();
   if(titel) cfg.titel = titel; else delete cfg.titel;
-  if(oms) cfg.omschrijving = oms; else delete cfg.omschrijving;
+  delete cfg.omschrijving;   /* dit veld bestaat niet meer */
   var velden = cfgVelden.map(function(v){ return v.trim(); });
   if(velden.some(function(v){ return !v; })){ $('cfgErr').textContent = 'Elke veldnaam moet ingevuld zijn.'; return; }
   var paas = cfgPaas.filter(function(x){ return String(x.dagen).trim() !== '' && x.omschrijving.trim(); })
@@ -1669,21 +1746,23 @@ function renderLijst(){
     }
   }
   var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
-  var metNot = idx.some(function(i){ return !!records[i].notitie; });
   var html = '<table><colgroup>' + (metDag ? '<col class="c-dag">' : '') + '<col>' +
-             (metDatum ? '<col class="c-dat">' : '') +
-             (metNot ? '<col class="c-not">' : '') + '<col class="c-ic"></colgroup><tbody>';
+             (metDatum ? '<col class="c-wd"><col class="c-dat">' : '') +
+             '<col class="c-ic"></colgroup><tbody>';
   idx.forEach(function(i, pos){
     var r = records[i];
     var n = dagen[pos];
     var klassen = (i === selIndex ? 'sel' : '') + (pos === grens ? ' vandaag' : '');
     html += '<tr' + (klassen.trim() ? ' class="' + klassen.trim() + '"' : '') +
-      ' data-i="' + i + '" title="' + esc(r.type) + '">' +
+      ' data-i="' + i + '">' +
       (metDag ? '<td class="dag">' + (n !== null && Math.abs(n) < 10 ? esc(dagenKort(n)) : '') + '</td>' : '') +
       '<td>' + esc(r.sleutel) + '</td>' +
-      (metDatum ? '<td class="dat">' + esc(korteDatum(datumVan[i])) + '</td>' : '') +
-      (metNot ? '<td class="ic notic">' + (r.notitie ? svgIcoon('notitie', 'notitie') : '') + '</td>' : '') +
-      '<td class="ic">' + typeIcon(r.type) + '</td></tr>';
+      (metDatum
+        ? '<td class="dat wd">' + esc(weekdagKort(datumVan[i])) + '</td>' +
+          '<td class="dat">' + esc(datumKort(datumVan[i])) + '</td>'
+        : '') +
+      '<td class="ic' + (r.notitie ? ' metnot' : '') + '" title="' +
+        esc(r.type + (r.notitie ? ' \u2014 met notitie' : '')) + '">' + typeIcon(r.type) + '</td></tr>';
   });
   el.innerHTML = html + '</tbody></table>';
   Array.prototype.forEach.call(el.querySelectorAll('tbody tr'), function(row){
@@ -1846,8 +1925,7 @@ function statusRegel(label, waarde, goed){
   return '<div class="checkregel' + (goed === false ? ' slecht' : '') + '">' +
          '<span class="statuslbl">' + esc(label) + '</span> ' + esc(waarde) + '</div>';
 }
-function toonAppStatus(){
-  $('checkTitel').textContent = 'App-status';
+function vulAppStatus(){
   var vast =
     '<div class="checkkop">Omgeving</div>' +
     statusRegel('Adres', location.href) +
@@ -1855,11 +1933,13 @@ function toonAppStatus(){
                 window.isSecureContext) +
     statusRegel('Weergave', (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
                 ? 'standalone \u2014 als app geopend' : 'in de browser') +
+    statusRegel('Configuratie', CFG_NAAM + (CFG_NAAM === CFG_STANDAARD ? '' : ' (via de URL)')) +
+    statusRegel('Ander metabestand (voorbeeld)', location.origin + location.pathname + '?cfg=' +
+                (CFG_NAAM === CFG_STANDAARD ? 'events_cfg_werk.json' : CFG_NAAM)) +
     '<div class="checkkop">Manifest</div><div id="stMan">bezig\u2026</div>' +
     '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
     '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
   $('checkBody').innerHTML = vast;
-  toonModaal('checkModal');
 
   /* manifest ophalen en de sleutelvelden tonen */
   fetch('manifest.json', { cache:'no-store' }).then(function(r){
@@ -1987,8 +2067,12 @@ function controleer(){
 
   return bevindingen;
 }
-function toonControle(){
-  $('checkTitel').textContent = 'Controle';
+function rapport(welk){
+  $('checkTitel').textContent = welk === 'app' ? 'App-status' : 'Bestandscontrole';
+  if(welk === 'app') vulAppStatus(); else vulControle();
+  if($('checkModal').hidden) toonModaal('checkModal');
+}
+function vulControle(){
   var b = controleer();
   $('checkBody').innerHTML = b.length
     ? b.map(function(g){
@@ -1997,7 +2081,6 @@ function toonControle(){
       }).join('')
     : '<div class="checkgoed">Geen bijzonderheden in ' +
       records.length + ' regels.</div>';
-  toonModaal('checkModal');
 }
 function toonInfo(i){
   var r = records[i];
@@ -2062,7 +2145,6 @@ function render(){
   $('btnUndo').hidden = !terug;
   $('btnUndo').title = terug ? 'Ongedaan maken: ' + terug.tekst : 'Ongedaan maken';
   $('panelTitel').textContent = cfg.titel || 'Events';
-  $('panelTitel').parentNode.title = cfg.omschrijving || '';
 }
 
 
@@ -2104,7 +2186,7 @@ function vormNu(id){
   }
   if(id === 'cfgModal'){
     return JSON.stringify([cfgBestand, $('cfgSep').value, $('cfgTitel').value,
-                           $('cfgOmschrijving').value, cfgVelden, cfgTypes, cfgCats, cfgPaas]);
+                           cfgVelden, cfgTypes, cfgCats, cfgPaas]);
   }
   return '';
 }
@@ -2592,6 +2674,9 @@ $('cfgPaasAdd').onclick = function(){
   var v = $('cfgPaas').querySelectorAll('[data-po]');
   if(v.length) v[v.length-1].focus();
 };
+['Bestand','Velden','Types','Cats','Paas','Rapport'].forEach(function(k){
+  $('kop' + k).onclick = function(){ cfgOpen[k] = !cfgOpen[k]; tekenSecties(); };
+});
 $('cfgTypeAdd').onclick = function(){
   cfgTypes.push({ omschrijving:'', icoon:'' });
   tekenCfgTypes();
@@ -2606,8 +2691,8 @@ $('cfgCatAdd').onclick = function(){
   var v = $('cfgCats').querySelectorAll('[data-oms]');
   if(v.length) v[v.length-1].focus();
 };
-$('cfgCheck').onclick = toonControle;
-$('cfgStatus').onclick = toonAppStatus;
+$('cfgCheck').onclick = function(){ rapport('bestand'); };
+$('cfgStatus').onclick = function(){ rapport('app'); };
 $('checkOk').onclick = function(){ bergModaal('checkModal'); };
 $('checkModal').onclick = function(e){ if(e.target === this) bergModaal('checkModal'); };
 $('cfgCancel').onclick = function(){ bergModaal('cfgModal'); };
@@ -2619,7 +2704,6 @@ $('fSleutel').oninput = function(){
   if(naamAuto){ $('fNaam').value = draaiNaam(this.value.replace(/[\r\n]+/g, ' ')); }
 };
 $('fNaam').oninput = function(){ naamAuto = false; };
-$('cfgOmschrijving').oninput = function(){ groei(this); };
 $('fNotitie').oninput = function(){ groei(this); };
 $('fType').onclick = openTypeKeuze;
 $('typeCancel').onclick = function(){ bergModaal('typeModal'); };
