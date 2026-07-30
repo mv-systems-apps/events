@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -279,6 +278,8 @@ svg{display:block}
 .notknop{flex:0 0 auto;padding:8px 12px}
 .notknop svg{width:21px;height:21px}
 .rowlist.twee .source-row{min-width:0;padding:10px}
+/* een bijzondere regel loopt over beide kolommen */
+.rowlist.twee .source-row.bijzonder{grid-column:1 / -1;justify-content:center}
 .rowlist.twee .title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .numgrid{
   display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;
@@ -559,7 +560,7 @@ svg{display:block}
 <div class="overlay" id="maandModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Maand kiezen</h3>
-    <div id="maandList" class="rowlist"></div>
+    <div id="maandList" class="rowlist twee"></div>
     <div class="modal-actions">
       <button class="btn" id="maandCancel">Annuleren</button>
       <button class="btn btn-primary" id="maandOk">OK</button>
