@@ -1312,8 +1312,19 @@ function externGewijzigd(){
     .then(function(f){ return laatstGelezen !== null && f.lastModified !== laatstGelezen; })
     .catch(function(){ return false; });   /* bestaat nog niet: niets te overschrijven */
 }
+/* Er mag er maar een tegelijk schrijven. Zonder dit slot kan een oudere
+   schrijfactie later afsluiten dan een nieuwere, en dan wint de oude inhoud;
+   bovendien ziet de botsingscontrole dan onze eigen schrijfactie aan voor een
+   wijziging van buiten. Komt er tijdens het schrijven iets bij, dan gaat dat
+   er meteen daarna alsnog in. */
+var schrijfBezig = false, schrijfNogmaals = false;
+function schrijfKlaar(){
+  schrijfBezig = false;
+  if(schrijfNogmaals){ schrijfNogmaals = false; bewaar(); }
+}
 function schrijfEvents(){
   var tekst = serialize();
+  schrijfBezig = true;
   saveState = 'bezig'; render();
   return maybeBackup(bestandsnaam)
     .then(function(){ return dirHandle.getFileHandle(bestandsnaam, { create:true }); })
@@ -1323,12 +1334,13 @@ function schrijfEvents(){
     .then(function(h){ return h.getFile(); })
     .then(function(f){
       laatstGelezen = f.lastModified;
-      dirty = false; saveState = 'ok'; render();
+      dirty = false; saveState = 'ok'; render(); schrijfKlaar();
     })
-    .catch(function(){ dirty = true; saveState = 'fout'; render(); });
+    .catch(function(){ dirty = true; saveState = 'fout'; render(); schrijfKlaar(); });
 }
 function bewaar(){
   if(!hasFSA || !dirHandle || !bestandsnaam){ dirty = true; render(); return; }
+  if(schrijfBezig){ schrijfNogmaals = true; return; }   /* straks, in een keer */
   externGewijzigd().then(function(botsing){
     if(!botsing) return schrijfEvents();
     dirty = true; saveState = 'extern'; render();
