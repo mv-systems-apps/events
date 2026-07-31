@@ -268,10 +268,9 @@ svg{display:block}
 .typefield svg{width:23px;height:23px;flex:0 0 auto;color:var(--muted)}
 .rowlist{display:flex;flex-direction:column;gap:8px}
 .rowlist.twee{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.catrij-wrap{display:flex;gap:8px;align-items:center}
-.catrij-wrap #filterCats{flex:1;min-width:0}
-.notknop{flex:0 0 auto;padding:8px 12px}
-.notknop svg{width:21px;height:21px}
+.field.rij .typefield{flex:1;min-width:0}
+.notknop{flex:0 0 auto;width:52px;height:52px}
+.notknop svg{width:22px;height:22px}
 .rowlist.twee .source-row{min-width:0;padding:10px}
 /* een bijzondere regel loopt over beide kolommen */
 .rowlist.twee .source-row.bijzonder{grid-column:1 / -1;justify-content:center}
@@ -634,17 +633,16 @@ svg{display:block}
     <div class="field rij">
       <label>Jaar</label>
       <button class="typefield" id="filterJaar"><span id="filterJaarTxt"></span></button>
+      <label for="filterNotKnop">Notitie</label>
+      <button class="icon-btn notknop" id="filterNotKnop" title="Alleen met notitie"></button>
     </div>
     <div class="field">
       <label>Type</label>
       <div id="filterTypes" class="rowlist twee"></div>
     </div>
     <div class="field">
-      <label>Categorie &amp; notitie</label>
-      <div class="catrij-wrap">
-        <div id="filterCats" class="chips catrij"></div>
-        <button class="chip notknop" id="filterNotKnop" title="Alleen met notitie"></button>
-      </div>
+      <label>Categorie</label>
+      <div id="filterCats" class="chips catrij"></div>
     </div>
     <button class="btn addrow" id="filterStd">Bewaar als standaard</button>
     <div class="hint" id="filterStdHint"></div>
@@ -2036,7 +2034,7 @@ var fType = '', fcVan = 0, fcTot = 0, fcBezig = false, fNot = false, fJaar = 0;
 
 function tekenFilterNot(){
   $('filterNotKnop').innerHTML = svgIcoon('notitie', 'notitie');
-  $('filterNotKnop').className = 'chip notknop' + (fNot ? ' on' : '');
+  $('filterNotKnop').className = 'icon-btn notknop' + (fNot ? ' aan' : '');
   $('filterNotKnop').title = fNot ? 'Alleen met notitie' : 'Notitie telt niet mee';
 }
 
