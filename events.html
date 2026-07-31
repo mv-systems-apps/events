@@ -871,7 +871,7 @@ var filterNotitie = false;                // alleen events met een notitie
 var filterAan = true;                     // staat het filter als geheel aan?
 var datumFilter = '';        // '' | ~dag | ~week | ~maand | jaar | 1..12 | onbekend
 var vorigePeriode = null;    // periode van voor het zoeken, om terug te zetten
-var zichtJaar = new Date().getFullYear();   // jaar waarvoor de datums worden berekend
+var zichtJaar = huidigJaar();   // jaar waarvoor de datums worden berekend
 var datumVan = {};           // index -> berekende datum, gevuld door zichtbaar()
 var zoekterm = '';
 var editIndex = -1;    // -1 = nieuw
@@ -951,8 +951,7 @@ function berekenLeesbaar(code){
     return n + ' ' + (DAGEN[s.weekdag-1]||'?') + ' van ' + (MAANDEN[s.wmaand-1]||'?');
   }
   if(s.dag && s.maand && s.jaar >= 1000){
-    var vol = new Date(s.jaar, s.maand - 1, s.dag);
-    if(vol.getMonth() === s.maand - 1 && vol.getDate() === s.dag) return datumTekst(vol);
+    if(s.dag <= dgDagenInMaand(s.jaar, s.maand)) return datumTekst(dgVan(s.jaar, s.maand, s.dag));
   }
   var p = [];
   if(s.dag) p.push(s.dag);
@@ -960,6 +959,56 @@ function berekenLeesbaar(code){
   if(s.jaar) p.push(s.jaar);
   return p.length ? p.join(' ') : 'onbekend';
 }
+
+/* ------------------ dagnummers ------------------ */
+/* Een datum is een geheel getal: het aantal dagen sinds een vast ijkpunt, het
+   Juliaanse dagnummer. Optellen is +, vergelijken is <, en de weekdag zit al in
+   het getal. Er is precies een plek waar de app aan het toestel vraagt welke
+   dag het is; vanaf daar rekent alles met getallen, zodat tijdzones, zomertijd
+   en de datumfuncties van de browser nergens meer meespelen. */
+
+function dgVan(jaar, maand, dag){
+  var a = Math.floor((14 - maand) / 12);
+  var b = jaar + 4800 - a;
+  var c = maand + 12 * a - 3;
+  return dag + Math.floor((153 * c + 2) / 5) + 365 * b +
+         Math.floor(b / 4) - Math.floor(b / 100) + Math.floor(b / 400) - 32045;
+}
+function dgYMD(dg){
+  var a = dg + 32044;
+  var b = Math.floor((4 * a + 3) / 146097);
+  var c = a - Math.floor((146097 * b) / 4);
+  var d = Math.floor((4 * c + 3) / 1461);
+  var e = c - Math.floor((1461 * d) / 4);
+  var f = Math.floor((5 * e + 2) / 153);
+  return {
+    jaar:  100 * b + d - 4800 + Math.floor(f / 10),
+    maand: f + 3 - 12 * Math.floor(f / 10),
+    dag:   e - Math.floor((153 * f + 2) / 5) + 1
+  };
+}
+function dgWeekdag(dg){ return (dg % 7) + 1; }        /* 1 = maandag, 7 = zondag */
+
+/* de enige plek waar de app het toestel naar de datum vraagt */
+function dgVandaag(){
+  var nu = new Date();
+  return dgVan(nu.getFullYear(), nu.getMonth() + 1, nu.getDate());
+}
+function huidigJaar(){ return dgYMD(dgVandaag()).jaar; }
+
+function dgEindeMaand(jaar, maand){
+  return (maand >= 12 ? dgVan(jaar + 1, 1, 1) : dgVan(jaar, maand + 1, 1)) - 1;
+}
+function dgDagenInMaand(jaar, maand){ return dgYMD(dgEindeMaand(jaar, maand)).dag; }
+
+/* de nde weekdag op of na dg, of ervoor bij richting -1 */
+function dgZoekWeekdag(dg, weekdag, nde, richting){
+  if(nde <= 0) return dg;
+  var nu = dgWeekdag(dg);
+  var stap = richting > 0 ? (weekdag - nu + 7) % 7 : (nu - weekdag + 7) % 7;
+  return dg + richting * (stap + 7 * (nde - 1));
+}
+function dgEersteZondagVolgendeWeek(dg){ return dgZoekWeekdag(dg, 7, 2, 1); }
 
 /* ------------------ datum uitrekenen voor een jaar ------------------ */
 /* eerste paasdag volgens Meeus/Jones/Butcher */
@@ -973,32 +1022,23 @@ function paasDatum(j){
   var m = Math.floor((a + 11 * h + 22 * l) / 451);
   var maand = Math.floor((h + l - 7 * m + 114) / 31);
   var dag = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(j, maand - 1, dag);
+  return dgVan(j, maand, dag);
 }
-function isoWeekdag(d){ return ((d.getDay() + 6) % 7) + 1; }   /* 1 = maandag */
 function ndeWeekdag(j, maand, weekdag, nde){
-  var d;
-  if(nde === 99){
-    d = new Date(j, maand, 0);                                  /* laatste dag van de maand */
-    while(isoWeekdag(d) !== weekdag) d.setDate(d.getDate() - 1);
-    return d;
-  }
-  d = new Date(j, maand - 1, 1);
-  while(isoWeekdag(d) !== weekdag) d.setDate(d.getDate() + 1);
-  d.setDate(d.getDate() + (nde - 1) * 7);
-  return d.getMonth() === maand - 1 ? d : null;                 /* een 5e bestaat niet elk jaar */
+  if(nde === 99) return dgZoekWeekdag(dgEindeMaand(j, maand), weekdag, 1, -1);
+  var dg = dgZoekWeekdag(dgVan(j, maand, 1), weekdag, nde, 1);
+  return dgYMD(dg).maand === maand ? dg : null;                 /* een 5e bestaat niet elk jaar */
 }
-function datumTekst(d){
-  return DAGEN[isoWeekdag(d) - 1] + ' ' + d.getDate() + ' ' + MAANDEN[d.getMonth()] + ' ' + d.getFullYear();
+function datumTekst(dg){
+  var y = dgYMD(dg);
+  return DAGEN[dgWeekdag(dg) - 1] + ' ' + y.dag + ' ' + MAANDEN[y.maand - 1] + ' ' + y.jaar;
 }
 /* levert een leesbare datum voor het gevraagde jaar, of uitleg waarom dat niet kan */
 function datumInJaar(code, jaar){
   var st = decode(code);
   if(!st) return '?';
   if(st.mode === 'pasen'){
-    var p = paasDatum(jaar);
-    p.setDate(p.getDate() + st.offset);
-    return datumTekst(p);
+    return datumTekst(paasDatum(jaar) + st.offset);
   }
   if(st.mode === 'wisselend'){
     var w = ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
@@ -1010,14 +1050,18 @@ function datumInJaar(code, jaar){
     while(!schrikkeljaar(v)) v++;
     return '29 februari \u2014 niet in ' + jaar + ', eerstvolgend in ' + v;
   }
-  return datumTekst(new Date(jaar, st.maand - 1, st.dag));
+  return datumTekst(dgVan(jaar, st.maand, st.dag));
 }
 
 var DAG_KORT = ['ma','di','wo','do','vr','za','zo'];
 /* twee losse stukjes voor de tabel, elk in hun eigen kolom, zodat ze per soort
    uitlijnen in plaats van per regel te verschuiven */
-function weekdagKort(d){ return d ? DAG_KORT[isoWeekdag(d) - 1] : ''; }
-function datumKort(d){ return d ? pad(d.getDate(),2) + '-' + pad(d.getMonth() + 1, 2) : '\u2014'; }
+function weekdagKort(dg){ return dg ? DAG_KORT[dgWeekdag(dg) - 1] : ''; }
+function datumKort(dg){
+  if(!dg) return '\u2014';
+  var y = dgYMD(dg);
+  return pad(y.dag, 2) + '-' + pad(y.maand, 2);
+}
 /* de datum waarop dit event in het gevraagde jaar valt, of null */
 function eventDatum(r, jaar){
   if(r.raw !== undefined) return null;
@@ -1028,17 +1072,13 @@ function eventDatum(r, jaar){
 function berekenEventDatum(code, jaar){
   var st = decode(code);
   if(!st) return null;
-  if(st.mode === 'pasen'){
-    var p = paasDatum(jaar);
-    p.setDate(p.getDate() + st.offset);
-    return p;
-  }
+  if(st.mode === 'pasen') return paasDatum(jaar) + st.offset;
   if(st.mode === 'wisselend') return ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
   if(!st.maand || !st.dag) return null;
   /* een schrikkeldag bestaat alleen in een schrikkeljaar; in andere jaren
      heeft dit event dus geen datum en valt het buiten elk filter */
   if(st.maand === 2 && st.dag === 29 && !schrikkeljaar(jaar)) return null;
-  return new Date(jaar, st.maand - 1, st.dag);
+  return dgVan(jaar, st.maand, st.dag);
 }
 /* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
    Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
@@ -1050,15 +1090,15 @@ function berekenEventDatum(code, jaar){
 function zoekExtra(r, jaar){
   var k = r.code + '|' + jaar;
   if(k in cacheZoek) return cacheZoek[k];
-  var uit = [], st = decode(r.code), d = eventDatum(r, jaar);
-  if(d){
-    uit.push(pad(d.getDate(), 2) + '-' + pad(d.getMonth() + 1, 2) + '-' + d.getFullYear());
-    uit.push(DAG_KORT[isoWeekdag(d) - 1]);
+  var uit = [], st = decode(r.code), dg = eventDatum(r, jaar);
+  if(dg){
+    var y = dgYMD(dg);
+    uit.push(pad(y.dag, 2) + '-' + pad(y.maand, 2) + '-' + y.jaar);
+    uit.push(DAG_KORT[dgWeekdag(dg) - 1]);
   }
   if(st && st.mode === 'vast' && st.jaar >= 1000 && st.maand && st.dag){
-    var eigen = new Date(st.jaar, st.maand - 1, st.dag);
     uit.push(pad(st.dag, 2) + '-' + pad(st.maand, 2) + '-' + st.jaar);
-    uit.push(DAG_KORT[isoWeekdag(eigen) - 1]);
+    uit.push(DAG_KORT[dgWeekdag(dgVan(st.jaar, st.maand, st.dag)) - 1]);
     var n = jaar - st.jaar;
     if(n > 0) uit.push(n + 'jr');
   }
@@ -1082,18 +1122,18 @@ function dagenTov(r, jaar){
   return (cacheDagen[k] = berekenDagenTov(r, jaar));
 }
 function berekenDagenTov(r, jaar){
-  var vandaag = new Date(); vandaag.setHours(0,0,0,0);
-  var nu = vandaag.getFullYear();
+  var vandaag = dgVandaag();
+  var nu = dgYMD(vandaag).jaar;
   var d = eventDatum(r, jaar);
   if(!d) return null;
-  var beste = Math.round((d - vandaag) / 86400000);
+  var beste = (d - vandaag);
   /* in het lopende jaar telt de dichtstbijzijnde keer, zodat een event van
      begin januari eind december \u22123 geeft in plaats van +362 */
   if(jaar === nu){
     [nu - 1, nu + 1].forEach(function(y){
       var b = eventDatum(r, y);
       if(!b) return;
-      var n = Math.round((b - vandaag) / 86400000);
+      var n = (b - vandaag);
       if(Math.abs(n) < Math.abs(beste)) beste = n;
     });
   }
@@ -1121,25 +1161,20 @@ function dagenLang(n){
    jaar   = vandaag t/m dezelfde datum volgend jaar min een dag, zodat elke
             jaarlijkse datum er precies een keer in valt */
 function datumVenster(f){
-  var vandaag = new Date(); vandaag.setHours(0,0,0,0);
+  var vandaag = dgVandaag();
   if(f === '~dag'){
-    var eind = new Date(vandaag); eind.setDate(eind.getDate() + 1);
-    return [vandaag, eind];
+    return [vandaag, vandaag + 1];
   }
   if(f === 'jaar'){
-    var over = new Date(vandaag);
-    over.setFullYear(over.getFullYear() + 1);
-    over.setDate(over.getDate() - 1);
-    return [vandaag, over];
+    var y = dgYMD(vandaag);
+    return [vandaag, dgVan(y.jaar + 1, y.maand, y.dag) - 1];
   }
-  var start = new Date(vandaag); start.setDate(start.getDate() - 3);
+  var start = vandaag - 3;
   if(f === '~maand'){
-    return [start, new Date(vandaag.getFullYear(), vandaag.getMonth() + 2, 0)];
+    var v = dgYMD(vandaag);
+    return [start, dgEindeMaand(v.maand >= 12 ? v.jaar + 1 : v.jaar, v.maand >= 12 ? 1 : v.maand + 1)];
   }
-  var zo = new Date(vandaag);
-  while(isoWeekdag(zo) !== 7) zo.setDate(zo.getDate() + 1);   /* eerstvolgende zondag */
-  zo.setDate(zo.getDate() + 7);                               /* die van volgende week */
-  return [start, zo];
+  return [start, dgEersteZondagVolgendeWeek(vandaag)];        /* zondag van volgende week */
 }
 function isVenster(f){ return f === '~dag' || f === '~week' || f === '~maand' || f === 'jaar'; }
 function datumLabel(v){
@@ -1254,7 +1289,7 @@ var fileState = 'leeg';       // leeg | ok | auth | geencfg
 var saveState = '';           // '' | bezig | ok | fout | extern
 var laatstGelezen = null;     // lastModified van het events-bestand bij inlezen
 
-function dagsleutel(){ var d = new Date(); return d.getFullYear() + pad(d.getMonth()+1,2) + pad(d.getDate(),2); }
+function dagsleutel(){ return '' + dgVandaag(); }
 function backupNaam(n){ var i = n.lastIndexOf('.'); return i < 0 ? n + '_backup' : n.slice(0,i) + '_backup' + n.slice(i); }
 
 /* --- koppelen --- */
@@ -1781,7 +1816,7 @@ function catBereikTekst(van, tot){
   return van === tot ? String(van) : van + '\u2013' + tot;
 }
 function renderChips(){
-  var ditJaar = zichtJaar === new Date().getFullYear();
+  var ditJaar = zichtJaar === huidigJaar();
   var opties = [['','alle'],['~dag','~dag'],['~week','~week'],['~maand','~maand'],['jaar','jaar']];
   for(var m=1;m<=12;m++) opties.push([String(m), MAANDEN[m-1]]);
   opties.push(['onbekend','onbekend']);
@@ -1858,7 +1893,7 @@ function zichtbaar(){
         if(!raak) return;
         datumVan[i] = raak;
       } else {
-        if(!d || (d.getMonth() + 1) !== +df) return;
+        if(!d || dgYMD(d).maand !== +df) return;
         datumVan[i] = d;
       }
     }
@@ -1894,7 +1929,7 @@ function renderLijst(){
   /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
   var grens = -1;
   if(metDatum){
-    var nu0 = new Date(); nu0.setHours(0,0,0,0);
+    var nu0 = dgVandaag();
     for(var q = 0; q < idx.length; q++){
       if(datumVan[idx[q]] && datumVan[idx[q]] >= nu0){ grens = q; break; }
     }
@@ -2007,7 +2042,7 @@ function pasStandaardFilterToe(){
   }
   if(filterCatTot < filterCatVan) filterCatTot = filterCatVan;
   /* het jaar staat relatief in de cfg: 0 is dit jaar, 1 volgend jaar */
-  var nu = new Date().getFullYear();
+  var nu = huidigJaar();
   var off = (typeof f.jaar === 'number' && isFinite(f.jaar)) ? Math.round(f.jaar) : 0;
   if(off < -100 || off > 100) off = 0;
   zichtJaar = nu + off;
@@ -2034,7 +2069,7 @@ function bewaarStandaardFilter(){
   if(filterAan && filterType) f.type = filterType;
   if(filterAan && filterCatVan) f.categorie = (filterCatVan === filterCatTot) ? filterCatVan : [filterCatVan, filterCatTot];
   if(filterAan && filterNotitie) f.notitie = true;
-  var off = zichtJaar - new Date().getFullYear();
+  var off = zichtJaar - huidigJaar();
   if(off) f.jaar = off;
   if(Object.keys(f).length) cfg.filter = f; else delete cfg.filter;
   if(!(dirHandle && hasFSA)) return Promise.resolve(true);
@@ -2469,7 +2504,7 @@ function openDagKeuze(){
 var JAAR_LAAG = 1800, JAAR_HOOG = 9999;
 function jaarGeldig(v){ return v !== '' && +v >= JAAR_LAAG && +v <= JAAR_HOOG; }
 function tekenJaar(){
-  var nu = new Date().getFullYear();
+  var nu = huidigJaar();
   $('jaarVeld').value = jaarKeuze === '' ? '' : jaarKeuze;
   $('jaarVeld').placeholder = jaarDoel === 'datum' ? 'onbekend' : String(nu);
   $('jaarOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
@@ -2495,7 +2530,7 @@ function tekenJaarBehoudCursor(){
 }
 /* stap een jaar op of terug; vanuit een leeg veld beginnen we bij dit jaar */
 function stapJaar(richting){
-  var nu = new Date().getFullYear();
+  var nu = huidigJaar();
   var v = jaarKeuze === '' ? nu : +jaarKeuze + richting;
   if(v < JAAR_LAAG) v = JAAR_LAAG;
   if(v > JAAR_HOOG) v = JAAR_HOOG;
@@ -2719,8 +2754,8 @@ $('zoek').onfocus = function(){ if(selIndex >= 0){ selIndex = -1; render(); } };
 $('filterNotKnop').onclick = function(){ fNot = !fNot; tekenFilterNot(); };
 $('filterStd').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
-  zichtJaar = fJaar || new Date().getFullYear();
-  if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
+  zichtJaar = fJaar || huidigJaar();
+  if(isVenster(datumFilter) && zichtJaar !== huidigJaar()) datumFilter = '';
   $('filterErr').textContent = '';
   Promise.resolve(bewaarStandaardFilter()).then(function(gelukt){
     if(!gelukt){
@@ -2734,8 +2769,8 @@ $('filterStd').onclick = function(){
 $('filterCancel').onclick = function(){ bergModaal('filterModal'); };
 $('filterOk').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
-  zichtJaar = fJaar || new Date().getFullYear();
-  if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
+  zichtJaar = fJaar || huidigJaar();
+  if(isVenster(datumFilter) && zichtJaar !== huidigJaar()) datumFilter = '';
   bergModaal('filterModal'); selIndex = -1; render();
 };
 $('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
@@ -2874,14 +2909,14 @@ $('jaarVeld').onkeydown = function(e){
   if(!/^[0-9]$/.test(e.key)) e.preventDefault();
 };
 $('jaarOnbekend').onclick = function(){ jaarKeuze = ''; tekenJaar(); };
-$('jaarDitJaar').onclick = function(){ jaarKeuze = new Date().getFullYear(); tekenJaar(); };
+$('jaarDitJaar').onclick = function(){ jaarKeuze = huidigJaar(); tekenJaar(); };
 $('jaarCancel').onclick = function(){ bergModaal('jaarModal'); };
 $('jaarOk').onclick = function(){
   if(jaarKeuze !== '' && !jaarGeldig(jaarKeuze)){ tekenJaar(); return; }
   if(jaarDoel !== 'datum' && jaarKeuze === ''){ tekenJaar(); return; }
   bergModaal('jaarModal');
   if(jaarDoel === 'filter'){
-    fJaar = +jaarKeuze || new Date().getFullYear();
+    fJaar = +jaarKeuze || huidigJaar();
     $('filterJaarTxt').textContent = fJaar;
     return;
   }
