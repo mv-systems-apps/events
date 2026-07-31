@@ -858,6 +858,8 @@ var PAASDAGEN = [
   { omschrijving:'tweede pinksterdag', dagen:50 }
 ];
 var VELDEN = ['Event','Naam','Type','Datum','Categorie','Notitie'];
+var VELD_MAX = VELDEN.length;      /* met notitie */
+var VELD_MIN = VELD_MAX - 1;       /* de notitie is optioneel */
 
 /* ------------------ state ------------------ */
 var records = [];      // {sleutel,naam,type,code,cat,notitie} of {raw:'...'}
@@ -1164,17 +1166,18 @@ function parse(text){
     var line = lines[i];
     if(line.trim() === '') continue;
     var f = line.split(sep());
-    /* vijf velden verplicht, de notitie optioneel; meer velden betekent dat er
-       een scheidingsteken in een veld staat of dat het formaat is uitgebreid.
+    /* alle velden verplicht op de notitie na; meer velden betekent dat er een
+       scheidingsteken in een veld staat of dat het formaat is uitgebreid.
        Die regel wordt niet uitgelegd maar ongewijzigd bewaard en gemeld. */
-    if(f.length < 5 || f.length > 6 || !/^D\d{8}$/.test(f[3].trim())){
-      out.push({ raw:line });
+    if(f.length < VELD_MIN || f.length > VELD_MAX || !/^D\d{8}$/.test(f[3].trim())){
+      out.push({ raw:line, nr:i + 1 });
       continue;
     }
     out.push({
       sleutel: f[0], naam: f[1], type: f[2], code: f[3].trim(),
       cat: parseInt(f[4],10) || 2,
-      notitie: f.length > 5 ? f[5] : ''
+      notitie: f.length > VELD_MIN ? f[VELD_MIN] : '',
+      nr: i + 1
     });
   }
   return out;
@@ -2150,10 +2153,10 @@ function controleer(){
   voeg('Onleesbare regels', records.filter(function(r){ return r.raw !== undefined; })
     .map(function(r){
       var f = r.raw.split(sep()), reden;
-      if(f.length < 5) reden = 'te weinig velden (' + f.length + ')';
-      else if(f.length > 6) reden = 'te veel velden (' + f.length + '), scheidingsteken in een veld?';
+      if(f.length < VELD_MIN) reden = 'te weinig velden (' + f.length + ')';
+      else if(f.length > VELD_MAX) reden = 'te veel velden (' + f.length + '), scheidingsteken in een veld?';
       else reden = 'datumcode klopt niet';
-      return r.raw.slice(0, 44) + ' \u2014 ' + reden;
+      return 'regel ' + r.nr + ': ' + r.raw.slice(0, 36) + ' \u2014 ' + reden;
     }));
 
   var lege = records.filter(function(r){
