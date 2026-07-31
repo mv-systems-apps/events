@@ -350,6 +350,9 @@ svg{display:block}
   text-transform:uppercase;letter-spacing:.04em;
 }
 .inforij .wrd{display:block;font-size:19px;overflow-wrap:anywhere}
+/* de categorie staat gedempt rechts op de typeregel, zonder eigen regel */
+.typerij .wrd{display:flex;align-items:center}
+.inforij .bij{margin-left:auto;padding-left:12px;color:var(--muted);font-family:var(--mono);font-size:16px}
 .inforij.nu .wrd{color:var(--accent);font-weight:600}
 .inforij .wrd svg{
   display:inline-block;width:22px;height:22px;
@@ -2220,8 +2223,10 @@ function toonInfo(i){
       ) + '</span></div>' +
     '<div class="inforij"><span class="lbl">' + esc(veldNaam(1)) + '</span>' +
       '<span class="wrd">' + esc(r.naam) + '</span></div>' +
-    '<div class="inforij"><span class="lbl">' + esc(veldNaam(2)) + '</span>' +
-      '<span class="wrd">' + typeIcon(r.type) + esc(r.type) + '</span></div>' +
+    '<div class="inforij typerij"><span class="lbl">' + esc(veldNaam(2)) + '</span>' +
+      '<span class="wrd">' + typeIcon(r.type) + esc(r.type) +
+      '<span class="bij" title="' + esc(veldNaam(4) + ' ' + catLabel(r.cat)) + '">' +
+        esc(r.cat) + '</span></span></div>' +
     '<div class="inforij"><span class="lbl">' + jaar + '</span>' +
       '<span class="wrd">' + esc(datumInJaar(r.code, jaar)) + '</span></div>' +
     (aantalJaar(r.code, jaar) !== null
