@@ -1106,10 +1106,14 @@ var DAG_KORT = ['ma','di','wo','do','vr','za','zo'];
 /* twee losse stukjes voor de tabel, elk in hun eigen kolom, zodat ze per soort
    uitlijnen in plaats van per regel te verschuiven */
 function weekdagKort(dg){ return dg ? DAG_KORT[dgWeekdag(dg) - 1] : ''; }
-function datumKort(dg){
-  if(!dg) return '\u2014';
-  var y = dgYMD(dg);
-  return pad(y.dag, 2) + '-' + pad(y.maand, 2);
+function datumKort(dg, r){
+  if(dg){
+    var y = dgYMD(dg);
+    return pad(y.dag, 2) + '-' + pad(y.maand, 2);
+  }
+  /* geen dag bekend: tonen wat er wel is */
+  var m = r ? maandVan(r) : 0;
+  return m ? '??-' + pad(m, 2) : '??-??';
 }
 /* de datum waarop dit event in het gevraagde jaar valt, of null */
 function eventDatum(r, jaar){
@@ -1152,6 +1156,13 @@ function zoekExtra(r, jaar){
     if(n > 0) uit.push(n + 'jr');
   }
   return (cacheZoek[k] = uit.join(sep()));
+}
+/* De maand van een event waarvan de dag niet bekend is, anders nul. Zo'n event
+   hoort in die maand thuis; dat is geen aanname maar wat er staat. Een dag die
+   wel bekend is maar dit jaar niet bestaat — 29 februari — valt hier buiten. */
+function maandVan(r){
+  var st = decode(r.code);
+  return (st && st.mode === 'vast' && st.maand && !st.dag) ? st.maand : 0;
 }
 function heeftDatumRegel(r){
   if(r.raw !== undefined) return false;
@@ -1234,6 +1245,21 @@ function datumLabel(v){
 }
 
 /* ------------------ parsen / serialiseren ------------------ */
+/* Tekens die dit bestand onbruikbaar maken voor de macro die het leest: daar
+   wordt de inhoud in een template literal gezet, en dan breekt een accent grave
+   het script, wordt ${...} uitgevoerd en verdwijnt een backslash. */
+var RISICO = ['`', '\\', '${'];
+function risicoTeken(t){
+  for(var i = 0; i < RISICO.length; i++){
+    if(t.indexOf(RISICO[i]) >= 0) return RISICO[i];
+  }
+  return '';
+}
+/* in de cfg telt het aanhalingsteken mee: json ontsnapt dat met een backslash,
+   en die verdwijnt bij het inlezen door de macro */
+function risicoTekenCfg(t){
+  return t.indexOf('"') >= 0 ? '"' : risicoTeken(t);
+}
 function sep(){
   var t = cfg.scheidingsteken;
   return (typeof t === 'string' && t.length === 1) ? t : ';';
@@ -1847,6 +1873,16 @@ function bewaarCfg(){
                     .map(function(x){ return { omschrijving:x.omschrijving.trim(), dagen:+x.dagen }; });
   var dgn = paas.map(function(x){ return x.dagen; });
   if(dgn.length !== new Set(dgn).size){ $('cfgErr').textContent = 'Elk aantal dagen mag maar \u00e9\u00e9n keer voorkomen.'; return; }
+  var cfgTekst = [titel].concat(velden)
+    .concat(cfgTypes.map(function(x){ return x.omschrijving + (x.teken || ''); }))
+    .concat(cfgCats.map(function(x){ return x.omschrijving || ''; }))
+    .concat(cfgPaas.map(function(x){ return x.omschrijving || ''; })).join('\n');
+  var cfgRisico = risicoTekenCfg(cfgTekst);
+  if(cfgRisico){
+    $('cfgErr').textContent = 'Het teken ' + cfgRisico +
+      ' kan niet: daar struikelt de macro over die deze configuratie leest.';
+    return;
+  }
   cfg.velden = velden;
   delete cfg.informatie;
   if(paas.length) cfg.paasdagen = paas; else delete cfg.paasdagen;
@@ -1949,16 +1985,20 @@ function zichtbaar(){
         });
         if(!raak) return;
         datumVan[i] = raak;
-      } else {
-        if(!d || dgYMD(d).maand !== +df) return;
+      } else if(d){
+        if(dgYMD(d).maand !== +df) return;
         datumVan[i] = d;
+      } else {
+        /* geen datum: alleen meedoen als de maand wel bekend is */
+        if(maandVan(r) !== +df) return;
       }
     }
     out.push(i);
   });
   if(df && df !== 'onbekend'){
     out.sort(function(a,b){
-      var d = datumVan[a] - datumVan[b];
+      /* een event zonder dag heeft geen plek binnen de maand en gaat achteraan */
+      var d = (datumVan[a] || Infinity) - (datumVan[b] || Infinity);
       if(d) return d;
       /* zelfde datum: dan alfabetisch */
       var x = sorteerSleutel(records[a]), y = sorteerSleutel(records[b]);
@@ -1981,7 +2021,9 @@ function renderLijst(){
     return;
   }
   var df = actiefDatumFilter();
-  var metDatum = !!df && df !== 'onbekend';
+  /* ook onder onbekend de datum tonen: dan zie je in een oogopslag wat er
+     ontbreekt, zonder elk event te hoeven openen */
+  var metDatum = !!df;
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
   /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
   var grens = -1;
@@ -1992,8 +2034,10 @@ function renderLijst(){
     }
   }
   var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
+  /* de weekdagkolom alleen als er ergens een weekdag te tonen valt */
+  var metWd = metDatum && idx.some(function(i){ return !!datumVan[i]; });
   var html = '<table><colgroup>' + (metDag ? '<col class="c-dag">' : '') + '<col>' +
-             (metDatum ? '<col class="c-wd"><col class="c-dat">' : '') +
+             (metWd ? '<col class="c-wd">' : '') + (metDatum ? '<col class="c-dat">' : '') +
              '<col class="c-ic"></colgroup><tbody>';
   idx.forEach(function(i, pos){
     var r = records[i];
@@ -2007,10 +2051,8 @@ function renderLijst(){
           '</td>'
         : '') +
       '<td>' + esc(r.naam || r.sleutel) + '</td>' +
-      (metDatum
-        ? '<td class="dat wd">' + esc(weekdagKort(datumVan[i])) + '</td>' +
-          '<td class="dat">' + esc(datumKort(datumVan[i])) + '</td>'
-        : '') +
+      (metWd ? '<td class="dat wd">' + esc(weekdagKort(datumVan[i])) + '</td>' : '') +
+      (metDatum ? '<td class="dat">' + esc(datumKort(datumVan[i], r)) + '</td>' : '') +
       '<td class="ic' + (r.notitie ? ' metnot' : '') + '" title="' +
         esc(r.type + (r.notitie ? ' \u2014 met notitie' : '')) + '">' + typeIcon(r.type) + '</td></tr>';
   });
@@ -2271,6 +2313,13 @@ function controleer(){
   records.forEach(function(r){
     if(r.raw === undefined && nrs.indexOf(+r.cat) < 0) catFout[r.cat] = (catFout[r.cat] || 0) + 1;
   });
+  voeg('Tekens die de macro breken', records.filter(function(r){
+    return r.raw === undefined &&
+           risicoTeken(r.sleutel + r.naam + r.type + (r.notitie || '')) !== '';
+  }).map(function(r){
+    return r.sleutel + ' \u2014 bevat ' + risicoTeken(r.sleutel + r.naam + r.type + (r.notitie || ''));
+  }));
+
   voeg('Categorieen buiten de lijst',
     Object.keys(catFout).map(function(c){ return 'categorie ' + c + ' (' + catFout[c] + 'x)'; }));
 
@@ -2755,6 +2804,11 @@ function bewaarModal(){
   if(!sleutel || !naam || !type){ $('mErr').textContent = 'Sleutel, weergavenaam en type zijn verplicht.'; return; }
   if((sleutel + naam + type + notitie).indexOf(sep()) >= 0){
     $('mErr').textContent = 'Het teken ' + sep() + ' kan niet: dat scheidt de velden in het bestand.'; return;
+  }
+  var risico = risicoTeken(sleutel + naam + type + notitie);
+  if(risico){
+    $('mErr').textContent = 'Het teken ' + risico + ' kan niet: daar struikelt de macro over die dit bestand leest.';
+    return;
   }
   if(dstate.mode === 'vast'){
     var d = +dstate.dag || 0, m = +dstate.maand || 0, y = +dstate.jaar || 0;
