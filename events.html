@@ -105,6 +105,14 @@ svg{display:block}
 .btn-warn:hover{opacity:.88;border-color:var(--warn)}
 
 /* ---------- toolbar ---------- */
+/* de melding is tegelijk de bevestiging: erop tikken sluit hem af, waarna er
+   niets meer terug te draaien valt en de knop verdwijnt */
+.laatste{
+  display:block;width:fit-content;margin:0 auto 4px;
+  padding:2px 14px;border:1px solid var(--line);border-radius:999px;line-height:1.3;
+  background:#28313f;color:var(--muted);font-size:17px;
+}
+.laatste:hover{border-color:var(--accent);color:var(--txt)}
 .panel-head{
   display:flex;align-items:center;gap:8px;margin:8px 0;
 }
@@ -404,9 +412,7 @@ svg{display:block}
 
   <div class="panel-head">
     <h2><span id="panelTitel">Events</span> <span class="count" id="count"></span></h2>
-    <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken" hidden>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
-    </button>
+    <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken" hidden></button>
     <button class="icon-btn prominent" id="btnNew" title="Nieuw event" aria-label="Nieuw event">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -414,6 +420,7 @@ svg{display:block}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     </button>
   </div>
+  <button class="laatste" id="laatste" title="Melding sluiten" hidden></button>
 </header>
 
 <div class="body">
@@ -892,12 +899,56 @@ var jaarDoel = 'datum';      // 'datum' (in de bewerk-modal) of 'filter' (in de 
 var dagKeuze = '', jaarKeuze = '';
 var ndeKeuze = 1, weekdagKeuze = 7;
 var catKeuze = 2;
-var terug = null;            // momentopname voor één stap ongedaan maken
-function onthoud(tekst){
-  terug = { tekst:tekst, snap:records.map(function(r){
-    return r.raw !== undefined ? { raw:r.raw }
-      : { sleutel:r.sleutel, naam:r.naam, type:r.type, code:r.code, cat:r.cat, notitie:r.notitie };
-  }) };
+/* wat er is gebeurd, in woorden. Na het terugdraaien staat er wat die stap zelf
+   deed: een toevoeging terugdraaien haalt het event juist weg. */
+var TEGENDEEL = { gewijzigd:'hersteld', toegevoegd:'verwijderd', verwijderd:'toegevoegd' };
+function terugTekst(){
+  if(!terug) return '';
+  return terug.naam + ' ' + (terug.herstel ? TEGENDEEL[terug.actie] : terug.actie);
+}
+/* Eén stap terug, en die stap is zelf ook weer terug te draaien: de knop wisselt
+   na gebruik om naar opnieuw. Daardoor is er geen bevestiging nodig — het is de
+   handeling die je beschermt, niet een die bescherming vraagt. */
+/* Eén stap terug, en die stap is zelf ook weer terug te draaien: de knop wisselt
+   na gebruik om naar opnieuw. Daardoor is er geen bevestiging nodig — het is de
+   handeling die je beschermt, niet een die bescherming vraagt.
+   Bewaard wordt alleen het verschil: welk record het betrof en hoe het eruitzag.
+   Het record wordt teruggevonden op zijn nummer, dat bij het inlezen wordt
+   uitgedeeld en dat een wijziging of een hersortering overleeft. */
+var terug = null;
+function onthoud(naam, actie, id, oud){
+  terug = { naam:naam, actie:actie, herstel:false, id:id, oud:oud || null, rec:null };
+}
+function zoekOpId(id){
+  for(var i = 0; i < records.length; i++){ if(records[i].id === id) return i; }
+  return -1;
+}
+/* draait de bewaarde stap om; geeft false als het record niet meer bestaat */
+function draaiTerug(){
+  if(!terug) return false;
+  if(terug.actie === 'gewijzigd'){
+    var i = zoekOpId(terug.id);
+    if(i < 0) return false;
+    var nu = records[i];
+    records[i] = terug.oud;
+    terug.oud = nu;
+  } else {
+    /* een toevoeging terugdraaien haalt het record weg, een verwijdering zet
+       het terug; na het omklappen geldt precies het omgekeerde */
+    var wegHalen = (terug.actie === 'toegevoegd') !== terug.herstel;
+    if(wegHalen){
+      var j = zoekOpId(terug.id);
+      if(j < 0) return false;
+      terug.rec = records[j];
+      records.splice(j, 1);
+    } else {
+      if(!terug.rec) return false;
+      records.push(terug.rec);
+    }
+  }
+  sorteer();
+  terug.herstel = !terug.herstel;
+  return true;
 }
 var dstate = { mode:'vast', dag:'', maand:'', jaar:'', nde:1, weekdag:7, wmaand:1, offset:0 };
 var cat = 2;
@@ -1194,8 +1245,14 @@ function ofTeken(){
   var t = cfg.ofteken;
   return (typeof t === 'string' && t.length === 1) ? t : '|';
 }
+var volgnr = 0;              /* loopt door zolang het bestand geladen blijft */
 function parse(text){
   var out = [];
+  /* opnieuw inlezen deelt de nummers opnieuw uit, dus een bewaarde stap terug
+     wijst daarna naar een ander record: die vervalt hier, zodat geen enkele
+     aanroeper dat kan vergeten */
+  volgnr = 0;
+  terug = null;
   var lines = text.split(/\r?\n/);
   for(var i=0;i<lines.length;i++){
     var line = lines[i];
@@ -1205,14 +1262,14 @@ function parse(text){
        scheidingsteken in een veld staat of dat het formaat is uitgebreid.
        Die regel wordt niet uitgelegd maar ongewijzigd bewaard en gemeld. */
     if(f.length < VELD_MIN || f.length > VELD_MAX || !/^D\d{8}$/.test(f[3].trim())){
-      out.push({ raw:line, nr:i + 1 });
+      out.push({ raw:line, nr:i + 1, id:++volgnr });
       continue;
     }
     out.push({
       sleutel: f[0], naam: f[1], type: f[2], code: f[3].trim(),
       cat: parseInt(f[4],10) || 2,
       notitie: f.length > VELD_MIN ? f[VELD_MIN] : '',
-      nr: i + 1
+      nr: i + 1, id: ++volgnr
     });
   }
   return out;
@@ -1472,6 +1529,8 @@ function downloaden(){
 /* ------------------ rendering ------------------ */
 var ICON_VRAAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.5.9c0 1.9-2.8 2.1-2.8 3.9"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/></svg>';
 var ICON_NU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/></svg>';
+var ICON_UNDO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>';
+var ICON_REDO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>';
 var ICON_TRASH = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
 var ICON_REFRESH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>';
 var ICON_X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -2306,7 +2365,14 @@ function render(){
   $('btnEdit').hidden = selIndex < 0;
   $('btnCfg').disabled = fileState === 'leeg';
   $('btnUndo').hidden = !terug;
-  $('btnUndo').title = terug ? 'Ongedaan maken: ' + terug.tekst : 'Ongedaan maken';
+  $('laatste').textContent = terugTekst();
+  $('laatste').hidden = !terug;
+  if(terug){
+    $('btnUndo').innerHTML = terug.herstel ? ICON_REDO : ICON_UNDO;
+    var wat = (terug.herstel ? 'Opnieuw: ' : 'Ongedaan maken: ') + terugTekst();
+    $('btnUndo').title = wat;
+    $('btnUndo').setAttribute('aria-label', wat);
+  }
   $('panelTitel').textContent = cfg.titel || 'Events';
 }
 
@@ -2714,8 +2780,10 @@ function bewaarModal(){
       return;
     }
   }
-  var rec = { sleutel:sleutel, naam:naam, type:type, code:code, cat:cat, notitie:notitie };
-  onthoud(editIndex >= 0 ? 'wijziging van ' + sleutel : 'toevoegen van ' + sleutel);
+  var oud = editIndex >= 0 ? records[editIndex] : null;
+  var rec = { sleutel:sleutel, naam:naam, type:type, code:code, cat:cat, notitie:notitie,
+              id: oud ? oud.id : ++volgnr };
+  onthoud(naam || sleutel, oud ? 'gewijzigd' : 'toegevoegd', rec.id, oud);
   if(editIndex >= 0) records[editIndex] = rec; else records.push(rec);
   sorteer();
   var pos = records.indexOf(rec);
@@ -2776,12 +2844,10 @@ $('filterOk').onclick = function(){
 $('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
 $('infoOk').onclick = function(){ bergModaal('infoModal'); };
 $('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
+$('laatste').onclick = function(){ terug = null; render(); };
 $('btnUndo').onclick = function(){
-  if(!terug) return;
-  vraag('Ongedaan maken', 'Herstel ' + terug.tekst + '.', 'Herstellen', function(){
-    records = terug.snap; terug = null; selIndex = -1;
-    dirty = true; render(); bewaar();
-  });
+  if(!draaiTerug()){ terug = null; render(); return; }
+  selIndex = -1; dirty = true; render(); bewaar();
 };
 $('btnCfg').onclick = openCfg;
 $('btnNew').onclick = function(){ openModal(); };
@@ -2790,7 +2856,8 @@ $('mDel').onclick = function(){
   if(editIndex < 0) return;
   var i = editIndex, r = records[i];
   vraag('Event verwijderen?', r.naam + ' \u2014 ' + r.type + ' (' + leesbaar(r.code) + ')', 'Verwijderen', function(){
-    onthoud('verwijderen van ' + r.sleutel);
+    onthoud(r.naam || r.sleutel, 'verwijderd', r.id);
+    terug.rec = r;
     records.splice(i,1); selIndex = -1; dirty = true; sluitModal(); render(); bewaar();
   });
 };
