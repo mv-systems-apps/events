@@ -1164,11 +1164,17 @@ function parse(text){
     var line = lines[i];
     if(line.trim() === '') continue;
     var f = line.split(sep());
-    if(f.length < 5 || !/^D\d{8}$/.test(f[3].trim())){ out.push({ raw:line }); continue; }
+    /* vijf velden verplicht, de notitie optioneel; meer velden betekent dat er
+       een scheidingsteken in een veld staat of dat het formaat is uitgebreid.
+       Die regel wordt niet uitgelegd maar ongewijzigd bewaard en gemeld. */
+    if(f.length < 5 || f.length > 6 || !/^D\d{8}$/.test(f[3].trim())){
+      out.push({ raw:line });
+      continue;
+    }
     out.push({
       sleutel: f[0], naam: f[1], type: f[2], code: f[3].trim(),
       cat: parseInt(f[4],10) || 2,
-      notitie: f.length > 5 ? f.slice(5).join(sep()) : ''
+      notitie: f.length > 5 ? f[5] : ''
     });
   }
   return out;
@@ -2142,7 +2148,13 @@ function controleer(){
   function voeg(titel, regels){ if(regels.length) bevindingen.push({ titel:titel, regels:regels }); }
 
   voeg('Onleesbare regels', records.filter(function(r){ return r.raw !== undefined; })
-    .map(function(r){ return r.raw.slice(0, 60); }));
+    .map(function(r){
+      var f = r.raw.split(sep()), reden;
+      if(f.length < 5) reden = 'te weinig velden (' + f.length + ')';
+      else if(f.length > 6) reden = 'te veel velden (' + f.length + '), scheidingsteken in een veld?';
+      else reden = 'datumcode klopt niet';
+      return r.raw.slice(0, 44) + ' \u2014 ' + reden;
+    }));
 
   var lege = records.filter(function(r){
     return r.raw === undefined && (!r.sleutel.trim() || !r.naam.trim() || !r.type.trim());
@@ -2188,11 +2200,6 @@ function controleer(){
     }
   });
   voeg('Datums die niet kloppen', datumFout);
-
-  var scheiding = records.filter(function(r){
-    return r.raw === undefined && (r.notitie || '').indexOf(sep()) >= 0;
-  }).map(function(r){ return r.sleutel + ' \u2014 scheidingsteken in de notitie'; });
-  voeg('Velden met een scheidingsteken', scheiding);
 
   return bevindingen;
 }
