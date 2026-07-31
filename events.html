@@ -76,6 +76,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 }
 .icon-btn:hover{border-color:var(--accent)}
 .icon-btn:active{transform:translateY(1px)}
+/* aan-stand voor een icoonknop die iets in- of uitschakelt */
+.icon-btn.aan{background:var(--accent);border-color:var(--accent);color:#0e1219}
 .icon-btn.prominent{
   background:var(--accent);border-color:var(--accent);color:#0e1219;
 }
@@ -116,7 +118,10 @@ svg{display:block}
   background:var(--panel);color:var(--txt);font-family:var(--mono);font-size:19px;
 }
 .search::placeholder{color:#5f6878}
-.kopregel{display:flex;gap:6px;align-items:center}
+.zoekregel{display:flex;gap:6px;align-items:center}
+.kopregel{display:flex;gap:6px;align-items:center;margin-top:8px}
+.kopregel .chip{height:44px}
+.search{height:44px;padding-top:0;padding-bottom:0}
 .modeknop{flex:1 1 auto;min-width:0;justify-content:flex-start;overflow:hidden}
 .modeknop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 0;scrollbar-width:none}
@@ -231,12 +236,17 @@ svg{display:block}
 .veldkop label{font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;margin:0}
 .editlist{display:flex;flex-direction:column;gap:8px}
 /* alle bewerkregels delen hetzelfde raster, zodat de kolommen uitlijnen */
-.editrow{display:grid;grid-template-columns:64px 1fr 44px;gap:8px;align-items:center}
-.editrow .nr{width:auto;text-align:center;padding-left:6px;padding-right:6px}
+/* basis: paasdagen, met -49 als breedste waarde in de eerste kolom */
+.editrow{display:grid;grid-template-columns:42px 1fr 44px;gap:8px;align-items:center}
+.editrow .nr{width:auto;text-align:center;padding-left:2px;padding-right:2px}
 .editrow input{min-width:0}
 .editrow .icon-btn{width:100%;height:44px}
 .editrow .icon-btn.danger{width:44px}
 .editrow .icon-btn svg{width:23px;height:23px;flex:0 0 auto}
+.editrow.metteken{grid-template-columns:44px 32px 1fr 44px}   /* types: icoon en teken */
+.editrow.cijfer{grid-template-columns:32px 1fr 44px}          /* categorieen: een cijfer */
+.editrow.smal{grid-template-columns:20px 1fr 44px}
+.editrow .teken{text-align:center;padding-left:2px;padding-right:2px}
 .btn.addrow{width:100%;margin-top:8px;font-size:17px;padding:10px 14px}
 .typefield{
   width:100%;display:flex;align-items:center;gap:10px;
@@ -249,18 +259,6 @@ svg{display:block}
 .typefield svg{width:23px;height:23px;flex:0 0 auto;color:var(--muted)}
 .rowlist{display:flex;flex-direction:column;gap:8px}
 .rowlist.twee{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.kopmetschuif{display:flex;align-items:center;gap:10px}
-.schuif{
-  margin-left:auto;flex:0 0 auto;position:relative;
-  width:52px;height:30px;border-radius:15px;padding:0;
-  background:#28313f;border:1px solid var(--line);
-}
-.schuif span{
-  position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
-  background:var(--muted);transition:left .15s,background .15s;
-}
-.schuif.aan{background:var(--accent);border-color:var(--accent)}
-.schuif.aan span{left:26px;background:#0e1219}
 .catrij-wrap{display:flex;gap:8px;align-items:center}
 .catrij-wrap #filterCats{flex:1;min-width:0}
 .notknop{flex:0 0 auto;padding:8px 12px}
@@ -385,10 +383,12 @@ svg{display:block}
 <header>
   <div class="filebar" id="filebar"></div>
 
+  <div class="zoekregel">
+    <input class="search" id="zoek" type="search" placeholder="Zoeken…" autocomplete="off">
+    <button class="icon-btn" id="filterAanUit" title="Filter aan of uit" aria-label="Filter aan of uit"></button>
+  </div>
   <div class="kopregel">
     <button class="chip modeknop" id="filterMode" title="Filter op jaar, type en categorie"></button>
-    <input class="search" id="zoek" type="search" placeholder="Zoek op naam, type, …" autocomplete="off" hidden>
-    <button class="icon-btn" id="zoekKnop" title="Zoeken" aria-label="Zoeken"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2"/></svg></button>
   </div>
   <div class="chips" id="chips"></div>
 
@@ -616,9 +616,7 @@ svg{display:block}
 <!-- filter -->
 <div class="overlay" id="filterModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
-    <h3 class="kopmetschuif">Filter
-      <button class="schuif" id="filterAanUit" role="switch" title="Filter aan of uit"><span></span></button>
-    </h3>
+    <h3>Filter</h3>
     <div class="field rij">
       <label>Jaar</label>
       <button class="typefield" id="filterJaar"><span id="filterJaarTxt"></span></button>
@@ -813,19 +811,25 @@ var ICONEN = {
   'bolletje':        '<circle cx="12" cy="12" r="3.5"/>',
   'notitie':         '<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>'
 };
+/* het teken is de eenletterige aanduiding die de macro als icoon gebruikt */
 var TYPES = [
-  { omschrijving:'Geboren',     icoon:'scheut' },
-  { omschrijving:'Overleden',   icoon:'grafsteen' },
-  { omschrijving:'Getrouwd',    icoon:'ringen' },
-  { omschrijving:'Gescheiden',  icoon:'gebroken ringen' },
-  { omschrijving:'Gedenkdag',   icoon:'kaars' },
-  { omschrijving:'Feestdag',    icoon:'ster' },
-  { omschrijving:'Gebeurtenis', icoon:'kalender' }
+  { omschrijving:'Geboren',     icoon:'scheut',          teken:'+' },
+  { omschrijving:'Overleden',   icoon:'grafsteen',       teken:'-' },
+  { omschrijving:'Getrouwd',    icoon:'ringen',          teken:'&' },
+  { omschrijving:'Gescheiden',  icoon:'gebroken ringen', teken:'/' },
+  { omschrijving:'Gedenkdag',   icoon:'kaars',           teken:'G' },
+  { omschrijving:'Feestdag',    icoon:'ster',            teken:'F' },
+  { omschrijving:'Gebeurtenis', icoon:'kalender',        teken:'E' }
 ];
 function svgIcoon(naam, label){
   var p = ICONEN[naam] || ICONEN['bolletje'];
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
          'stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="' + esc(label || naam || '') + '">' + p + '</svg>';
+}
+function typeTeken(t){
+  var lijst = typeOpties();
+  for(var i=0;i<lijst.length;i++){ if(lijst[i].omschrijving === t) return lijst[i].teken || ''; }
+  return '';
 }
 function typeIcoonNaam(t){
   var lijst = typeOpties();
@@ -856,11 +860,11 @@ var filterType = '';
 var filterCatVan = 0, filterCatTot = 0;   // 0 = geen categoriefilter
 var filterNotitie = false;                // alleen events met een notitie
 var filterAan = true;                     // staat het filter als geheel aan?
-var datumFilter = '';        // '' | ~dag | ~week | ~maand | 1..12 | onbekend
+var datumFilter = '';        // '' | ~dag | ~week | ~maand | jaar | 1..12 | onbekend
+var vorigePeriode = null;    // periode van voor het zoeken, om terug te zetten
 var zichtJaar = new Date().getFullYear();   // jaar waarvoor de datums worden berekend
 var datumVan = {};           // index -> berekende datum, gevuld door zichtbaar()
 var zoekterm = '';
-var zoekModus = false;   // zoeken en filteren sluiten elkaar uit
 var editIndex = -1;    // -1 = nieuw
 var negeerDubbel = false;
 var naamAuto = false;        // zolang waar, volgt het naamveld het eventveld
@@ -1030,25 +1034,26 @@ function berekenEventDatum(code, jaar){
 /* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
    Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
    jaren nergens: dat is niet onbekend maar niet-bestaand. */
-/* Extra vormen om op te zoeken, naast de gewone velden: de datum in cijfers
-   (16-10 en 16-10-2026), de oorspronkelijke datum, de leeftijd als 60jr en de
-   afgekorte weekdag tussen haakjes, zodat (zo) niet botst met woorden als zoon. */
+/* De uit de datumcode afgeleide velden om in te zoeken: de datum in het gekozen
+   jaar en de oorspronkelijke datum, elk met de afgekorte weekdag erachter, plus
+   de leeftijd als 60jr. Ze worden met het scheidingsteken aan elkaar geregen,
+   zodat je met za; precies op een veldeinde kunt mikken. */
 function zoekExtra(r, jaar){
   var k = r.code + '|' + jaar;
   if(k in cacheZoek) return cacheZoek[k];
   var uit = [], st = decode(r.code), d = eventDatum(r, jaar);
   if(d){
-    var dd = pad(d.getDate(), 2), mm = pad(d.getMonth() + 1, 2);
-    uit.push(dd + '-' + mm);
-    uit.push(dd + '-' + mm + '-' + d.getFullYear());
-    uit.push('(' + DAG_KORT[isoWeekdag(d) - 1] + ')');
+    uit.push(pad(d.getDate(), 2) + '-' + pad(d.getMonth() + 1, 2) + '-' + d.getFullYear());
+    uit.push(DAG_KORT[isoWeekdag(d) - 1]);
   }
   if(st && st.mode === 'vast' && st.jaar >= 1000 && st.maand && st.dag){
+    var eigen = new Date(st.jaar, st.maand - 1, st.dag);
     uit.push(pad(st.dag, 2) + '-' + pad(st.maand, 2) + '-' + st.jaar);
+    uit.push(DAG_KORT[isoWeekdag(eigen) - 1]);
     var n = jaar - st.jaar;
     if(n > 0) uit.push(n + 'jr');
   }
-  return (cacheZoek[k] = uit.join(' '));
+  return (cacheZoek[k] = uit.join(sep()));
 }
 function heeftDatumRegel(r){
   if(r.raw !== undefined) return false;
@@ -1484,14 +1489,19 @@ var BEKEND = CFG_VOLGORDE;
 function tekenCfgTypes(){
   if($('aantalTypes')) tekenSecties();
   $('cfgTypes').innerHTML = cfgTypes.map(function(x,i){
-    return '<div class="editrow">' +
+    return '<div class="editrow metteken">' +
       '<button class="icon-btn" data-ic="' + i + '" title="Icoon kiezen" aria-label="Icoon kiezen">' +
         svgIcoon(x.icoon, x.omschrijving) + '</button>' +
+      '<input class="teken" type="text" maxlength="1" data-tk="' + i + '" value="' + esc(x.teken || '') + '" ' +
+        'title="Teken voor de macro" aria-label="Teken">' +
       '<input type="text" data-i="' + i + '" value="' + esc(x.omschrijving) + '" placeholder="omschrijving">' +
       '<button class="icon-btn danger" data-del="' + i + '" aria-label="Verwijderen">' + ICON_TRASH + '</button></div>';
   }).join('');
   Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-i]'), function(inp){
     inp.oninput = function(){ cfgTypes[+inp.getAttribute('data-i')].omschrijving = inp.value; };
+  });
+  Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-tk]'), function(inp){
+    inp.oninput = function(){ cfgTypes[+inp.getAttribute('data-tk')].teken = inp.value; };
   });
   Array.prototype.forEach.call($('cfgTypes').querySelectorAll('[data-ic]'), function(b){
     b.onclick = function(){ openIcoonKeuze(+b.getAttribute('data-ic')); };
@@ -1522,7 +1532,7 @@ function openIcoonKeuze(i){
 }
 function tekenCfgVelden(){
   $('cfgVelden').innerHTML = cfgVelden.map(function(v,i){
-    return '<div class="editrow"><span class="nr mono" style="color:var(--muted)">' + (i+1) + '</span>' +
+    return '<div class="editrow smal"><span class="nr mono" style="color:var(--muted)">' + (i+1) + '</span>' +
       '<input type="text" data-v="' + i + '" value="' + esc(v) + '" placeholder="veldnaam"></div>';
   }).join('');
   Array.prototype.forEach.call($('cfgVelden').querySelectorAll('[data-v]'), function(inp){
@@ -1555,7 +1565,7 @@ function tekenCfgPaas(){
 function tekenCfgCats(){
   if($('aantalTypes')) tekenSecties();
   $('cfgCats').innerHTML = cfgCats.map(function(c,i){
-    return '<div class="editrow">' +
+    return '<div class="editrow cijfer">' +
       '<input class="nr" type="number" min="0" max="9" data-nr="' + i + '" value="' + esc(c.nr) + '">' +
       '<input type="text" data-oms="' + i + '" value="' + esc(c.oms || '') + '" placeholder="omschrijving">' +
       '<button class="icon-btn danger" data-del="' + i + '" aria-label="Verwijderen">' + ICON_TRASH + '</button></div>';
@@ -1596,7 +1606,9 @@ function vulCfg(){
   $('cfgMetaNaam').textContent = CFG_NAAM;
   tekenBestandStatus();
   $('cfgTitel').value = cfg.titel || '';
-  cfgTypes = alleTypes().map(function(x){ return { omschrijving:x.omschrijving, icoon:x.icoon || '' }; });
+  cfgTypes = alleTypes().map(function(x){
+    return { omschrijving:x.omschrijving, icoon:x.icoon || '', teken:x.teken || '' };
+  });
   cfgCats = (cfg.categorieen && cfg.categorieen.length)
     ? cfg.categorieen.map(function(c){ return { nr:c.nr, oms:c.omschrijving || '' }; })
     : [1,2,3,4].map(function(n){ return { nr:n, oms:'' }; });
@@ -1687,6 +1699,7 @@ function bewaarCfg(){
                       .map(function(x){
                         var o = { omschrijving:x.omschrijving.trim() };
                         if(x.icoon) o.icoon = x.icoon;
+                        if(x.teken && x.teken.trim()) o.teken = x.teken.trim();
                         return o;
                       });
   var cats = cfgCats.filter(function(c){ return String(c.nr).trim() !== ''; })
@@ -1745,8 +1758,6 @@ function bewaarCfg(){
   });
 }
 
-var ICON_LOEP = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.2-4.2"/></svg>';
-var ICON_KRUIS = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 var ICON_FILTER = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h17l-6.5 7.6V20l-4-2.2v-4.7z"/></svg>';
 
 function catBereikTekst(van, tot){
@@ -1766,7 +1777,11 @@ function renderChips(){
   var bruikbaar = fileState === 'ok';
   Array.prototype.forEach.call(el.children, function(b){
     if(!bruikbaar) b.disabled = true;
-    b.onclick = function(){ datumFilter = b.getAttribute('data-d'); selIndex = -1; render(); };
+    b.onclick = function(){
+      datumFilter = b.getAttribute('data-d');
+      vorigePeriode = null;   /* zelf gekozen: dan niets terugzetten */
+      selIndex = -1; render();
+    };
   });
 
   var mk = $('filterMode');
@@ -1783,7 +1798,8 @@ function renderChips(){
 }
 
 /* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
-function actiefDatumFilter(){ return zoekModus ? '' : datumFilter; }
+/* zoeken en filteren werken samen: wat je typt zoekt binnen het filter */
+function actiefDatumFilter(){ return datumFilter; }
 function zichtbaar(){
   var termen = zonderAccent(zoekterm.toLowerCase()).split(ofTeken())
                  .map(function(t){ return t.trim(); }).filter(Boolean);
@@ -1794,15 +1810,19 @@ function zichtbaar(){
   datumVan = {};
   records.forEach(function(r,i){
     if(r.raw !== undefined) return;
-    if(!zoekModus && filterAan){
+    if(filterAan){
       if(filterType && r.type !== filterType) return;
       if(filterCatVan && (r.cat < filterCatVan || r.cat > filterCatTot)) return;
       if(filterNotitie && !r.notitie) return;
     }
     if(termen.length){
-      var hay = zonderAccent((r.sleutel + ' ' + r.naam + ' ' + r.type + ' ' + r.code + ' ' +
-                 leesbaar(r.code) + ' ' + zoekExtra(r, jaar) + ' ' +
-                 r.cat + ' ' + (r.notitie||'')).toLowerCase());
+      /* velden gescheiden door het scheidingsteken, ook een aan het eind, zodat
+         een zoekterm als za; of *; op een veldgrens uitkomt */
+      var sc = sep();
+      var hay = zonderAccent([
+        zoekExtra(r, jaar), leesbaar(r.code), r.code, r.sleutel, r.naam,
+        r.type, typeTeken(r.type), r.cat, (r.notitie || ''), (r.notitie ? '*' : '')
+      ].join(sc).toLowerCase() + sc);
       var raakTekst = termen.some(function(t){ return hay.indexOf(t) >= 0; });
       if(!raakTekst) return;
     }
@@ -1902,20 +1922,12 @@ function renderLijst(){
 
 
 /* zoek het element dat werkelijk scrolt en schuif de rij naar boven */
-var fType = '', fcVan = 0, fcTot = 0, fcBezig = false, fNot = false, fJaar = 0, fAan = true;
+var fType = '', fcVan = 0, fcTot = 0, fcBezig = false, fNot = false, fJaar = 0;
 
 function tekenFilterNot(){
   $('filterNotKnop').innerHTML = svgIcoon('notitie', 'notitie');
   $('filterNotKnop').className = 'chip notknop' + (fNot ? ' on' : '');
   $('filterNotKnop').title = fNot ? 'Alleen met notitie' : 'Notitie telt niet mee';
-}
-function tekenFilterAan(){
-  $('filterAanUit').className = 'schuif' + (fAan ? ' aan' : '');
-  $('filterAanUit').setAttribute('aria-checked', fAan ? 'true' : 'false');
-  ['filterTypes','filterCats','filterNotKnop'].forEach(function(id){
-    $(id).style.opacity = fAan ? '' : '.4';
-    $(id).style.pointerEvents = fAan ? '' : 'none';
-  });
 }
 
 function tekenFilterTypes(){
@@ -1958,9 +1970,9 @@ function tekenFilterCats(){
 }
 function openFilter(){
   fType = filterType; fcVan = filterCatVan; fcTot = filterCatTot; fcBezig = false;
-  fNot = filterNotitie; fJaar = zichtJaar; fAan = filterAan;
+  fNot = filterNotitie; fJaar = zichtJaar;
   $('filterJaarTxt').textContent = fJaar;
-  tekenFilterTypes(); tekenFilterCats(); tekenFilterNot(); tekenFilterAan();
+  tekenFilterTypes(); tekenFilterCats(); tekenFilterNot();
   $('filterStdHint').textContent = standaardTekst();
   toonModaal('filterModal');
 }
@@ -2225,17 +2237,16 @@ function render(){
   renderFilebar();
   renderChips();
   /* zoeken en filteren sluiten elkaar uit: je ziet er altijd maar een van */
-  $('filterMode').hidden = zoekModus;
-  $('zoek').hidden = !zoekModus;
-  $('chips').hidden = zoekModus;
-  $('zoekKnop').innerHTML = zoekModus ? ICON_KRUIS : ICON_LOEP;
-  $('zoekKnop').title = zoekModus ? 'Zoeken sluiten' : 'Zoeken';
   renderLijst();
   var badCount = records.filter(function(r){ return r.raw !== undefined; }).length;
   $('bad').textContent = badCount ? badCount + ' regel(s) met een onbekend formaat blijven ongewijzigd bewaard.' : '';
   var bruikbaar = fileState === 'ok';
   $('filterMode').disabled = !bruikbaar;
-  $('zoekKnop').disabled = !bruikbaar;
+  $('zoek').disabled = !bruikbaar;
+  $('filterAanUit').disabled = !bruikbaar;
+  $('filterAanUit').innerHTML = ICON_FILTER;
+  $('filterAanUit').className = 'icon-btn' + (filterAan ? ' aan' : '');
+  $('filterAanUit').title = filterAan ? 'Filter telt mee' : 'Filter telt niet mee';
   $('btnNew').hidden = selIndex >= 0;
   $('btnNew').disabled = !bruikbaar;
   $('btnEdit').hidden = selIndex < 0;
@@ -2335,12 +2346,25 @@ function tekenWeekdagLijst(){
     b.onclick = function(){ weekdagKeuze = b.getAttribute('data-w'); tekenWeekdagLijst(); };
   });
 }
+/* een type uit de cfg dat geen icoon of teken heeft, krijgt dat van de
+   standaardlijst als de omschrijving daarin voorkomt */
+function standaardType(naam){
+  for(var i=0;i<TYPES.length;i++){ if(TYPES[i].omschrijving === naam) return TYPES[i]; }
+  return null;
+}
 function typeOpties(){
   var lijst = (cfg.types && cfg.types.length) ? cfg.types : TYPES;
   return lijst.map(function(x){
     return (typeof x === 'string')
-      ? { omschrijving:x, icoon:'' }
-      : { omschrijving:x.omschrijving || '', icoon:x.icoon || '' };
+      ? { omschrijving:x, icoon:'', teken:'' }
+      : { omschrijving:x.omschrijving || '', icoon:x.icoon || '', teken:x.teken || '' };
+  }).map(function(x){
+    var std = standaardType(x.omschrijving);
+    if(std){
+      if(!x.icoon) x.icoon = std.icoon;
+      if(!x.teken) x.teken = std.teken;
+    }
+    return x;
   });
 }
 function alleTypes(){
@@ -2655,21 +2679,27 @@ function vraag(titel, tekst, knop, cb){
 }
 
 /* ------------------ events ------------------ */
-$('zoek').oninput = function(){ zoekterm = this.value.trim(); selIndex = -1; render(); };
-function zetZoeken(aan){
-  zoekModus = aan;
-  if(!aan){ $('zoek').value = ''; zoekterm = ''; }
-  selIndex = -1;
-  render();
-  if(aan) $('zoek').focus();
-}
-$('zoekKnop').onclick = function(){ zetZoeken(!zoekModus); };
+$('filterAanUit').onclick = function(){ filterAan = !filterAan; selIndex = -1; render(); };
+$('zoek').oninput = function(){
+  var was = zoekterm;
+  zoekterm = this.value.trim();
+  /* zodra je begint te zoeken gaan filter en periode eraf; bij een leeg veld
+     komen ze terug, tenzij je de periode ondertussen zelf hebt gekozen */
+  if(!was && zoekterm){
+    filterAan = false;
+    vorigePeriode = datumFilter;
+    datumFilter = '';
+  } else if(was && !zoekterm){
+    filterAan = true;
+    if(vorigePeriode !== null) datumFilter = vorigePeriode;
+    vorigePeriode = null;
+  }
+  selIndex = -1; render();
+};
 $('zoek').onfocus = function(){ if(selIndex >= 0){ selIndex = -1; render(); } };
-$('filterAanUit').onclick = function(){ fAan = !fAan; tekenFilterAan(); };
 $('filterNotKnop').onclick = function(){ fNot = !fNot; tekenFilterNot(); };
 $('filterStd').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
-  filterAan = fAan;
   zichtJaar = fJaar || new Date().getFullYear();
   if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
   $('filterErr').textContent = '';
@@ -2685,7 +2715,6 @@ $('filterStd').onclick = function(){
 $('filterCancel').onclick = function(){ bergModaal('filterModal'); };
 $('filterOk').onclick = function(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
-  filterAan = fAan;
   zichtJaar = fJaar || new Date().getFullYear();
   if(isVenster(datumFilter) && zichtJaar !== new Date().getFullYear()) datumFilter = '';
   bergModaal('filterModal'); selIndex = -1; render();
@@ -2744,7 +2773,7 @@ $('cfgPaasAdd').onclick = function(){
   $('kop' + k).onclick = function(){ cfgOpen[k] = !cfgOpen[k]; tekenSecties(); };
 });
 $('cfgTypeAdd').onclick = function(){
-  cfgTypes.push({ omschrijving:'', icoon:'' });
+  cfgTypes.push({ omschrijving:'', icoon:'', teken:'' });
   tekenCfgTypes();
   var v = $('cfgTypes').querySelectorAll('[data-i]');
   if(v.length) v[v.length-1].focus();
@@ -2864,7 +2893,8 @@ $('confirm').onclick = function(e){ if(e.target === this){ bergModaal('confirm')
 document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
     if(sluitBovenste(false)) return;
-    if(zoekModus) zetZoeken(false);
+    /* niets open: dan wist Escape de zoekterm */
+    if(zoekterm){ $('zoek').value = ''; zoekterm = ''; selIndex = -1; render(); }
   }
   if((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); if(dirty) bewaar(); }
 });
