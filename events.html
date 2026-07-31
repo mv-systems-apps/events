@@ -120,6 +120,7 @@ svg{display:block}
 .search::placeholder{color:#5f6878}
 .zoekregel{display:flex;gap:6px;align-items:center}
 .kopregel{display:flex;gap:6px;align-items:center;margin-top:8px}
+.kopregel #filterAanUit{margin-left:auto}
 .kopregel .chip{height:44px}
 .search{height:44px;padding-top:0;padding-bottom:0}
 .modeknop{flex:1 1 auto;min-width:0;justify-content:flex-start;overflow:hidden}
@@ -385,10 +386,16 @@ svg{display:block}
 
   <div class="zoekregel">
     <input class="search" id="zoek" type="search" placeholder="Zoeken…" autocomplete="off">
-    <button class="icon-btn" id="filterAanUit" title="Filter aan of uit" aria-label="Filter aan of uit"></button>
+    <button class="icon-btn" id="btnCfg" title="Configuratie" aria-label="Configuratie">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+      </svg>
+    </button>
   </div>
   <div class="kopregel">
     <button class="chip modeknop" id="filterMode" title="Filter op jaar, type en categorie"></button>
+    <button class="icon-btn" id="filterAanUit" title="Filter aan of uit" aria-label="Filter aan of uit"></button>
   </div>
   <div class="chips" id="chips"></div>
 
@@ -396,9 +403,6 @@ svg{display:block}
     <h2><span id="panelTitel">Events</span> <span class="count" id="count"></span></h2>
     <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
-    </button>
-    <button class="icon-btn" id="btnCfg" title="Configuratie" aria-label="Configuratie">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.4-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
     <button class="icon-btn prominent" id="btnNew" title="Nieuw event" aria-label="Nieuw event">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
