@@ -46,18 +46,13 @@
   .wat{flex:1; min-width:0; overflow-wrap:anywhere}
   .uitkomst{color:var(--muted); font-size:15px}
   .regel.fout .uitkomst{color:var(--danger)}
-  .bestand{
-    display:block; width:100%; margin-bottom:10px; padding:10px 14px;
-    border:1px solid var(--line); border-radius:8px; background:var(--panel);
-    color:var(--txt); font:inherit; font-size:16px;
-  }
 </style>
 </head>
 <body>
 
 <h1>Zelftest</h1>
 <div class="uitleg">
-  Controleert de datumregels van events.html en EventsLite.js tegen uitkomsten
+  Controleert de datumregels van events.html en events_lite.js tegen uitkomsten
   die met de hand zijn nagerekend. Zet dit bestand naast de andere twee.
 </div>
 
@@ -162,9 +157,9 @@ function toonTotaal(){
    net zo goed uit. */
 
 function laadMacro(){
-  return fetch('EventsLite.js', { cache:'no-store' })
+  return fetch('events_lite.js', { cache:'no-store' })
     .then(function(r){
-      if(!r.ok) throw new Error('EventsLite.js geeft status ' + r.status);
+      if(!r.ok) throw new Error('events_lite.js geeft status ' + r.status);
       return r.text();
     })
     .then(function(bron){
