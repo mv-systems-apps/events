@@ -1123,9 +1123,15 @@ function datumKort(dg, r){
     var y = dgYMD(dg);
     return pad(y.dag, 2) + '-' + pad(y.maand, 2);
   }
-  /* geen dag bekend: tonen wat er wel is */
-  var m = r ? maandVan(r) : 0;
-  return m ? '??-' + pad(m, 2) : '??-??';
+  /* Geen dag in dit jaar. Is de datum volledig bekend, dan bestaat hij dit jaar
+     gewoon niet -- 29 februari -- en zegt een streepje dat eerlijker dan de
+     datum tonen. Vraagtekens zijn voor wat werkelijk onbekend is. */
+  var st = r ? decode(r.code) : null;
+  var vast = st && st.mode === 'vast';
+  var d = vast ? st.dag : 0;
+  var m = vast ? st.maand : 0;
+  if(d && m) return '\u2014';
+  return (d ? pad(d, 2) : '\u003f\u003f') + '-' + (m ? pad(m, 2) : '\u003f\u003f');
 }
 /* de datum waarop dit event in het gevraagde jaar valt, of null */
 function eventDatum(r, jaar){
@@ -2013,6 +2019,11 @@ function zichtbaar(){
     }
     out.push(i);
   });
+  /* zonder datumfilter is er nog geen datum uitgerekend; die is wel nodig zodra
+     de lijst hem toont, en dat doet hij ook bij het zoeken */
+  if(!df){
+    out.forEach(function(i){ datumVan[i] = eventDatum(records[i], jaar); });
+  }
   if(df && df !== 'onbekend'){
     out.sort(function(a,b){
       /* een event zonder dag heeft geen plek binnen de maand en gaat achteraan */
@@ -2039,9 +2050,12 @@ function renderLijst(){
     return;
   }
   var df = actiefDatumFilter();
-  /* ook onder onbekend de datum tonen: dan zie je in een oogopslag wat er
-     ontbreekt, zonder elk event te hoeven openen */
-  var metDatum = !!df;
+  /* De datum staat erbij zodra er een datumfilter is, ook onder onbekend: dan
+     zie je in een oogopslag wat er ontbreekt. En bij het zoeken, want dan houd
+     je een paar regels over en is de datum meestal juist wat je wilde weten.
+     In de kale lijst blijft hij weg; die staat alfabetisch en dient om in te
+     tikken. */
+  var metDatum = !!df || zoekterm.trim() !== '';
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
   /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
   var grens = -1;
