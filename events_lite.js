@@ -1,13 +1,15 @@
 //
-// EventsLiteINT -- -- pure JavaScript data engine (integer based)
+// events_lite -- pure JavaScript data engine (integer based)
 //
 // Author:
 //	m.j.vandervelden@gmail.com
 //
 // Usage as API-call:
-// 	1: read events_lite.js to js
-// 	2: new Function('data', 'qry', 'return (' + js + ')(data, qry);')
+// 	1: read events_lite.js to js, the event file to data and events_cfg.json to cfg
+// 	2: new Function('data', 'qry', 'cfg', 'return (' + js + ')(data, qry, cfg);')
 // 	3: js is inserted in a template literal, so \\ instead of \ as escape character
+//
+// The configuration is read, never written; the app is the one that writes it.
 //
 
 
@@ -1029,6 +1031,7 @@
 			return;
 		}
 		
+		// de namen waarmee de app de periode in de configuratie zet
 		const p = String(f['periode'] || '');
 		if (p === '~dag') {
 			st.optPeriod = _QRY_DAY;
