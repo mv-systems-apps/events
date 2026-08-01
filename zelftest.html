@@ -193,39 +193,48 @@ var PROEF = [
 function testDatums(){
   groep('De datumlaag van de app');
 
-  eis('d8Van bouwt 16 oktober 1966', app.d8Van(1966, 10, 16), 19661016);
-  eis('d8YMD haalt de maand eruit', app.d8YMD(19661016).maand, 10);
-  eis('d8YMD haalt de dag eruit', app.d8YMD(19661016).dag, 16);
-  eis('16 oktober 1966 was een zondag', app.d8Weekdag(19661016), 7);
-  eis('1 januari 2026 is een donderdag', app.d8Weekdag(20260101), 4);
-  eis('een dag na 31 december', app.d8Plus(20251231, 1), 20260101);
-  eis('een dag voor 1 maart 2024', app.d8Plus(20240301, -1), 20240229);
-  eis('een dag voor 1 maart 2025', app.d8Plus(20250301, -1), 20250228);
-  eis('dagen tussen twee jaarwisselingen', app.d8Dagen(20260101, 20250101), 365);
-  eis('een schrikkeljaar telt een dag meer', app.d8Dagen(20250101, 20240101), 366);
-  eis('einde februari in een schrikkeljaar', app.d8EindeMaand(2024, 2), 20240229);
-  eis('einde februari in een gewoon jaar', app.d8EindeMaand(2025, 2), 20250228);
-  eis('einde december', app.d8EindeMaand(2026, 12), 20261231);
-  eis('dagen in februari 2024', app.d8DagenInMaand(2024, 2), 29);
-  eis('de tweede zondag van mei 2026', app.d8ZoekWeekdag(20260501, 7, 2, 1), 20260510);
-  eis('de laatste zondag van maart 2026', app.d8ZoekWeekdag(app.d8EindeMaand(2026, 3), 7, 1, -1), 20260329);
-  eis('de laatste zondag van oktober 2026', app.d8ZoekWeekdag(app.d8EindeMaand(2026, 10), 7, 1, -1), 20261025);
+  /* een datum is een dagnummer, dus de controles zijn met datums geschreven
+     en niet met de getallen die er toevallig uitkomen */
+  var dg = app.dgVan;
+
+  eis('de onderdelen komen er weer uit', app.dgYMD(dg(1966, 10, 16)).maand, 10);
+  eis('en de dag ook', app.dgYMD(dg(1966, 10, 16)).dag, 16);
+  eis('16 oktober 1966 was een zondag', app.dgWeekdag(dg(1966, 10, 16)), 7);
+  eis('1 januari 2026 is een donderdag', app.dgWeekdag(dg(2026, 1, 1)), 4);
+  eis('een dag na 31 december', dg(2025, 12, 31) + 1, dg(2026, 1, 1));
+  eis('een dag voor 1 maart 2024', dg(2024, 3, 1) - 1, dg(2024, 2, 29));
+  eis('een dag voor 1 maart 2025', dg(2025, 3, 1) - 1, dg(2025, 2, 28));
+  eis('dagen tussen twee jaarwisselingen', dg(2026, 1, 1) - dg(2025, 1, 1), 365);
+  eis('een schrikkeljaar telt een dag meer', dg(2025, 1, 1) - dg(2024, 1, 1), 366);
+  eis('einde februari in een schrikkeljaar', app.dgEindeMaand(2024, 2), dg(2024, 2, 29));
+  eis('einde februari in een gewoon jaar', app.dgEindeMaand(2025, 2), dg(2025, 2, 28));
+  eis('einde december', app.dgEindeMaand(2026, 12), dg(2026, 12, 31));
+  eis('dagen in februari 2024', app.dgDagenInMaand(2024, 2), 29);
+  eis('de tweede zondag van mei 2026', app.dgZoekWeekdag(dg(2026, 5, 1), 7, 2, 1), dg(2026, 5, 10));
+  eis('de laatste zondag van maart 2026',
+      app.dgZoekWeekdag(app.dgEindeMaand(2026, 3), 7, 1, -1), dg(2026, 3, 29));
+  eis('de laatste zondag van oktober 2026',
+      app.dgZoekWeekdag(app.dgEindeMaand(2026, 10), 7, 1, -1), dg(2026, 10, 25));
 }
 
 function testPasen(){
   groep('Pasen, met de hand nagerekend');
 
-  var jaren = [[2024, 20240331], [2025, 20250420], [2026, 20260405],
-               [2027, 20270328], [2038, 20380425], [2011, 20110424]];
+  var dg = app.dgVan;
+  var jaren = [[2024, [3, 31]], [2025, [4, 20]], [2026, [4, 5]],
+               [2027, [3, 28]], [2038, [4, 25]], [2011, [4, 24]]];
   for(var i = 0; i < jaren.length; i++){
-    eis('Pasen ' + jaren[i][0], app.paasDatum(jaren[i][0]), jaren[i][1]);
+    var j = jaren[i][0], d = jaren[i][1];
+    eis('Pasen ' + j, app.paasDatum(j), dg(j, d[0], d[1]));
   }
-  eis('Hemelvaart 2026 is Pasen plus 39', app.d8Plus(app.paasDatum(2026), 39), 20260514);
-  eis('Carnaval 2026 is Pasen min 49', app.d8Plus(app.paasDatum(2026), -49), 20260215);
+  eis('Hemelvaart 2026 is Pasen plus 39', app.paasDatum(2026) + 39, dg(2026, 5, 14));
+  eis('Carnaval 2026 is Pasen min 49', app.paasDatum(2026) - 49, dg(2026, 2, 15));
 }
 
 function testCodes(){
   groep('De datumcodes');
+
+  var dg = app.dgVan;
 
   eis('een vaste datum', app.encode(app.decode('D19661016')), 'D19661016');
   eis('een wisselende dag', app.encode(app.decode('D00070502')), 'D00070502');
@@ -235,12 +244,16 @@ function testCodes(){
   eis('een onvolledige datum', app.encode(app.decode('D19900200')), 'D19900200');
   eis('een kapotte code geeft niets', app.decode('D1966101'), null);
 
-  eis('de tweede zondag van mei 2026', app.eventDatum({ code:'D00070502' }, 2026), 20260510);
-  eis('de laatste zondag van maart 2026', app.eventDatum({ code:'D00070399' }, 2026), 20260329);
-  eis('Hemelvaart 2026', app.eventDatum({ code:'D00083900' }, 2026), 20260514);
+  eis('de tweede zondag van mei 2026',
+      app.eventDatum({ code:'D00070502' }, 2026), dg(2026, 5, 10));
+  eis('de laatste zondag van maart 2026',
+      app.eventDatum({ code:'D00070399' }, 2026), dg(2026, 3, 29));
+  eis('Hemelvaart 2026', app.eventDatum({ code:'D00083900' }, 2026), dg(2026, 5, 14));
   eis('29 februari bestaat niet in 2026', app.eventDatum({ code:'D20000229' }, 2026), null);
-  eis('29 februari bestaat wel in 2028', app.eventDatum({ code:'D20000229' }, 2028), 20280229);
-  eis('een datum zonder dag heeft geen dag', app.eventDatum({ code:'D19900200' }, 2026), null);
+  eis('29 februari bestaat wel in 2028',
+      app.eventDatum({ code:'D20000229' }, 2028), dg(2028, 2, 29));
+  eis('een datum zonder dag heeft geen dag',
+      app.eventDatum({ code:'D19900200' }, 2026), null);
   eis('maar wel een maand', app.maandVan({ code:'D19900200' }), 2);
   eis('alleen een jaar heeft ook geen maand', app.maandVan({ code:'D19900000' }), 0);
 }
@@ -322,7 +335,7 @@ function testSamen(macro){
   eis('alles geeft in beide hetzelfde', app.zichtbaar().length, macroAantal('@a 1-4 2026'));
 
   app.records = was; app.zichtJaar = wasJaar; app.datumFilter = wasFilter;
-  app.app.zoekterm = wasZoek; app.filterAan = wasAan;
+  app.zoekterm = wasZoek; app.filterAan = wasAan;
 }
 
 /* ------------------ starten ------------------ */
