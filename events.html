@@ -856,9 +856,22 @@ var TYPES = [
   { omschrijving:'Feestdag',    icoon:'ster',            teken:'F' },
   { omschrijving:'Gebeurtenis', icoon:'kalender',        teken:'E' }
 ];
+/* Sommige tekeningen liggen niet midden in hun vak van 24 bij 24 en staan
+   daardoor te laag op de regel. Het venster waardoor je kijkt schuift dan een
+   stukje mee; de tekening zelf blijft ongemoeid. */
+var ICOON_Y = {
+  'scheut':           2.5,
+  'grafsteen':        3,
+  'ringen':           2,
+  'gebroken ringen':  2.5,
+  'hart':             2.6,
+  'geschenk':         0.8
+};
+
 function svgIcoon(naam, label){
   var p = ICONEN[naam] || ICONEN['bolletje'];
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+  var y = ICOON_Y[naam] || 0;
+  return '<svg viewBox="0 ' + y + ' 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
          'stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="' + esc(label || naam || '') + '">' + p + '</svg>';
 }
 function typeTeken(t){
