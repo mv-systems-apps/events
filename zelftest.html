@@ -81,7 +81,7 @@ function laadApp(){
       var w;
       try {
         w = f.contentWindow;
-        if(!w || typeof w.d8Van !== 'function'){
+        if(!w || typeof w.dgVan !== 'function'){
           mis(new Error('events.html is geladen, maar de functies zijn niet te bereiken'));
           return;
         }
