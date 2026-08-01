@@ -2082,12 +2082,11 @@ function renderLijst(){
     return;
   }
   var df = actiefDatumFilter();
-  /* De datum staat erbij zodra er een datumfilter is, ook onder onbekend: dan
-     zie je in een oogopslag wat er ontbreekt. En bij het zoeken, want dan houd
-     je een paar regels over en is de datum meestal juist wat je wilde weten.
-     In de kale lijst blijft hij weg; die staat alfabetisch en dient om in te
-     tikken. */
-  var metDatum = !!df || zoekterm.trim() !== '';
+  /* De datum staat er altijd bij. Ook onder onbekend, want dan zie je meteen
+     wat er ontbreekt, en ook in de kale lijst: de volgorde is daar alfabetisch,
+     maar de datum hoort bij de regel en niet bij de reeks. Wordt een naam
+     afgekapt, dan toont de balk onderaan het hele verhaal. */
+  var metDatum = true;
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
   /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
   var grens = -1;
