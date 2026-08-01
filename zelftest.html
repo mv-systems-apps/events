@@ -72,41 +72,36 @@
 var app = null;
 
 function laadApp(){
-  return new Promise(function(klaar, mis){
-    var f = document.getElementById('app');
+  var f = document.getElementById('app');
 
-    function pak(){
+  /* Kijken of de app er al is. Een vers venstertje toont eerst een leeg
+     document dat zichzelf al klaar noemt, dus wachten op 'geladen' is niet
+     genoeg: er wordt gekeken of de functies er werkelijk staan. */
+  function pak(){
+    try {
+      var w = f.contentWindow;
+      if(w && (typeof w.dgVan === 'function')) return w;
+    } catch(e){
       /* een pagina die met file:// is geopend mag niet in een ander bestand
-         kijken; dan komt de fout hier naar boven */
-      var w;
-      try {
-        w = f.contentWindow;
-        if(!w || typeof w.dgVan !== 'function'){
-          mis(new Error('events.html is geladen, maar de functies zijn niet te bereiken'));
-          return;
-        }
-      } catch(e){
-        mis(new Error('geen toegang tot events.html \u2014 ' + e.message));
+         kijken; dat komt hieronder als melding naar boven */
+      return 'geen toegang \u2014 ' + e.message;
+    }
+    return null;
+  }
+
+  return new Promise(function(klaar, mis){
+    var wacht = 0;
+    (function nogEens(){
+      var w = pak();
+      if(typeof w === 'string'){ mis(new Error(w)); return; }
+      if(w){ app = w; klaar(app); return; }
+      wacht += 100;
+      if(wacht > 8000){
+        mis(new Error('events.html is niet op tijd geladen, of de functies staan er niet in'));
         return;
       }
-      app = w;
-      klaar(app);
-    }
-
-    /* het venstertje begint al te laden zodra deze pagina opent, dus het kan
-       zijn dat dat allang klaar is tegen de tijd dat er op de knop wordt gedrukt */
-    var klaarGeladen = false;
-    try {
-      klaarGeladen = !!(f.contentWindow && f.contentWindow.document &&
-                        f.contentWindow.document.readyState === 'complete');
-    } catch(e){
-      /* geen toegang: dan valt dat zo bij pak() alsnog op */
-      klaarGeladen = true;
-    }
-    if(klaarGeladen){ pak(); return; }
-
-    f.onload = pak;
-    f.onerror = function(){ mis(new Error('events.html kan niet worden geladen')); };
+      setTimeout(nogEens, 100);
+    })();
   });
 }
 
