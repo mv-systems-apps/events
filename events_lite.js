@@ -871,7 +871,7 @@
 	
 	const evaluateErrors = (st, result, events, errors) => {
 		if (st.optNotify) {
-			return errors.length + ' errors(s) ' + st.qry;
+			return errors.length + ' fout(en) ' + st.qry;
 		} else {
 			const y = fmtCmds(st);
 			const txt = [];
@@ -879,7 +879,7 @@
 			txt.push(_STR_NL);
 			txt.push('<b>');
 			txt.push('<span style=color:' + _CLR_ERROR + '>');
-			txt.push(errors.length + ' error(s)');
+			txt.push(errors.length + ' fout(en)');
 			txt.push('</span>');
 			txt.push('</b>');
 			txt.push(_STR_NL2);
@@ -1131,7 +1131,7 @@
 			} else if (monthNr(c.toLowerCase()) > 0) {
 				st.optMonth = monthNr(c.toLowerCase());
 			} else {
-				_cmdErrors.push('? command ' + _SYM_CMD + c);
+				_cmdErrors.push('? opdracht ' + _SYM_CMD + c);
 			}
 		}
 	};
@@ -1188,18 +1188,18 @@
 	const checkSyntax = (event) => {
 		event['errors'] = [];
 		if (!_EVENT_TYPE[event['event_type']]) {
-			event['errors'].push('? event_type');
+			event['errors'].push('? type');
 		} 
 		const dc = event['date_code'];
 		if ((dc !== 'D00000000') && (!d8_fromCodeStr(dc))) {
-			event['errors'].push('? date_code');
+			event['errors'].push('? datumcode');
 		}
 		const cat = event['category'] || 0;
 		if ((cat < 1) || (cat > _CAT_MAX)) {
-			event['errors'].push('? category');
+			event['errors'].push('? categorie');
 		}
 		if ((event['field_cnt'] < _FLD_MIN) || (event['field_cnt'] > _FLD_MAX)) {
-			event['errors'].push('? #fields');
+			event['errors'].push('? aantal velden');
 		}
 		
 		return event['errors'];
@@ -1264,46 +1264,46 @@
 	
 	const help = () => {
 		const txt = [] ;
-		txt.push('[<b>period</b>|<b>pattern</b>][@<b>command</b> <b>command</b>...]');
+		txt.push('[<b>periode</b>|<b>zoektekst</b>][@<b>opdracht</b> <b>opdracht</b>...]');
 		txt.push('');
-		txt.push('<b>period</b>');
-		txt.push('. : today & tomorrow');
-		txt.push('.. : week, three days back until sunday next week');
-		txt.push('... : month, three days back until the end of next month');
-		txt.push('.... : year, until the same date next year');
-		txt.push('empty : week');
+		txt.push('<b>periode</b>');
+		txt.push('. : vandaag en morgen');
+		txt.push('.. : week, drie dagen terug tot en met zondag volgende week');
+		txt.push('... : maand, drie dagen terug tot en met eind volgende maand');
+		txt.push('.... : jaar, tot dezelfde datum volgend jaar');
+		txt.push('niets : week');
 		txt.push('');
-		txt.push('abc : search abc, not case sensitive, whitespace at the end is removed');
-		txt.push('| : OR symbol in search text');
-		txt.push('@@ : a plain @, so sandra@@example.com is a search text');
-		txt.push('searching without a period looks at the whole year');
+		txt.push('abc : zoek abc, hoofdletters maken niet uit, spaties aan het eind vervallen');
+		txt.push('| : of-teken in de zoektekst');
+		txt.push('@@ : een gewone @, dus sandra@@voorbeeld.nl is zoektekst');
+		txt.push('zoeken zonder periode kijkt naar het hele jaar');
 		txt.push('');
-		txt.push('<b>command</b>');
-		txt.push('behind the @ several commands are allowed, separated by a');
-		txt.push('space and in any order: @1-4 t+ *');
-		txt.push('. .. ... .... : a period, so abc@.. searches in the week');
-		txt.push('mmm or mn : a month, so @mei and @m5 are the same');
-		txt.push('yyyy : use yyyy instead of current year');
-		txt.push('+n -n : n years from now, so +1 is next year');
-		txt.push('c : only category c');
-		txt.push('c-c : category range, so 1-2 is 1 and 2');
-		txt.push('t<codes> : only these types, so @t& is a wedding and @t+& a birth or a wedding');
-		txt.push('* : show the notes');
-		txt.push('** : only events with a note');
-		txt.push('l : show long name');
-		txt.push('= : show original data');
-		txt.push('! : one line, for a notification');
-		txt.push('? : only events of which the date is not complete');
-		txt.push('a : every event, whatever its date');
+		txt.push('<b>opdracht</b>');
+		txt.push('achter de @ mogen er meerdere, gescheiden door een spatie');
+		txt.push('en in willekeurige volgorde: @1-4 t+ *');
+		txt.push('. .. ... .... : een periode, dus abc@.. zoekt in de week');
+		txt.push('mmm of mn : een maand, @mei en @m5 zijn hetzelfde');
+		txt.push('jjjj : gebruik jjjj in plaats van dit jaar');
+		txt.push('+n -n : n jaar verder of terug, +1 is volgend jaar');
+		txt.push('c : alleen categorie c');
+		txt.push('c-c : een bereik, 1-2 is 1 en 2');
+		txt.push('t&lt;tekens&gt; : alleen deze types, @t& is getrouwd en @t+& geboren of getrouwd');
+		txt.push('* : toon de notities');
+		txt.push('** : alleen events met een notitie');
+		txt.push('l : toon de lange naam');
+		txt.push('= : toon de oorspronkelijke gegevens');
+		txt.push('! : een regel, voor een melding');
+		txt.push('? : alleen events waarvan de datum niet volledig is');
+		txt.push('a : elk event, wat de datum ook is');
 		txt.push('');
-		txt.push('<b>search examples</b>');
-		txt.push('*;             : has note?');
-		txt.push('-mm-  : search month mm');
-		txt.push('-yyyy;  : search year yyyy');
-		txt.push('njr : search age of n years');
-		txt.push(';dd;  : search ma ... zo');
+		txt.push('<b>voorbeelden van zoeken</b>');
+		txt.push('*' + _SYM_SEP + ' : heeft een notitie');
+		txt.push('-mm- : maand mm');
+		txt.push('-jjjj' + _SYM_SEP + ' : jaar jjjj');
+		txt.push('njr : leeftijd van n jaar');
+		txt.push(_SYM_SEP + 'dd' + _SYM_SEP + ' : ma tot en met zo');
 		txt.push('');
-		txt.push('? : help');
+		txt.push('? : uitleg');
 		return txt.join(_STR_NL);
 	} ;
 	
