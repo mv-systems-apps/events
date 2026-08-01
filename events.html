@@ -176,7 +176,6 @@ svg{display:block}
 .list tbody tr:nth-child(even) td{background:rgba(255,255,255,.06)}
 .list tbody tr:hover td{background:#1a2028}
 .list tbody tr.sel td{background:rgba(122,162,247,.30)}
-.list tbody tr.vandaag td{border-top:2px solid var(--accent)}
 .list col.c-ic{width:31px}
 .list col.c-dag{width:2.6ch}
 .list td.dag{color:var(--accent);text-align:right;padding-left:0;padding-right:0}
@@ -2088,14 +2087,6 @@ function renderLijst(){
      afgekapt, dan toont de balk onderaan het hele verhaal. */
   var metDatum = true;
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
-  /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
-  var grens = -1;
-  if(metDatum){
-    var nu0 = dgVandaag();
-    for(var q = 0; q < idx.length; q++){
-      if(datumVan[idx[q]] && datumVan[idx[q]] >= nu0){ grens = q; break; }
-    }
-  }
   var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
   /* de weekdagkolom alleen als er ergens een weekdag te tonen valt */
   var metWd = metDatum && idx.some(function(i){ return !!datumVan[i]; });
@@ -2105,8 +2096,7 @@ function renderLijst(){
   idx.forEach(function(i, pos){
     var r = records[i];
     var n = dagen[pos];
-    var klassen = (i === selIndex ? 'sel' : '') + (pos === grens ? ' vandaag' : '');
-    html += '<tr' + (klassen.trim() ? ' class="' + klassen.trim() + '"' : '') +
+    html += '<tr' + (i === selIndex ? ' class="sel"' : '') +
       ' data-i="' + i + '">' +
       (metDag
         ? '<td class="dag"' + (n === 0 ? ' title="vandaag"' : '') + '>' +
