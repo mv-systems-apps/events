@@ -306,6 +306,8 @@ svg{display:block}
 .source-row.wide{justify-content:center}
 /* twee bijzondere regels onder elkaar hebben wat lucht nodig */
 .source-row.wide + .source-row.wide{margin-top:8px}
+/* een lijst onder een brede regel krijgt dezelfde lucht als een raster */
+.source-row.wide + .rowlist{margin-top:10px}
 .source-row.wide.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
 .source-row{
   display:flex;align-items:center;gap:12px;width:100%;
@@ -518,6 +520,7 @@ svg{display:block}
 <div class="overlay" id="weekdagModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Weekdag kiezen</h3>
+    <button class="source-row wide bijzonder" id="weekdagVandaag"></button>
     <div id="weekdagList" class="rowlist"></div>
     <div class="modal-actions">
       <button class="btn" id="weekdagCancel">Annuleren</button>
@@ -531,6 +534,7 @@ svg{display:block}
   <div class="modal" role="dialog" aria-modal="true" style="max-width:440px">
     <h3>Dag kiezen</h3>
     <button class="source-row wide bijzonder" id="dagOnbekend"></button>
+    <button class="source-row wide bijzonder" id="dagVandaag"></button>
     <div id="dagGrid" class="numgrid"></div>
     <div class="modal-actions">
       <button class="btn" id="dagCancel">Annuleren</button>
@@ -1000,7 +1004,7 @@ function berekenLeesbaar(code){
     return n + ' ' + (DAGEN[s.weekdag-1]||'?') + ' van ' + (MAANDEN[s.wmaand-1]||'?');
   }
   if(s.dag && s.maand && s.jaar >= 1000){
-    if(s.dag <= dgDagenInMaand(s.jaar, s.maand)) return datumTekst(dgVan(s.jaar, s.maand, s.dag));
+    if(s.dag <= d8DagenInMaand(s.jaar, s.maand)) return datumTekst(d8Van(s.jaar, s.maand, s.dag));
   }
   var p = [];
   if(s.dag) p.push(s.dag);
@@ -1009,55 +1013,77 @@ function berekenLeesbaar(code){
   return p.length ? p.join(' ') : 'onbekend';
 }
 
-/* ------------------ dagnummers ------------------ */
-/* Een datum is een geheel getal: het aantal dagen sinds een vast ijkpunt, het
-   Juliaanse dagnummer. Optellen is +, vergelijken is <, en de weekdag zit al in
-   het getal. Er is precies een plek waar de app aan het toestel vraagt welke
-   dag het is; vanaf daar rekent alles met getallen, zodat tijdzones, zomertijd
-   en de datumfuncties van de browser nergens meer meespelen. */
+/* ------------------ datums ------------------ */
+/* Een datum is een geheel getal in de vorm jjjjmmdd, hetzelfde formaat als in
+   het bestand: 20260801 is 1 augustus 2026. De onderdelen zijn er zo weer uit
+   te halen, en groter betekent later, dus vergelijken kan rechtstreeks.
+   Rekenen met dagen gaat via het Juliaanse dagnummer, want daar is een dag
+   erbij simpelweg +1; dat blijft binnen d8Plus en d8Dagen.
+   Er is precies een plek waar de app aan het toestel vraagt welke dag het is;
+   vanaf daar rekent alles met getallen, zodat tijdzones, zomertijd en de
+   datumfuncties van de browser nergens meer meespelen. */
 
-function dgVan(jaar, maand, dag){
-  var a = Math.floor((14 - maand) / 12);
-  var b = jaar + 4800 - a;
-  var c = maand + 12 * a - 3;
-  return dag + Math.floor((153 * c + 2) / 5) + 365 * b +
+function d8Van(jaar, maand, dag){ return jaar * 10000 + maand * 100 + dag; }
+function d8YMD(d8){
+  return {
+    jaar:  Math.floor(d8 / 10000),
+    maand: Math.floor(d8 / 100) % 100,
+    dag:   d8 % 100
+  };
+}
+
+/* Het Juliaanse dagnummer, alleen om mee te rekenen. De letters a, b en c komen
+   uit de standaardformule, zodat de code naast de bron te leggen is. */
+function d8NaarDagnr(d8){
+  var y = d8YMD(d8);
+  var a = Math.floor((14 - y.maand) / 12);
+  var b = y.jaar + 4800 - a;
+  var c = y.maand + 12 * a - 3;
+  return y.dag + Math.floor((153 * c + 2) / 5) + 365 * b +
          Math.floor(b / 4) - Math.floor(b / 100) + Math.floor(b / 400) - 32045;
 }
-function dgYMD(dg){
-  var a = dg + 32044;
+function d8VanDagnr(n){
+  var a = n + 32044;
   var b = Math.floor((4 * a + 3) / 146097);
   var c = a - Math.floor((146097 * b) / 4);
   var d = Math.floor((4 * c + 3) / 1461);
   var e = c - Math.floor((1461 * d) / 4);
   var f = Math.floor((5 * e + 2) / 153);
-  return {
-    jaar:  100 * b + d - 4800 + Math.floor(f / 10),
-    maand: f + 3 - 12 * Math.floor(f / 10),
-    dag:   e - Math.floor((153 * f + 2) / 5) + 1
-  };
+  return d8Van(100 * b + d - 4800 + Math.floor(f / 10),
+               f + 3 - 12 * Math.floor(f / 10),
+               e - Math.floor((153 * f + 2) / 5) + 1);
 }
-function dgWeekdag(dg){ return (dg % 7) + 1; }        /* 1 = maandag, 7 = zondag */
+
+/* deze drie verwachten een volledige datum: bij een onbekende maand of dag is
+   er geen dag op de kalender om vanaf te tellen */
+function d8Plus(d8, n){ return d8VanDagnr(d8NaarDagnr(d8) + n); }
+function d8Dagen(a, b){ return d8NaarDagnr(a) - d8NaarDagnr(b); }
+/* het dagnummer telt door over de weken heen, dus de weekdag zit er al in */
+function d8Weekdag(d8){ return (d8NaarDagnr(d8) % 7) + 1; }   /* 1 = maandag, 7 = zondag */
 
 /* de enige plek waar de app het toestel naar de datum vraagt */
-function dgVandaag(){
+function d8Vandaag(){
   var nu = new Date();
-  return dgVan(nu.getFullYear(), nu.getMonth() + 1, nu.getDate());
+  return d8Van(nu.getFullYear(), nu.getMonth() + 1, nu.getDate());
 }
-function huidigJaar(){ return dgYMD(dgVandaag()).jaar; }
+function huidigJaar(){ return d8YMD(d8Vandaag()).jaar; }
 
-function dgEindeMaand(jaar, maand){
-  return (maand >= 12 ? dgVan(jaar + 1, 1, 1) : dgVan(jaar, maand + 1, 1)) - 1;
+/* de dag voor de eerste van de volgende maand */
+function d8EindeMaand(jaar, maand){
+  var eerste = maand >= 12 ? d8Van(jaar + 1, 1, 1) : d8Van(jaar, maand + 1, 1);
+  return d8Plus(eerste, -1);
 }
-function dgDagenInMaand(jaar, maand){ return dgYMD(dgEindeMaand(jaar, maand)).dag; }
+function d8DagenInMaand(jaar, maand){ return d8YMD(d8EindeMaand(jaar, maand)).dag; }
 
-/* de nde weekdag op of na dg, of ervoor bij richting -1 */
-function dgZoekWeekdag(dg, weekdag, nde, richting){
-  if(nde <= 0) return dg;
-  var nu = dgWeekdag(dg);
+/* de nde weekdag op of na d8, of ervoor bij richting -1 */
+function d8ZoekWeekdag(d8, weekdag, nde, richting){
+  if(nde <= 0) return d8;
+  var nr = d8NaarDagnr(d8);
+  var nu = (nr % 7) + 1;
   var stap = richting > 0 ? (weekdag - nu + 7) % 7 : (nu - weekdag + 7) % 7;
-  return dg + richting * (stap + 7 * (nde - 1));
+  return d8VanDagnr(nr + richting * (stap + 7 * (nde - 1)));
 }
-function dgEersteZondagVolgendeWeek(dg){ return dgZoekWeekdag(dg, 7, 2, 1); }
+function d8EersteZondagVolgendeWeek(d8){ return d8ZoekWeekdag(d8, 7, 2, 1); }
 
 /* ------------------ datum uitrekenen voor een jaar ------------------ */
 /* eerste paasdag volgens Meeus/Jones/Butcher */
@@ -1071,23 +1097,23 @@ function paasDatum(j){
   var m = Math.floor((a + 11 * h + 22 * l) / 451);
   var maand = Math.floor((h + l - 7 * m + 114) / 31);
   var dag = ((h + l - 7 * m + 114) % 31) + 1;
-  return dgVan(j, maand, dag);
+  return d8Van(j, maand, dag);
 }
 function ndeWeekdag(j, maand, weekdag, nde){
-  if(nde === 99) return dgZoekWeekdag(dgEindeMaand(j, maand), weekdag, 1, -1);
-  var dg = dgZoekWeekdag(dgVan(j, maand, 1), weekdag, nde, 1);
-  return dgYMD(dg).maand === maand ? dg : null;                 /* een 5e bestaat niet elk jaar */
+  if(nde === 99) return d8ZoekWeekdag(d8EindeMaand(j, maand), weekdag, 1, -1);
+  var dg = d8ZoekWeekdag(d8Van(j, maand, 1), weekdag, nde, 1);
+  return d8YMD(dg).maand === maand ? dg : null;                 /* een 5e bestaat niet elk jaar */
 }
 function datumTekst(dg){
-  var y = dgYMD(dg);
-  return DAGEN[dgWeekdag(dg) - 1] + ' ' + y.dag + ' ' + MAANDEN[y.maand - 1] + ' ' + y.jaar;
+  var y = d8YMD(dg);
+  return DAGEN[d8Weekdag(dg) - 1] + ' ' + y.dag + ' ' + MAANDEN[y.maand - 1] + ' ' + y.jaar;
 }
 /* levert een leesbare datum voor het gevraagde jaar, of uitleg waarom dat niet kan */
 function datumInJaar(code, jaar){
   var st = decode(code);
   if(!st) return '?';
   if(st.mode === 'pasen'){
-    return datumTekst(paasDatum(jaar) + st.offset);
+    return datumTekst(d8Plus(paasDatum(jaar), st.offset));
   }
   if(st.mode === 'wisselend'){
     var w = ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
@@ -1099,16 +1125,16 @@ function datumInJaar(code, jaar){
     while(!schrikkeljaar(v)) v++;
     return '29 februari \u2014 niet in ' + jaar + ', eerstvolgend in ' + v;
   }
-  return datumTekst(dgVan(jaar, st.maand, st.dag));
+  return datumTekst(d8Van(jaar, st.maand, st.dag));
 }
 
 var DAG_KORT = ['ma','di','wo','do','vr','za','zo'];
 /* twee losse stukjes voor de tabel, elk in hun eigen kolom, zodat ze per soort
    uitlijnen in plaats van per regel te verschuiven */
-function weekdagKort(dg){ return dg ? DAG_KORT[dgWeekdag(dg) - 1] : ''; }
+function weekdagKort(dg){ return dg ? DAG_KORT[d8Weekdag(dg) - 1] : ''; }
 function datumKort(dg, r){
   if(dg){
-    var y = dgYMD(dg);
+    var y = d8YMD(dg);
     return pad(y.dag, 2) + '-' + pad(y.maand, 2);
   }
   /* geen dag bekend: tonen wat er wel is */
@@ -1125,13 +1151,13 @@ function eventDatum(r, jaar){
 function berekenEventDatum(code, jaar){
   var st = decode(code);
   if(!st) return null;
-  if(st.mode === 'pasen') return paasDatum(jaar) + st.offset;
+  if(st.mode === 'pasen') return d8Plus(paasDatum(jaar), st.offset);
   if(st.mode === 'wisselend') return ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
   if(!st.maand || !st.dag) return null;
   /* een schrikkeldag bestaat alleen in een schrikkeljaar; in andere jaren
      heeft dit event dus geen datum en valt het buiten elk filter */
   if(st.maand === 2 && st.dag === 29 && !schrikkeljaar(jaar)) return null;
-  return dgVan(jaar, st.maand, st.dag);
+  return d8Van(jaar, st.maand, st.dag);
 }
 /* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
    Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
@@ -1145,13 +1171,13 @@ function zoekExtra(r, jaar){
   if(k in cacheZoek) return cacheZoek[k];
   var uit = [], st = decode(r.code), dg = eventDatum(r, jaar);
   if(dg){
-    var y = dgYMD(dg);
+    var y = d8YMD(dg);
     uit.push(pad(y.dag, 2) + '-' + pad(y.maand, 2) + '-' + y.jaar);
-    uit.push(DAG_KORT[dgWeekdag(dg) - 1]);
+    uit.push(DAG_KORT[d8Weekdag(dg) - 1]);
   }
   if(st && st.mode === 'vast' && st.jaar >= 1000 && st.maand && st.dag){
     uit.push(pad(st.dag, 2) + '-' + pad(st.maand, 2) + '-' + st.jaar);
-    uit.push(DAG_KORT[dgWeekdag(dgVan(st.jaar, st.maand, st.dag)) - 1]);
+    uit.push(DAG_KORT[d8Weekdag(d8Van(st.jaar, st.maand, st.dag)) - 1]);
     var n = jaar - st.jaar;
     if(n > 0) uit.push(n + 'jr');
   }
@@ -1182,18 +1208,18 @@ function dagenTov(r, jaar){
   return (cacheDagen[k] = berekenDagenTov(r, jaar));
 }
 function berekenDagenTov(r, jaar){
-  var vandaag = dgVandaag();
-  var nu = dgYMD(vandaag).jaar;
+  var vandaag = d8Vandaag();
+  var nu = d8YMD(vandaag).jaar;
   var d = eventDatum(r, jaar);
   if(!d) return null;
-  var beste = (d - vandaag);
+  var beste = d8Dagen(d, vandaag);
   /* in het lopende jaar telt de dichtstbijzijnde keer, zodat een event van
      begin januari eind december \u22123 geeft in plaats van +362 */
   if(jaar === nu){
     [nu - 1, nu + 1].forEach(function(y){
       var b = eventDatum(r, y);
       if(!b) return;
-      var n = (b - vandaag);
+      var n = d8Dagen(b, vandaag);
       if(Math.abs(n) < Math.abs(beste)) beste = n;
     });
   }
@@ -1221,20 +1247,20 @@ function dagenLang(n){
    jaar   = vandaag t/m dezelfde datum volgend jaar min een dag, zodat elke
             jaarlijkse datum er precies een keer in valt */
 function datumVenster(f){
-  var vandaag = dgVandaag();
+  var vandaag = d8Vandaag();
   if(f === '~dag'){
-    return [vandaag, vandaag + 1];
+    return [vandaag, d8Plus(vandaag, 1)];
   }
   if(f === 'jaar'){
-    var y = dgYMD(vandaag);
-    return [vandaag, dgVan(y.jaar + 1, y.maand, y.dag) - 1];
+    var y = d8YMD(vandaag);
+    return [vandaag, d8Plus(d8Van(y.jaar + 1, y.maand, y.dag), -1)];
   }
-  var start = vandaag - 3;
+  var start = d8Plus(vandaag, -3);
   if(f === '~maand'){
-    var v = dgYMD(vandaag);
-    return [start, dgEindeMaand(v.maand >= 12 ? v.jaar + 1 : v.jaar, v.maand >= 12 ? 1 : v.maand + 1)];
+    var v = d8YMD(vandaag);
+    return [start, d8EindeMaand(v.maand >= 12 ? v.jaar + 1 : v.jaar, v.maand >= 12 ? 1 : v.maand + 1)];
   }
-  return [start, dgEersteZondagVolgendeWeek(vandaag)];        /* zondag van volgende week */
+  return [start, d8EersteZondagVolgendeWeek(vandaag)];        /* zondag van volgende week */
 }
 function isVenster(f){ return f === '~dag' || f === '~week' || f === '~maand' || f === 'jaar'; }
 function datumLabel(v){
@@ -1330,6 +1356,7 @@ function sorteer(){
 /* ------------------ werkmap, configuratie en bestand ------------------ */
 var DB = 'events', STORE = 'handles';
 var CFG_STANDAARD = 'events_cfg.json';
+var NAAM_MAX = 120;         /* langste bestandsnaam die de app accepteert */
 /* De naam van het metabestand mag met ?cfg=... in de URL worden meegegeven.
    Zonder die parameter blijft het events_cfg.json, dus er verandert niets.
    Alleen een gewone bestandsnaam is toegestaan: geen pad, geen aanhalings-
@@ -1339,7 +1366,7 @@ var CFG_NAAM = (function(){
     var p = new URLSearchParams(location.search).get('cfg');
     if(!p) return CFG_STANDAARD;
     p = p.trim();
-    if(!/^[A-Za-z0-9 ._-]{1,120}$/.test(p)) return CFG_STANDAARD;
+    if(!(new RegExp('^[A-Za-z0-9 ._-]{1,' + NAAM_MAX + '}$')).test(p)) return CFG_STANDAARD;
     if(/^\.|\.$/.test(p)) return CFG_STANDAARD;
     return /\.[a-z0-9]+$/i.test(p) ? p : p + '.json';
   } catch(e){ return CFG_STANDAARD; }
@@ -1370,7 +1397,7 @@ var fileState = 'leeg';       // leeg | ok | auth | geencfg
 var saveState = '';           // '' | bezig | ok | fout | extern
 var laatstGelezen = null;     // lastModified van het events-bestand bij inlezen
 
-function dagsleutel(){ return '' + dgVandaag(); }
+function dagsleutel(){ return '' + d8Vandaag(); }
 function backupNaam(n){ var i = n.lastIndexOf('.'); return i < 0 ? n + '_backup' : n.slice(0,i) + '_backup' + n.slice(i); }
 
 /* --- koppelen --- */
@@ -1799,7 +1826,7 @@ function bestandsnaamFout(n){
   if(VERBODEN.test(n)) return 'Deze tekens kunnen niet: < > : " / \\ | ? *';
   if(GERESERVEERD.test(n)) return 'Dit is een gereserveerde naam.';
   if(/[. ]$/.test(n)) return 'Een naam mag niet op een punt of spatie eindigen.';
-  if(n.length > 120) return 'De naam is te lang.';
+  if(n.length > NAAM_MAX) return 'De naam is te lang.';
   return '';
 }
 function bevestigBestand(){
@@ -1827,6 +1854,8 @@ function sepConflicten(t){
   });
   return raak;
 }
+/* Slaat de configuratie op. In volgorde: de velden nakijken, de waarden
+   overnemen in cfg, wegschrijven, en pas daarna het scherm bijwerken. */
 function bewaarCfg(){
   if(!cfgBestand){ $('cfgErr').textContent = 'Kies eerst een events-bestand.'; return; }
   var types = cfgTypes.filter(function(x){ return x.omschrijving.trim(); })
@@ -1944,6 +1973,9 @@ function renderChips(){
 /* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
 /* zoeken en filteren werken samen: wat je typt zoekt binnen het filter */
 function actiefDatumFilter(){ return datumFilter; }
+/* De regels die nu getoond moeten worden, als lijst van posities in records.
+   In volgorde: zoeken, filteren op type, categorie en notitie, dan op datum,
+   en tot slot sorteren. */
 function zichtbaar(){
   var termen = zonderAccent(zoekterm.toLowerCase()).split(ofTeken())
                  .map(function(t){ return t.trim(); }).filter(Boolean);
@@ -1986,7 +2018,7 @@ function zichtbaar(){
         if(!raak) return;
         datumVan[i] = raak;
       } else if(d){
-        if(dgYMD(d).maand !== +df) return;
+        if(d8YMD(d).maand !== +df) return;
         datumVan[i] = d;
       } else {
         /* geen datum: alleen meedoen als de maand wel bekend is */
@@ -2028,7 +2060,7 @@ function renderLijst(){
   /* eerste rij vanaf vandaag: daar komt een accentlijn boven */
   var grens = -1;
   if(metDatum){
-    var nu0 = dgVandaag();
+    var nu0 = d8Vandaag();
     for(var q = 0; q < idx.length; q++){
       if(datumVan[idx[q]] && datumVan[idx[q]] >= nu0){ grens = q; break; }
     }
@@ -2188,23 +2220,8 @@ function statusRegel(label, waarde, goed){
   return '<div class="checkregel' + (goed === false ? ' slecht' : '') + '">' +
          '<span class="statuslbl">' + esc(label) + '</span> ' + esc(waarde) + '</div>';
 }
-function vulAppStatus(){
-  var vast =
-    '<div class="checkkop">Omgeving</div>' +
-    statusRegel('Adres', location.href) +
-    statusRegel('Verbinding', location.protocol + (window.isSecureContext ? ' (veilig)' : ' (NIET veilig)'),
-                window.isSecureContext) +
-    statusRegel('Weergave', (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
-                ? 'standalone \u2014 als app geopend' : 'in de browser') +
-    statusRegel('Configuratie', CFG_NAAM + (CFG_NAAM === CFG_STANDAARD ? '' : ' (via de URL)')) +
-    statusRegel('Ander metabestand (voorbeeld)', location.origin + location.pathname + '?cfg=' +
-                (CFG_NAAM === CFG_STANDAARD ? 'events_cfg_werk.json' : CFG_NAAM)) +
-    '<div class="checkkop">Manifest</div><div id="stMan">bezig\u2026</div>' +
-    '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
-    '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
-  $('checkBody').innerHTML = vast;
-
-  /* manifest ophalen en de sleutelvelden tonen */
+/* Wat het manifest zegt, en of het icoon dat het noemt er ook is. */
+function statusManifest(){
   fetch('manifest.json', { cache:'no-store' }).then(function(r){
     if(!r.ok) throw new Error('status ' + r.status);
     return r.json();
@@ -2222,8 +2239,12 @@ function vulAppStatus(){
   }).catch(function(e){
     $('stMan').innerHTML = statusRegel('Manifest', 'niet te laden \u2014 ' + e.message, false);
   });
+}
 
-  /* service worker: bestaat het bestand, en is hij geregistreerd? */
+/* Of sw.js op te halen is, of hij geregistreerd staat, en of hij deze pagina
+   bestuurt. Staat hij er niet, dan wordt het ter plekke nog eens geprobeerd,
+   zodat de melding zegt waaróm het niet lukt. */
+function statusServiceWorker(){
   fetch('sw.js', { cache:'no-store' }).then(function(r){
     $('stSw').innerHTML = statusRegel('sw.js', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
   }).catch(function(e){
@@ -2234,14 +2255,7 @@ function vulAppStatus(){
       return;
     }
     return navigator.serviceWorker.getRegistration().then(function(reg){
-      if(!reg){
-        $('stSw').innerHTML += statusRegel('Registratie', 'geen \u2014 opnieuw proberen\u2026', false);
-        return navigator.serviceWorker.register('sw.js').then(function(r2){
-          $('stSw').innerHTML += statusRegel('Alsnog gelukt', 'scope ' + r2.scope, true);
-        }).catch(function(e){
-          $('stSw').innerHTML += statusRegel('Registratie mislukt', e.name + ': ' + e.message, false);
-        });
-      }
+      if(!reg) return statusSwOpnieuw();
       if(swFout) $('stSw').innerHTML += statusRegel('Fout bij opstarten', swFout, false);
       var st = reg.active ? 'actief' : reg.installing ? 'wordt geïnstalleerd' : reg.waiting ? 'wacht' : 'onbekend';
       $('stSw').innerHTML +=
@@ -2251,35 +2265,66 @@ function vulAppStatus(){
                     !!navigator.serviceWorker.controller);
     });
   });
+}
+function statusSwOpnieuw(){
+  $('stSw').innerHTML += statusRegel('Registratie', 'geen \u2014 opnieuw proberen\u2026', false);
+  return navigator.serviceWorker.register('sw.js').then(function(r){
+    $('stSw').innerHTML += statusRegel('Alsnog gelukt', 'scope ' + r.scope, true);
+  }).catch(function(e){
+    $('stSw').innerHTML += statusRegel('Registratie mislukt', e.name + ': ' + e.message, false);
+  });
+}
 
-  /* wat staat er in de cache? */
-  if(window.caches){
-    caches.keys().then(function(alle){
-      /* de cache hoort bij het hele domein, dus hier staan ook de caches van
-         andere apps op github.io; alleen die van deze app is interessant */
-      var eigen = alle.filter(function(n){ return n.indexOf('events-v') === 0; });
-      if(!eigen.length){
-        $('stCache').innerHTML = statusRegel('Cache', 'geen \u2014 de service worker heeft nog niets bewaard', false);
-        return;
-      }
-      eigen.sort();
-      var naam = eigen[eigen.length - 1];
-      return caches.open(naam).then(function(c){ return c.keys(); }).then(function(items){
-        $('stCache').innerHTML =
-          statusRegel('Naam', naam, true) +
-          statusRegel('Bestanden', String(items.length), items.length > 0) +
-          items.map(function(i){ return statusRegel('', i.url.split('/').pop() || i.url); }).join('') +
-          (eigen.length > 1 ? statusRegel('Oude caches', String(eigen.length - 1), false) : '');
-      });
-    }).catch(function(e){
-      $('stCache').innerHTML = statusRegel('Cache', 'niet te lezen \u2014 ' + e.message, false);
-    });
-  } else {
+/* De cache is van het hele domein, dus hier staan ook die van andere apps op
+   github.io; alleen de nieuwste van deze app is interessant. */
+function statusCache(){
+  if(!window.caches){
     $('stCache').innerHTML = statusRegel('Cache', 'niet beschikbaar', false);
+    return;
   }
+  caches.keys().then(function(alle){
+    var eigen = alle.filter(function(n){ return n.indexOf('events-v') === 0; }).sort();
+    if(!eigen.length){
+      $('stCache').innerHTML = statusRegel('Cache', 'geen \u2014 de service worker heeft nog niets bewaard', false);
+      return;
+    }
+    var naam = eigen[eigen.length - 1];
+    return caches.open(naam).then(function(c){ return c.keys(); }).then(function(items){
+      $('stCache').innerHTML =
+        statusRegel('Naam', naam, true) +
+        statusRegel('Bestanden', String(items.length), items.length > 0) +
+        items.map(function(i){ return statusRegel('', i.url.split('/').pop() || i.url); }).join('') +
+        (eigen.length > 1 ? statusRegel('Oude caches', String(eigen.length - 1), false) : '');
+    });
+  }).catch(function(e){
+    $('stCache').innerHTML = statusRegel('Cache', 'niet te lezen \u2014 ' + e.message, false);
+  });
+}
+
+/* Meet hoe de app er als PWA voor staat: eerst de omgeving, dan de drie delen
+   die elk hun eigen vraag beantwoorden. */
+function vulAppStatus(){
+  $('checkBody').innerHTML =
+    '<div class="checkkop">Omgeving</div>' +
+    statusRegel('Adres', location.href) +
+    statusRegel('Verbinding', location.protocol + (window.isSecureContext ? ' (veilig)' : ' (NIET veilig)'),
+                window.isSecureContext) +
+    statusRegel('Weergave', (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+                ? 'standalone \u2014 als app geopend' : 'in de browser') +
+    statusRegel('Configuratie', CFG_NAAM + (CFG_NAAM === CFG_STANDAARD ? '' : ' (via de URL)')) +
+    statusRegel('Ander metabestand (voorbeeld)', location.origin + location.pathname + '?cfg=' +
+                (CFG_NAAM === CFG_STANDAARD ? 'events_cfg_werk.json' : CFG_NAAM)) +
+    '<div class="checkkop">Manifest</div><div id="stMan">bezig\u2026</div>' +
+    '<div class="checkkop">Service worker</div><div id="stSw">bezig\u2026</div>' +
+    '<div class="checkkop">Cache</div><div id="stCache">bezig\u2026</div>';
+  statusManifest();
+  statusServiceWorker();
+  statusCache();
 }
 
 /* leest alleen, wijzigt niets: het bestand naast de cfg leggen */
+/* Loopt het bestand na tegen de configuratie en geeft de bevindingen terug als
+   groepen; deze functie leest alleen en verandert niets. */
 function controleer(){
   var bevindingen = [];
   function voeg(titel, regels){ if(regels.length) bevindingen.push({ titel:titel, regels:regels }); }
@@ -2505,6 +2550,9 @@ function tekenNdeLijst(){
   });
 }
 function tekenWeekdagLijst(){
+  var nuWd = d8Weekdag(d8Vandaag());
+  $('weekdagVandaag').innerHTML = ICON_NU + '<span class="title">vandaag</span>';
+  $('weekdagVandaag').className = 'source-row wide bijzonder' + (+weekdagKeuze === nuWd ? ' selected' : '');
   $('weekdagList').innerHTML = DAGEN.map(function(d,i){
     return '<button class="source-row' + (+weekdagKeuze === i+1 ? ' selected' : '') + '" data-w="' + (i+1) + '">' +
            '<span class="title">' + d + '</span></button>';
@@ -2513,25 +2561,12 @@ function tekenWeekdagLijst(){
     b.onclick = function(){ weekdagKeuze = b.getAttribute('data-w'); tekenWeekdagLijst(); };
   });
 }
-/* een type uit de cfg dat geen icoon of teken heeft, krijgt dat van de
-   standaardlijst als de omschrijving daarin voorkomt */
-function standaardType(naam){
-  for(var i=0;i<TYPES.length;i++){ if(TYPES[i].omschrijving === naam) return TYPES[i]; }
-  return null;
-}
 function typeOpties(){
   var lijst = (cfg.types && cfg.types.length) ? cfg.types : TYPES;
   return lijst.map(function(x){
     return (typeof x === 'string')
       ? { omschrijving:x, icoon:'', teken:'' }
       : { omschrijving:x.omschrijving || '', icoon:x.icoon || '', teken:x.teken || '' };
-  }).map(function(x){
-    var std = standaardType(x.omschrijving);
-    if(std){
-      if(!x.icoon) x.icoon = std.icoon;
-      if(!x.teken) x.teken = std.teken;
-    }
-    return x;
   });
 }
 function alleTypes(){
@@ -2608,6 +2643,10 @@ function tekenDagGrid(){
   });
   $('dagOnbekend').innerHTML = ICON_VRAAG + '<span class="title">onbekend</span>';
   $('dagOnbekend').className = 'source-row wide bijzonder' + (dagKeuze === '' ? ' selected' : '');
+  var nuDag = d8YMD(d8Vandaag()).dag;
+  $('dagVandaag').innerHTML = ICON_NU + '<span class="title">vandaag</span>';
+  $('dagVandaag').className = 'source-row wide bijzonder' + (+dagKeuze === nuDag ? ' selected' : '');
+  $('dagVandaag').disabled = nuDag > max;
 }
 function openDagKeuze(){
   dagKeuze = dstate.dag || '';
@@ -2661,13 +2700,17 @@ function toonMaanden(){
   $('fWmaandTxt').textContent = MAANDEN[(dstate.wmaand || 1) - 1];
 }
 function tekenMaandLijst(){
+  var nuMaand = d8YMD(d8Vandaag()).maand;
   var opties = maandDoel === 'vast' ? [['','onbekend']] : [];
+  opties.push(['nu','deze maand']);
   for(var i=1;i<=12;i++) opties.push([String(i), MAANDEN[i-1]]);
   $('maandList').innerHTML = opties.map(function(o){
-    var apart = o[0] === '';
+    var apart = o[0] === '' || o[0] === 'nu';
+    var aan = o[0] === 'nu' ? (+maandKeuze === nuMaand) : (String(maandKeuze||'') === o[0]);
     return '<button class="source-row' + (apart ? ' bijzonder' : '') +
-           (String(maandKeuze||'') === o[0] ? ' selected' : '') + '" data-m="' + o[0] + '">' +
-           (apart ? ICON_VRAAG : '') + '<span class="title">' + esc(o[1]) + '</span></button>';
+           (aan ? ' selected' : '') + '" data-m="' + (o[0] === 'nu' ? nuMaand : o[0]) + '">' +
+           (o[0] === '' ? ICON_VRAAG : (o[0] === 'nu' ? ICON_NU : '')) +
+           '<span class="title">' + esc(o[1]) + '</span></button>';
   }).join('');
   Array.prototype.forEach.call($('maandList').children, function(b){
     b.onclick = function(){ maandKeuze = b.getAttribute('data-m'); tekenMaandLijst(); };
@@ -2769,6 +2812,16 @@ function openModal(i){
   toonCat();
   var s = r ? decode(r.code) : null;
   dstate = { mode:'vast', dag:'', maand:'', jaar:'', nde:1, weekdag:7, wmaand:1, offset:0 };
+  if(!r){
+    /* een nieuw event begint op vandaag; het jaar blijft onbekend, want dag en
+       maand weet je meestal wel en het jaar lang niet altijd. De wisselende dag
+       begint op dezelfde dag: de eerste zoveel-dag van deze maand. */
+    var nu = d8YMD(d8Vandaag());
+    dstate.dag = String(nu.dag);
+    dstate.maand = String(nu.maand);
+    dstate.weekdag = d8Weekdag(d8Vandaag());
+    dstate.wmaand = nu.maand;
+  }
   if(s){
     dstate.mode = s.mode;
     if(s.mode === 'vast'){ dstate.dag = s.dag || ''; dstate.maand = s.maand || ''; dstate.jaar = s.jaar || ''; }
@@ -2801,7 +2854,11 @@ function bewaarModal(){
   var naam = $('fNaam').value.trim();
   var type = huidigType;
   var notitie = $('fNotitie').value.replace(/[\r\n]+/g,' ').trim();
-  if(!sleutel || !naam || !type){ $('mErr').textContent = 'Sleutel, weergavenaam en type zijn verplicht.'; return; }
+  if(!sleutel || !naam || !type){
+    $('mErr').textContent = veldNaam(0) + ', ' + veldNaam(1).toLowerCase() + ' en ' +
+      veldNaam(2).toLowerCase() + ' zijn verplicht.';
+    return;
+  }
   if((sleutel + naam + type + notitie).indexOf(sep()) >= 0){
     $('mErr').textContent = 'Het teken ' + sep() + ' kan niet: dat scheidt de velden in het bestand.'; return;
   }
@@ -2991,6 +3048,7 @@ $('ndeOk').onclick = function(){
 };
 $('ndeModal').onclick = function(e){ if(e.target === this) bergModaal('ndeModal'); };
 $('fWeekdag').onclick = function(){ weekdagKeuze = dstate.weekdag || 7; tekenWeekdagLijst(); toonModaal('weekdagModal'); };
+$('weekdagVandaag').onclick = function(){ weekdagKeuze = String(d8Weekdag(d8Vandaag())); tekenWeekdagLijst(); };
 $('weekdagCancel').onclick = function(){ bergModaal('weekdagModal'); };
 $('weekdagOk').onclick = function(){
   dstate.weekdag = +weekdagKeuze || 7; bergModaal('weekdagModal'); toonWissel(); updPreview();
@@ -2998,6 +3056,7 @@ $('weekdagOk').onclick = function(){
 $('weekdagModal').onclick = function(e){ if(e.target === this) bergModaal('weekdagModal'); };
 $('fDag').onclick = function(){ leesDate(); openDagKeuze(); };
 $('dagOnbekend').onclick = function(){ dagKeuze = ''; tekenDagGrid(); };
+$('dagVandaag').onclick = function(){ dagKeuze = String(d8YMD(d8Vandaag()).dag); tekenDagGrid(); };
 $('dagCancel').onclick = function(){ bergModaal('dagModal'); };
 $('dagOk').onclick = function(){
   dstate.dag = dagKeuze === '' ? '' : +dagKeuze;
