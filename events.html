@@ -49,6 +49,24 @@ main{
   flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:0 16px calc(16px + env(safe-area-inset-bottom));
 }
+/* Onderaan het scherm, los van de lijst: een eigen vlak met een lijn erboven,
+   zodat het niet leest als een laatste rij van de tabel. */
+.selbalk{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  width:100%;text-align:left;
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  border:0;border-top:1px solid var(--line);
+  background:var(--line);                       /* iets lichter dan de lijst */
+  color:var(--txt);
+  font-family:var(--mono);font-size:20px;       /* gelijk aan de tabel */
+}
+.selbalk:hover{background:#333c4a}
+.selbalk .ic{flex:0 0 auto;display:flex;color:var(--txt)}
+.selbalk .ic.metnot{color:var(--accent)}     /* blauw zodra er een notitie is */
+.selbalk .notitie{flex:0 0 auto;display:flex;color:var(--txt)}
+.selbalk .ic svg,.selbalk .notitie svg{width:21px;height:21px}
+.selbalk .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selbalk .jr{flex:0 0 auto}
 .list{position:relative}
 
 /* ---------- buttons ---------- */
@@ -174,7 +192,7 @@ svg{display:block}
 .list tbody tr.sel td.ic{color:var(--txt)}
 .list tbody tr.sel td.ic.metnot{color:var(--accent)}
 .empty{padding:16px 8px 20px;text-align:center;color:var(--muted);font-size:19px}
-.body{flex:1 1 auto;display:flex;min-height:0}
+.body{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
 .body main{flex:1 1 auto;min-width:0}
 .bad{padding:8px;font-size:16px;color:var(--warn)}
 
@@ -429,6 +447,7 @@ svg{display:block}
     <div class="list" id="lijst"></div>
     <div class="bad" id="bad"></div>
   </main>
+  <button class="selbalk" id="selbalk" title="Toon de gegevens" hidden></button>
 </div>
 
 <!-- record editor -->
@@ -2090,12 +2109,8 @@ function renderLijst(){
   });
   el.innerHTML = html + '</tbody></table>';
   Array.prototype.forEach.call(el.querySelectorAll('tbody tr'), function(row){
-    row.onclick = function(e){
+    row.onclick = function(){
       var i = +row.getAttribute('data-i');
-      var cel = e.target;
-      while(cel && cel !== row && cel.tagName !== 'TD') cel = cel.parentNode;
-      var k = (cel && cel.className) || '';
-      if(k.indexOf('ic') >= 0 || k.indexOf('dat') >= 0){ toonInfo(i); return; }
       selIndex = (selIndex === i ? -1 : i);
       render();
     };
@@ -2452,6 +2467,18 @@ function render(){
   $('filterAanUit').innerHTML = ICON_FILTER;
   $('filterAanUit').className = 'icon-btn' + (filterAan ? ' aan' : '');
   $('filterAanUit').title = filterAan ? 'Filter telt mee' : 'Filter telt niet mee';
+  var gekozen = selIndex >= 0 ? records[selIndex] : null;
+  $('selbalk').hidden = !gekozen;
+  if(gekozen){
+    var st = decode(gekozen.code);
+    var jaren = (st && st.mode === 'vast' && st.jaar >= 1000) ? (zichtJaar - st.jaar) : null;
+    $('selbalk').innerHTML =
+      '<span class="ic' + (gekozen.notitie ? ' metnot' : '') + '">' +
+        typeIcon(gekozen.type) + '</span>' +
+      '<span class="nm">' + esc(gekozen.naam || gekozen.sleutel) + '</span>' +
+      (gekozen.notitie ? '<span class="notitie">' + svgIcoon('notitie', '') + '</span>' : '') +
+      (jaren === null ? '' : '<span class="jr">(' + jaren + ')</span>');
+  }
   $('btnNew').hidden = selIndex >= 0;
   $('btnNew').disabled = !bruikbaar;
   $('btnEdit').hidden = selIndex < 0;
@@ -2951,6 +2978,7 @@ $('filterOk').onclick = function(){
   bergModaal('filterModal'); selIndex = -1; render();
 };
 $('filterModal').onclick = function(e){ if(e.target === this) bergModaal('filterModal'); };
+$('selbalk').onclick = function(){ if(selIndex >= 0) toonInfo(selIndex); };
 $('infoOk').onclick = function(){ bergModaal('infoModal'); };
 $('infoModal').onclick = function(e){ if(e.target === this) bergModaal('infoModal'); };
 $('laatste').onclick = function(){ terug = null; render(); };
