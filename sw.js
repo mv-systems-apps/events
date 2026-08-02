@@ -3,7 +3,7 @@
    op de achtergrond verversen. Verhoog CACHE_VERSION (of draai
    update_cache_version.py) om de oude cache op te ruimen. */
 
-const CACHE_VERSION = 46;
+const CACHE_VERSION = 120;
 const CACHE_NAME = 'events-v' + CACHE_VERSION;
 
 const ASSETS = [
