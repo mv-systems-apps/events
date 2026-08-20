@@ -1632,16 +1632,17 @@ function renderFilebar(){
     return;
   }
   /* alles in orde: dan hoort hier niets te staan */
+  var opnieuw = '<button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button>';
   var melding = '';
   if(!hasFSA){
     melding = '<div class="banner"><div class="banner-text">Automatisch opslaan kan niet in ' +
       'deze browser.</div><button class="btn btn-warn" id="fDl">Downloaden</button></div>';
   } else if(saveState === 'fout'){
     melding = '<div class="banner"><div class="banner-text">Opslaan mislukt. Controleer de ' +
-      'toegang tot de map.</div><button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button></div>';
+      'toegang tot de map.</div>' + opnieuw + '</div>';
   } else if(saveState === 'extern'){
     melding = '<div class="banner"><div class="banner-text">Niet opgeslagen: het bestand is ' +
-      'buiten de app gewijzigd.</div><button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button>' +
+      'buiten de app gewijzigd.</div>' + opnieuw +
       '<button class="btn" id="fHerlaad">Opnieuw laden</button></div>';
   }
   el.innerHTML = melding;
@@ -2256,14 +2257,14 @@ function statusManifest(){
   });
 }
 
-/* Of sw.js op te halen is, of hij geregistreerd staat, en of hij deze pagina
+/* Of sw-events.js op te halen is, of hij geregistreerd staat, en of hij deze pagina
    bestuurt. Staat hij er niet, dan wordt het ter plekke nog eens geprobeerd,
    zodat de melding zegt waaróm het niet lukt. */
 function statusServiceWorker(){
-  fetch('sw.js', { cache:'no-store' }).then(function(r){
-    $('stSw').innerHTML = statusRegel('sw.js', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
+  fetch('sw-events.js', { cache:'no-store' }).then(function(r){
+    $('stSw').innerHTML = statusRegel('sw-events.js', r.ok ? 'gevonden' : 'NIET gevonden (' + r.status + ')', r.ok);
   }).catch(function(e){
-    $('stSw').innerHTML = statusRegel('sw.js', 'niet te laden \u2014 ' + e.message, false);
+    $('stSw').innerHTML = statusRegel('sw-events.js', 'niet te laden \u2014 ' + e.message, false);
   }).then(function(){
     if(!('serviceWorker' in navigator)){
       $('stSw').innerHTML += statusRegel('Ondersteuning', 'deze browser kent geen service workers', false);
@@ -2283,7 +2284,7 @@ function statusServiceWorker(){
 }
 function statusSwOpnieuw(){
   $('stSw').innerHTML += statusRegel('Registratie', 'geen \u2014 opnieuw proberen\u2026', false);
-  return navigator.serviceWorker.register('sw.js').then(function(r){
+  return navigator.serviceWorker.register('sw-events.js').then(function(r){
     $('stSw').innerHTML += statusRegel('Alsnog gelukt', 'scope ' + r.scope, true);
   }).catch(function(e){
     $('stSw').innerHTML += statusRegel('Registratie mislukt', e.name + ': ' + e.message, false);
@@ -3164,7 +3165,7 @@ window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault
 var swFout = '';
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(e){
+    navigator.serviceWorker.register('sw-events.js').catch(function(e){
       /* bewaren zodat App-status kan tonen waarom het misging */
       swFout = e.name + ': ' + e.message;
     });
