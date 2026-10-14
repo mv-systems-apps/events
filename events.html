@@ -408,6 +408,7 @@ svg{display:block}
   vertical-align:-4px;margin-right:8px;color:var(--muted);
 }
 #cfgModal{z-index:55}
+#appVersieStempel{margin-top:10px;font-family:var(--mono);font-size:15px;color:var(--muted);text-align:center}
 #catModal{z-index:60}
 #icoonModal{z-index:62}
 #infoModal{z-index:64}
@@ -827,6 +828,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
+    <div id="appVersieStempel">Versie 1352896-001</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -1579,7 +1581,23 @@ function sorteer(){
    de cache en hoeft alleen omhoog als de worker zelf wijzigt. De twee lopen dus
    uiteen, en dat hoort zo. Vergeet je dit nummer, dan gaat er niets stuk -- de
    nieuwe versie komt dan stil bij de volgende start, alleen zonder melding. */
-var APP_VERSIE = 179;
+/* Het versiestempel staat in het scherm, onderaan de instellingen, en de app
+   leest het daar uit -- dezelfde opzet als golf-score en trends, en hetzelfde
+   formaat: HEX(yyyymmdd)-NNN. Beide delen hebben een vaste lengte, dus gewone
+   tekstvergelijking houdt de volgorde aan; HEX(yyyymmdd) is 7 tekens voor elke
+   datum tussen 1677 en 2137, en NNN laat 4095 wijzigingen per dag toe.
+   Het stempel gaat met de HAND omhoog bij elke wijziging, niet via een script;
+   zo schrijven de gedeelde conventies het voor. */
+function appStempel(){
+  var el = document.getElementById('appVersieStempel');
+  var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec((el && el.textContent) || '');
+  return m ? m[1] : '';
+}
+/* Blijft deze ene uitgave nog staan: de vorige versie van de app zoekt in de
+   offline-kopie naar APP_VERSIE en vindt zonder dit regeltje niets, waardoor
+   juist de overstap zelf geen melding zou geven. Mag eruit zodra iedereen op
+   een versie met een stempel draait. */
+var APP_VERSIE = 180;
 
 var DB = 'events', STORE = 'handles';
 var CFG_STANDAARD = 'events_cfg.json';
@@ -1832,10 +1850,11 @@ function checkAppUpdate(opslag){
     return res.text();
   }).then(function(t){
     if(!t) return false;
-    var m = /APP_VERSIE\s*=\s*(\d+)/.exec(t);
-    var inKopie = m ? +m[1] : 0;
-    /* alleen vooruit: een oudere kopie is geen nieuwe versie */
-    if(!(inKopie > APP_VERSIE)) return false;
+    var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec(t);
+    var eigen = appStempel();
+    /* alleen vooruit, en alleen als beide stempels er zijn: een kopie zonder
+       stempel is er een van voor de overstap, en dus ouder */
+    if(!m || !eigen || !(m[1] > eigen)) return false;
     if(!nieuweInhoud){ nieuweInhoud = true; render(); }
     return true;
   }).catch(function(){ return false; });
@@ -3397,7 +3416,7 @@ function statusServiceWorker(){
         statusRegel('Scope', reg.scope, true) +
         statusRegel('Bestuurt deze pagina', navigator.serviceWorker.controller ? 'ja' : 'nee (herlaad de pagina)',
                     !!navigator.serviceWorker.controller) +
-        statusRegel('Versie van deze pagina', String(APP_VERSIE)) +
+        statusRegel('Versie van deze pagina', appStempel() || '(geen stempel)') +
         '<div id="stKopie">bezig\u2026</div>' +
         statusRegel('Nieuwe versie', nieuweVersie ? 'ja, een nieuwe worker wacht'
                     : nieuweInhoud ? 'ja, de offline-kopie is nieuwer' : 'nee');
@@ -3434,11 +3453,11 @@ function statusVersieKopie(opslag){
     if(!res) throw new Error('events.html staat er niet in');
     return res.text();
   }).then(function(t){
-    var m = /APP_VERSIE\s*=\s*(\d+)/.exec(t);
-    if(!m) throw new Error('geen versienummer in de kopie');
-    var n = +m[1];
+    var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec(t);
+    if(!m) throw new Error('geen versiestempel in de kopie');
+    var n = m[1], eigen = appStempel();
     $('stKopie').innerHTML = statusRegel('Versie in de offline-kopie',
-      String(n) + (n > APP_VERSIE ? ' \u2014 nieuwer dan deze pagina' : ''), n >= APP_VERSIE);
+      n + (n > eigen ? ' \u2014 nieuwer dan deze pagina' : ''), n >= eigen);
   }).catch(function(e){
     $('stKopie').innerHTML = statusRegel('Versie in de offline-kopie', e.message, false);
   });

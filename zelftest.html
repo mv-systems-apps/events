@@ -2342,27 +2342,40 @@ function testStatusNetwerk(){
           /Versie in de offline-kopie/.test(app.document.getElementById('stKopie').textContent),
           true);
       app.document.getElementById('stKopie').innerHTML = 'bezig\u2026';
-      app.statusVersieKopie(nep(['events-v160', 'golf-v3'], 'var APP_VERSIE = 999;'));
+      app.statusVersieKopie(nep(['events-v160', 'golf-v3'], 'Versie FFFFFFF-FFF'));
       return tot(function(){
         var e2 = app.document.getElementById('stKopie');
         return e2 && e2.textContent.indexOf('bezig') < 0;
       });
     }).then(function(){
       var t = app.document.getElementById('stKopie').textContent;
-      eis('en hij vult zich met het nummer uit de kopie', /999/.test(t), true);
+      eis('en hij vult zich met het stempel uit de kopie', /FFFFFFF-FFF/.test(t), true);
       eis('en meldt dat die nieuwer is dan deze pagina', /nieuwer dan deze pagina/.test(t), true);
 
       /* De volgorde moet dezelfde zijn als die van checkAppUpdate: op nummer,
-         niet op tekst. Op tekst komt events-v99 na events-v160. */
+         niet op tekst. Op tekst komt events-v99 na events-v160. Elke cache
+         draagt hieronder zijn EIGEN stempel; met een opslag die voor elke naam
+         dezelfde tekst teruggaf -- zoals hier eerst stond -- bewees deze
+         controle niets, want dan kwam er bij beide sorteringen hetzelfde uit. */
       app.document.getElementById('stKopie').innerHTML = 'bezig\u2026';
-      app.statusVersieKopie(nep(['events-v99', 'events-v160'], 'var APP_VERSIE = 160;'));
+      app.statusVersieKopie({
+        keys: function(){ return Promise.resolve(['events-v99', 'events-v160']); },
+        open: function(n){
+          var stempel = n === 'events-v160' ? '1352896-ABC' : '1352896-999';
+          return Promise.resolve({ match: function(){
+            return Promise.resolve({ text: function(){
+              return Promise.resolve('Versie ' + stempel); } }); } });
+        }
+      });
       return tot(function(){
         var e3 = app.document.getElementById('stKopie');
         return e3 && e3.textContent.indexOf('bezig') < 0;
       });
     }).then(function(){
+      var t3 = app.document.getElementById('stKopie').textContent;
       eis('de hoogste cache wordt op nummer gekozen, niet op tekst',
-          /160/.test(app.document.getElementById('stKopie').textContent), true);
+          /1352896-ABC/.test(t3) ? 'het stempel uit events-v160' : t3,
+          'het stempel uit events-v160');
     }, function(e){
       eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
     });
@@ -3372,29 +3385,62 @@ function testVersiecontrole(){
       open: function(n){ return Promise.resolve(n === naam ? vak : { match: function(){ return Promise.resolve(undefined); } }); }
     };
   }
-  function app_(n){ return 'var APP_VERSIE = ' + n + ';\n/* verder niets */'; }
+  function app_(n){ return 'Versie ' + n + '\n/* verder niets */'; }
+  /* Het stempel van de app zelf, met het volgnummer een stap op of neer, en de
+     dag een stap op of neer. Zo wordt hier met het ECHTE stempel van deze app
+     gerekend in plaats van met een verzonnen getal: loopt het stempel in het
+     scherm niet meer in de pas met wat de app leest, dan valt dat hier om. */
+  function stap(stempel, n){
+    var d = stempel.split('-');
+    return d[0] + '-' + ('00' + (parseInt(d[1], 16) + n).toString(16).toUpperCase()).slice(-3);
+  }
+  function dag(stempel, n){
+    return (parseInt(stempel.split('-')[0], 16) + n).toString(16).toUpperCase() +
+           '-' + stempel.split('-')[1];
+  }
+  var KOPIE = 'events-v160';
 
-  var eigen = app.APP_VERSIE;
+  var eigen = app.appStempel();
   var bewaard = app.nieuweInhoud;
   function schoon(){ app.nieuweInhoud = bewaard; }
 
-  eis('de app kent zijn eigen versienummer', typeof eigen, 'number');
+  /* De vergelijking loopt via tekst, dus de vorm is geen opmaakdetail maar de
+     drager van de volgorde. Bij een afwijking hoort het gekregen stempel in de
+     melding te staan; vandaar deze replace in plaats van een kale test(). */
+  eis('de app leest zijn eigen stempel uit het scherm',
+      eigen.replace(/^[0-9A-F]{7}-[0-9A-F]{3}$/, 'de voorgeschreven vorm'),
+      'de voorgeschreven vorm');
 
   app.nieuweInhoud = false;
-  return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen + 1))).then(function(uit){
-    eis('een hoger nummer in de kopie is een nieuwe versie', uit, true);
+  return app.checkAppUpdate(nepCache(KOPIE, app_(stap(eigen, 1)))).then(function(uit){
+    eis('een hoger stempel in de kopie is een nieuwe versie', uit, true);
     eis('en de app meldt dat', app.nieuweInhoud, true);
     app.nieuweInhoud = false;
-    return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen)));
+    return app.checkAppUpdate(nepCache(KOPIE, app_(eigen)));
   }).then(function(uit){
-    eis('hetzelfde nummer is geen nieuwe versie', uit, false);
-    return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen - 1)));
+    eis('hetzelfde stempel is geen nieuwe versie', uit, false);
+    return app.checkAppUpdate(nepCache(KOPIE, app_(stap(eigen, -1))));
   }).then(function(uit){
-    eis('een lager nummer ook niet', uit, false);
-    return app.checkAppUpdate(nepCache('events-v' + eigen, 'geen nummer hierin'));
+    eis('een lager volgnummer ook niet', uit, false);
+    /* De dag weegt zwaarder dan het volgnummer. Zonder vaste lengtes zou dit
+       omvallen, en dat is precies waar de vorm van het stempel voor is. */
+    return app.checkAppUpdate(nepCache(KOPIE, app_(dag(stap(eigen, 1), -1))));
   }).then(function(uit){
-    eis('een kopie zonder nummer levert geen nieuwe versie', uit, false);
-    return app.checkAppUpdate(nepCache('events-v' + eigen, null));
+    eis('een hoger volgnummer van een eerdere dag is ouder', uit, false);
+    return app.checkAppUpdate(nepCache(KOPIE, app_(dag(stap(eigen, -1), 1))));
+  }).then(function(uit){
+    eis('en een lager volgnummer van een latere dag is nieuwer', uit, true);
+    app.nieuweInhoud = false;
+    /* Een kopie van voor de overstap: wel een APP_VERSIE, geen stempel. Die
+       geldt als ouder, anders meldt de app bij iedereen die nog zo'n kopie
+       heeft staan een "nieuwe" versie die juist de oude is. */
+    return app.checkAppUpdate(nepCache(KOPIE, 'var APP_VERSIE = 999;'));
+  }).then(function(uit){
+    eis('een kopie van voor de overstap levert geen nieuwe versie', uit, false);
+    return app.checkAppUpdate(nepCache(KOPIE, 'geen stempel hierin'));
+  }).then(function(uit){
+    eis('een kopie zonder stempel levert geen nieuwe versie', uit, false);
+    return app.checkAppUpdate(nepCache(KOPIE, null));
   }).then(function(uit){
     eis('een cache zonder events.html ook niet', uit, false);
     return app.checkAppUpdate(nepCache(null, null));
@@ -3408,12 +3454,12 @@ function testVersiecontrole(){
     /* de caches van de buren worden niet gelezen */
     var gevraagd = [];
     var spion = {
-      keys: function(){ return Promise.resolve(['trends-v17', 'golf-score-v41', 'events-v' + eigen]); },
+      keys: function(){ return Promise.resolve(['trends-v17', 'golf-score-v41', KOPIE]); },
       open: function(n){ gevraagd.push(n);
         return Promise.resolve({ match: function(){ return Promise.resolve({ text: function(){ return Promise.resolve(app_(eigen)); } }); } }); }
     };
     return app.checkAppUpdate(spion).then(function(){
-      eis('alleen de eigen cache wordt geopend', gevraagd.join(), 'events-v' + eigen);
+      eis('alleen de eigen cache wordt geopend', gevraagd.join(), KOPIE);
     });
   }).then(function(){
     /* Het afknijpen van registration.update(). De app heeft een echte

@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Verhoogt het versienummer van Events.
+"""Verhoogt de cacheteller van Events.
 
-Twee tellers, met een eigen taak:
+Twee stempels, met een eigen taak -- en maar een ervan hoort in een script:
 
-  APP_VERSIE     in events.html   -- het stempel waaraan de app ziet dat er een
-                                     nieuwe versie in de offline-kopie staat.
-                                     Verhoog dit bij elke wijziging aan de app.
-  CACHE_VERSION  in sw-events.js  -- de naam van de cache. Die hoeft alleen
-                                     omhoog als sw-events.js zelf wijzigt. Doe je
-                                     dat niet, dan vult de nieuwe worker tijdens
-                                     zijn installatie dezelfde cache waaruit de
-                                     oude nog bedient, en staan er twee deploys
-                                     in een cache.
+  Versie <HEX(yyyymmdd)-NNN>      onderaan de cfg-modal in events.html.
+                                  Hieraan ziet de app dat er een nieuwe versie
+                                  in de offline-kopie staat. Dit stempel gaat
+                                  met de HAND omhoog, bij elke wijziging aan de
+                                  app. Zo schrijven de gedeelde conventies het
+                                  voor, en daar is een reden voor: een script
+                                  verhoogt het ook bij een wijziging die niemand
+                                  hoeft te zien, en dan staat er een melding
+                                  tegenover niets.
+  CACHE_VERSION  in sw-events.js  de naam van de cache. Die hoeft alleen omhoog
+                                  als sw-events.js zelf wijzigt. Doe je dat
+                                  niet, dan vult de nieuwe worker tijdens zijn
+                                  installatie dezelfde cache waaruit de oude nog
+                                  bedient, en staan er twee uitgaven in een
+                                  cache.
 
-De twee tellers lopen dus uiteen, en dat hoort zo.
+De twee lopen dus uiteen, en dat hoort zo.
 
-    python3 update_cache_version.py              alleen APP_VERSIE
-    python3 update_cache_version.py --worker     ook CACHE_VERSION
+    python3 update_cache_version.py          verhoogt CACHE_VERSION
 """
 
 import re
@@ -24,7 +29,6 @@ import sys
 from pathlib import Path
 
 HIER = Path(__file__).parent
-APP = (HIER / "events.html", re.compile(r"(var APP_VERSIE\s*=\s*)(\d+)(\s*;)"), "APP_VERSIE")
 WORKER = (HIER / "sw-events.js", re.compile(r"(const CACHE_VERSION\s*=\s*)(\d+)(\s*;)"), "CACHE_VERSION")
 
 
@@ -44,13 +48,10 @@ def verhoog(pad, patroon, naam) -> int:
 
 
 def main() -> int:
-    ook_worker = "--worker" in sys.argv[1:]
-    uit = verhoog(*APP)
+    uit = verhoog(*WORKER)
     if uit:
         return uit
-    if ook_worker:
-        return verhoog(*WORKER)
-    print("sw-events.js niet aangeraakt. Wijzigde die wel? Draai met --worker.")
+    print("Het versiestempel in events.html is NIET aangeraakt: dat gaat met de hand.")
     return 0
 
 
