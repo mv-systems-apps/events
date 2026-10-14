@@ -828,7 +828,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352896-001</div>
+    <div id="appVersieStempel">Versie 1352896-002</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -1831,30 +1831,64 @@ function bewaarHerstel(){
    zonder de echte caches aan te raken. */
 function cacheOpslag(opslag){ return opslag || (window.caches || null); }
 
+/* Het NIEUWSTE stempel uit de eigen caches, zoals de gedeelde conventies het
+   voorschrijven en zoals trends het al doet.
+
+   Niet de hoogste cachenaam opzoeken en alleen daaruit lezen: die naam gaat
+   alleen omhoog als sw-events.js wijzigt, dus het nieuwste stempel staat niet
+   per se in de hoogst genummerde cache. Laat een afgebroken installatie een
+   lege huls achter, of is de hoogste cache niet te openen, dan verviel de
+   melding terwijl het nieuwe stempel in de cache ernaast stond.
+
+   Alleen de eigen caches. De cacheopslag is van het hele domein, dus die van
+   Golf Score en Trends staan er ook in; zonder die filter zou een vreemde
+   kopie meebeslissen. Geen eigen cache betekent dus niets melden, en
+   uitdrukkelijk GEEN terugval op alle caches.
+
+   De caches worden een voor een gelezen in plaats van met Promise.all. Dat is
+   de simpele en iets langzamere variant: in de praktijk staan er een of twee,
+   en deze controle draait pas vier seconden na de start en bij een
+   blikwisseling. Komen er ooit veel meer caches, dan is dit de plek om het
+   parallel te doen. */
+function nieuwsteStempelUitCache(c){
+  if(!c) return Promise.resolve({ stempel: null, reden: 'geen cache' });
+  return c.keys().then(function(namen){
+    var eigen = namen.filter(function(n){ return n.indexOf('events-') === 0; });
+    if(!eigen.length) return { stempel: null, reden: 'geen eigen cache' };
+    var sleutel = new URL('events.html', location.href).href;
+    var nieuwste = null, eenGelezen = false;
+    return eigen.reduce(function(rij, naam){
+      return rij.then(function(){
+        return Promise.resolve(c.open(naam)).then(function(vak){
+          return vak ? vak.match(sleutel, { ignoreSearch: true }) : null;
+        }).then(function(res){
+          return res ? res.text() : null;
+        }).then(function(t){
+          if(!t) return;
+          eenGelezen = true;
+          var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec(t);
+          /* Beide delen van het stempel hebben een vaste lengte, dus gewone
+             tekstvergelijking houdt de volgorde aan. */
+          if(m && (nieuwste === null || m[1] > nieuwste)) nieuwste = m[1];
+        }).catch(function(){ /* een stukke cache telt niet mee, de rest wel */ });
+      });
+    }, Promise.resolve()).then(function(){
+      return { stempel: nieuwste,
+               reden: nieuwste ? null
+                    : (eenGelezen ? 'geen versiestempel in de kopie'
+                                  : 'events.html staat er niet in') };
+    });
+  });
+}
+
 function checkAppUpdate(opslag){
   var c = cacheOpslag(opslag);
   if(!c) return Promise.resolve(false);
-  return c.keys().then(function(namen){
-    var eigen = namen.filter(function(n){ return n.indexOf('events-') === 0; })
-      .sort(function(a, b){
-        return (parseInt(a.replace(/^events-v?/, ''), 10) || 0) -
-               (parseInt(b.replace(/^events-v?/, ''), 10) || 0);
-      });
-    if(!eigen.length) return false;
-    return c.open(eigen[eigen.length - 1]);
-  }).then(function(vak){
-    if(!vak) return false;
-    return vak.match(new URL('events.html', location.href).href, { ignoreSearch: true });
-  }).then(function(res){
-    if(!res) return false;
-    return res.text();
-  }).then(function(t){
-    if(!t) return false;
-    var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec(t);
+  return nieuwsteStempelUitCache(c).then(function(uit){
     var eigen = appStempel();
     /* alleen vooruit, en alleen als beide stempels er zijn: een kopie zonder
        stempel is er een van voor de overstap, en dus ouder */
-    if(!m || !eigen || !(m[1] > eigen)) return false;
+    if(!uit.stempel || !eigen || !(uit.stempel > eigen)) return false;
     if(!nieuweInhoud){ nieuweInhoud = true; render(); }
     return true;
   }).catch(function(){ return false; });
@@ -3436,26 +3470,12 @@ function statusVersieKopie(opslag){
   if(!el) return;
   var c = cacheOpslag(opslag);
   if(!c){ el.innerHTML = statusRegel('Versie in de offline-kopie', 'geen cache'); return; }
-  c.keys().then(function(namen){
-    /* Op nummer, niet op tekst. Tekstvolgorde zet events-v99 achter events-v160,
-       en dan zou hier een ander nummer staan dan checkAppUpdate gebruikt --
-       precies de twee die het met elkaar eens moeten zijn. */
-    var eigen = namen.filter(function(n){ return n.indexOf('events-') === 0; })
-      .sort(function(a, b){
-        return (parseInt(a.replace(/^events-v?/, ''), 10) || 0) -
-               (parseInt(b.replace(/^events-v?/, ''), 10) || 0);
-      });
-    if(!eigen.length) throw new Error('geen eigen cache');
-    return c.open(eigen[eigen.length - 1]);
-  }).then(function(vak){
-    return vak.match(new URL('events.html', location.href).href, { ignoreSearch: true });
-  }).then(function(res){
-    if(!res) throw new Error('events.html staat er niet in');
-    return res.text();
-  }).then(function(t){
-    var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec(t);
-    if(!m) throw new Error('geen versiestempel in de kopie');
-    var n = m[1], eigen = appStempel();
+  /* Dezelfde functie als checkAppUpdate gebruikt. Stond hier eerder een eigen
+     kopie van die zoektocht, en dan kon App-status een ander stempel tonen dan
+     de app vergeleek -- juist de twee die het met elkaar eens moeten zijn. */
+  nieuwsteStempelUitCache(c).then(function(uit){
+    if(!uit.stempel) throw new Error(uit.reden);
+    var n = uit.stempel, eigen = appStempel();
     $('stKopie').innerHTML = statusRegel('Versie in de offline-kopie',
       n + (n > eigen ? ' \u2014 nieuwer dan deze pagina' : ''), n >= eigen);
   }).catch(function(e){

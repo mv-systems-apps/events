@@ -3462,6 +3462,51 @@ function testVersiecontrole(){
       eis('alleen de eigen cache wordt geopend', gevraagd.join(), KOPIE);
     });
   }).then(function(){
+    /* Twee eigen caches naast elkaar. De cachenaam gaat alleen omhoog als
+       sw-events.js wijzigt, dus het nieuwste stempel staat niet per se in de
+       hoogst genummerde cache -- en een afgebroken installatie laat een lege
+       huls met een hoger nummer achter. Daarop verviel de melding eerder. */
+    function nepCaches(kaarten){
+      var namen = Object.keys(kaarten).concat(['trends-v17', 'golf-score-v41']);
+      return {
+        keys: function(){ return Promise.resolve(namen); },
+        open: function(n){
+          var v = kaarten[n];
+          if(v === 'stuk') return Promise.reject(new Error('cache niet te openen'));
+          return Promise.resolve({ match: function(){
+            return Promise.resolve(v === null || v === undefined ? undefined
+              : { text: function(){ return Promise.resolve(v); } }); } });
+        }
+      };
+    }
+    var nieuwer = app_(stap(eigen, 1)), ouder = app_(stap(eigen, -1));
+    app.nieuweInhoud = false;
+    return app.checkAppUpdate(nepCaches({ 'events-v160': ouder, 'events-v99': nieuwer }))
+    .then(function(uit){
+      eis('tussen twee eigen caches wint het nieuwste stempel, niet de hoogste naam',
+          uit, true);
+      app.nieuweInhoud = false;
+      return app.checkAppUpdate(nepCaches({ 'events-v161': null, 'events-v160': nieuwer }));
+    }).then(function(uit){
+      eis('een lege huls met een hoger nummer laat de melding niet vervallen', uit, true);
+      app.nieuweInhoud = false;
+      return app.checkAppUpdate(nepCaches({ 'events-v161': 'stuk', 'events-v160': nieuwer }));
+    }).then(function(uit){
+      eis('een stukke cache telt niet mee, de rest wel', uit, true);
+      app.nieuweInhoud = false;
+      /* Nu met het nieuwste stempel VOORAAN: anders komt het hierboven
+         toevallig als laatste langs, en zou 'de laatste die ik tegenkom' het
+         ook goed doen. */
+      return app.checkAppUpdate(nepCaches({ 'events-v99': nieuwer, 'events-v160': ouder }));
+    }).then(function(uit){
+      eis('ook als het nieuwste stempel vooraan staat wint het', uit, true);
+      app.nieuweInhoud = false;
+      return app.checkAppUpdate(nepCaches({ 'events-v160': ouder, 'events-v99': ouder }));
+    }).then(function(uit){
+      eis('twee oude kopieen leveren geen melding', uit, false);
+      app.nieuweInhoud = false;
+    });
+  }).then(function(){
     /* Het afknijpen van registration.update(). De app heeft een echte
        registratie, en die is de terugval als er geen wordt meegegeven; daarom
        wordt hier een registratie zonder update meegegeven in plaats van null. */
