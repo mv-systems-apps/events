@@ -1,0 +1,3963 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zelftest</title>
+<style>
+  :root{
+    --bg:#0e1219; --panel:#161b24; --line:#28313f; --txt:#e7eaf0;
+    --muted:#98a2b3; --accent:#7aa2f7; --ok:#4ec9a5; --danger:#f2777a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{
+    margin:0; padding:16px; background:var(--bg); color:var(--txt);
+    font-family:var(--mono); font-size:17px; line-height:1.45;
+    padding-bottom:calc(16px + env(safe-area-inset-bottom));
+  }
+  h1{margin:0 0 4px; font-size:24px; letter-spacing:.02em}
+  .uitleg{color:var(--muted); font-size:16px; margin-bottom:14px}
+  .knoppen{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  button{
+    height:44px; padding:0 16px; border:1px solid var(--line); border-radius:8px;
+    background:#28313f; color:var(--txt); font:inherit; font-size:17px;
+  }
+  button:hover{border-color:var(--accent)}
+  button.primair{background:var(--accent); color:#0e1219; border-color:var(--accent); font-weight:600}
+  .totaal{
+    padding:10px 14px; border:1px solid var(--line); border-radius:8px;
+    background:var(--panel); margin-bottom:12px; font-size:19px;
+  }
+  .totaal.goed{border-color:var(--ok); color:var(--ok)}
+  .totaal.fout{border-color:var(--danger); color:var(--danger)}
+  /* alles wat misging, bij elkaar onder de uitslag */
+  .samenvatting{margin-top:10px; border-top:1px solid var(--line); padding-top:8px}
+  .samenvattingGroep{
+    color:var(--muted); font-size:14px; letter-spacing:.04em;
+    text-transform:uppercase; margin:8px 0 4px;
+  }
+  .samenvattingRegel{font-size:15px; line-height:1.4; margin-bottom:6px}
+  .groep{
+    font-size:15px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.04em; margin:14px 0 6px;
+  }
+  .regel{
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 0; border-top:1px solid var(--line);
+  }
+  .merk{flex:0 0 auto; width:2ch; text-align:center}
+  .regel.goed .merk{color:var(--ok)}
+  .regel.fout .merk{color:var(--danger)}
+  .wat{flex:1; min-width:0; overflow-wrap:anywhere}
+  .uitkomst{color:var(--muted); font-size:15px}
+  .regel.fout .uitkomst{color:var(--danger)}
+</style>
+</head>
+<body>
+
+<h1>Zelftest</h1>
+<div class="uitleg">
+  Controleert de datumregels van events.html en events_lite.js tegen uitkomsten
+  die met de hand zijn nagerekend. Zet dit bestand naast de andere twee.
+</div>
+
+<div class="knoppen">
+  <button class="primair" id="start">Alles nakijken</button>
+  <button id="opnieuw" hidden>Opnieuw</button>
+</div>
+
+<div id="totaal" class="totaal" hidden></div>
+<div id="uitslag"></div>
+
+<!-- Het venstertje staat buiten beeld in plaats van op hidden. Met hidden is er
+     geen opmaak, en dan is er ook geen focus en geen zichtbaarheid te meten --
+     precies wat de focuscontroles nodig hebben. Het blijft onzichtbaar, en
+     aria-hidden houdt het buiten een schermlezer. -->
+<iframe id="app" src="events.html" aria-hidden="true" title="de app, voor de controles"
+        style="position:fixed;left:-10000px;top:0;width:420px;height:760px;border:0"></iframe>
+
+<script>
+/* De app wordt in een verborgen venstertje geladen, zodat de zelftest de echte
+   functies gebruikt en er niets hoeft te worden gedupliceerd. */
+var app = null;
+
+function laadApp(){
+  var f = document.getElementById('app');
+
+  /* Kijken of de app er al is. Een vers venstertje toont eerst een leeg
+     document dat zichzelf al klaar noemt, dus wachten op 'geladen' is niet
+     genoeg: er wordt gekeken of de functies er werkelijk staan. */
+  function pak(){
+    try {
+      var w = f.contentWindow;
+      if(w && (typeof w.dgVan === 'function')) return w;
+    } catch(e){
+      /* een pagina die met file:// is geopend mag niet in een ander bestand
+         kijken; dat komt hieronder als melding naar boven */
+      return 'geen toegang \u2014 ' + e.message;
+    }
+    return null;
+  }
+
+  return new Promise(function(klaar, mis){
+    var wacht = 0;
+    (function nogEens(){
+      var w = pak();
+      if(typeof w === 'string'){ mis(new Error(w)); return; }
+      if(w){ app = w; klaar(app); return; }
+      wacht += 100;
+      if(wacht > 8000){
+        mis(new Error('events.html is niet op tijd geladen, of de functies staan er niet in'));
+        return;
+      }
+      setTimeout(nogEens, 100);
+    })();
+  });
+}
+
+/* ------------------ het raamwerk ------------------ */
+
+var _groep = '', _goed = 0, _fout = 0, _rood = [];
+
+function groep(naam){
+  _groep = naam;
+  var el = document.createElement('div');
+  el.className = 'groep';
+  el.textContent = naam;
+  document.getElementById('uitslag').appendChild(el);
+}
+
+function eis(wat, gekregen, verwacht){
+  var ok = String(gekregen) === String(verwacht);
+  if(ok) _goed++;
+  else {
+    _fout++;
+    /* onthouden waar het misging, zodat het bovenaan bij elkaar staat; op een
+       telefoon is 600 regels doorscrollen geen doen */
+    _rood.push({ groep:_groep, wat:wat, gekregen:gekregen, verwacht:verwacht });
+  }
+  var el = document.createElement('div');
+  el.className = 'regel ' + (ok ? 'goed' : 'fout');
+  el.innerHTML = '<span class="merk">' + (ok ? '\u2713' : '\u2717') + '</span>' +
+    '<span class="wat">' + esc(wat) +
+    (ok ? '' : '<br><span class="uitkomst">gekregen ' + esc(gekregen) +
+               ', verwacht ' + esc(verwacht) + '</span>') + '</span>';
+  document.getElementById('uitslag').appendChild(el);
+}
+
+/* Een regel zonder oordeel: een meting hoort niet goed of fout te zijn. Op een
+   telefoon zegt een drempel weinig -- het getal zelf wel. */
+function meld(wat, waarde){
+  var el = document.createElement('div');
+  el.className = 'regel';
+  el.innerHTML = '<span class="merk">\u00b7</span><span class="wat">' + esc(wat) +
+                 ' <strong>' + esc(waarde) + '</strong></span>';
+  document.getElementById('uitslag').appendChild(el);
+}
+
+function esc(t){
+  return String(t).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+  });
+}
+
+function toonTotaal(){
+  var el = document.getElementById('totaal');
+  el.hidden = false;
+  el.className = 'totaal ' + (_fout ? 'fout' : 'goed');
+  var kop = _fout
+    ? _fout + ' van de ' + (_goed + _fout) + ' controles gaat mis'
+    : 'Alle ' + _goed + ' controles kloppen';
+  /* Alles wat misging meteen hieronder, per groep. Zo is een uitslag met een
+     enkele schermafdruk te delen in plaats van met tien. */
+  var lijst = '';
+  if(_rood.length){
+    var vorige = '';
+    lijst = '<div class="samenvatting">';
+    _rood.forEach(function(r){
+      if(r.groep !== vorige){
+        lijst += '<div class="samenvattingGroep">' + esc(r.groep) + '</div>';
+        vorige = r.groep;
+      }
+      lijst += '<div class="samenvattingRegel">' + esc(r.wat) +
+               '<br><span class="uitkomst">gekregen ' + esc(r.gekregen) +
+               ', verwacht ' + esc(r.verwacht) + '</span></div>';
+    });
+    lijst += '</div>';
+  }
+  el.innerHTML = '<div class="totaalKop">' + esc(kop) + '</div>' + lijst;
+  document.getElementById('opnieuw').hidden = false;
+}
+
+/* Blijft kijken tot het zover is, in plaats van een vast aantal milliseconden
+   te gokken. Op een traag toestel is dat het verschil tussen een uitslag en
+   een rij rode regels die niets met de app te maken hebben. */
+function tot(klaar, max){
+  var eind = Date.now() + (max || 8000);
+  return new Promise(function(af){
+    (function kijk(){
+      if(klaar() || Date.now() > eind) return af();
+      setTimeout(kijk, 10);
+    })();
+  });
+}
+
+/* ------------------ de macro laden en aanroepen ------------------ */
+/* De macro staat in een bestand dat zichzelf niet uitvoert; hier wordt hij op
+   dezelfde manier aangeroepen als de wrapper in MacroDroid dat doet. Die zet
+   de tekst in een template literal, dus de dubbele backslashes gaan er hier
+   net zo goed uit. */
+
+function laadMacro(){
+  return fetch('events_lite.js', { cache:'no-store' })
+    .then(function(r){
+      if(!r.ok) throw new Error('events_lite.js geeft status ' + r.status);
+      return r.text();
+    })
+    .then(function(bron){
+      var js = bron.replace(/\\\\/g, '\\');
+      var fn = new Function('data', 'qry', 'cfg',
+                            'return (' + js + ')(data, qry, cfg);');
+      return function(data, qry, cfg){ return fn(data, qry, cfg || ''); };
+    });
+}
+
+/* ------------------ de proefgegevens ------------------ */
+/* Een klein bestand met bekende gevallen, zodat de uitkomsten met de hand na
+   te rekenen zijn en niet meebewegen met het echte bestand. */
+
+var PROEF = [
+  'Arvenlo, Sinka;Sinka Arvenlo;Geboren;D19740812;2',
+  'Brulmeer, Jovek;Jovek Brulmeer;Geboren;D20000229;2',
+  'Kerst, Eerste;Eerste Kerstdag;Feestdag;D00001225;1',
+  'Nieuwjaar, dag;Nieuwjaarsdag;Feestdag;D00000101;1',
+  'Moederdag, tweede zondag;Moederdag;Feestdag;D00070502;1',
+  'Zomertijd, laatste zondag;Zomertijd;Gebeurtenis;D00070399;1',
+  'Pasen, eerste;Eerste Paasdag;Feestdag;D00080000;1',
+  'Hemelvaart, dag;Hemelvaartsdag;Feestdag;D00083900;1',
+  'Carnaval, dag;Carnaval;Feestdag;D00080049;1',
+  'Onbekend, maand;Alleen jaar;Getrouwd;D19900000;2',
+  'Onbekend, dag;Alleen maand;Getrouwd;D19900200;2;met notitie'
+].join('\n');
+
+/* ------------------ de controles ------------------ */
+
+function testDatums(){
+  groep('De datumlaag van de app');
+
+  /* een datum is een dagnummer, dus de controles zijn met datums geschreven
+     en niet met de getallen die er toevallig uitkomen */
+  var dg = app.dgVan;
+
+  eis('de onderdelen komen er weer uit', app.dgYMD(dg(1966, 10, 16)).maand, 10);
+  eis('en de dag ook', app.dgYMD(dg(1966, 10, 16)).dag, 16);
+  eis('16 oktober 1966 was een zondag', app.dgWeekdag(dg(1966, 10, 16)), 7);
+  eis('1 januari 2026 is een donderdag', app.dgWeekdag(dg(2026, 1, 1)), 4);
+  eis('een dag na 31 december', dg(2025, 12, 31) + 1, dg(2026, 1, 1));
+  eis('een dag voor 1 maart 2024', dg(2024, 3, 1) - 1, dg(2024, 2, 29));
+  eis('een dag voor 1 maart 2025', dg(2025, 3, 1) - 1, dg(2025, 2, 28));
+  eis('dagen tussen twee jaarwisselingen', dg(2026, 1, 1) - dg(2025, 1, 1), 365);
+  eis('een schrikkeljaar telt een dag meer', dg(2025, 1, 1) - dg(2024, 1, 1), 366);
+  eis('einde februari in een schrikkeljaar', app.dgEindeMaand(2024, 2), dg(2024, 2, 29));
+  eis('einde februari in een gewoon jaar', app.dgEindeMaand(2025, 2), dg(2025, 2, 28));
+  eis('einde december', app.dgEindeMaand(2026, 12), dg(2026, 12, 31));
+  eis('dagen in februari 2024', app.dgDagenInMaand(2024, 2), 29);
+  eis('de tweede zondag van mei 2026', app.dgZoekWeekdag(dg(2026, 5, 1), 7, 2, 1), dg(2026, 5, 10));
+  eis('de laatste zondag van maart 2026',
+      app.dgZoekWeekdag(app.dgEindeMaand(2026, 3), 7, 1, -1), dg(2026, 3, 29));
+  eis('de laatste zondag van oktober 2026',
+      app.dgZoekWeekdag(app.dgEindeMaand(2026, 10), 7, 1, -1), dg(2026, 10, 25));
+}
+
+function testPasen(){
+  groep('Pasen, met de hand nagerekend');
+
+  var dg = app.dgVan;
+  var jaren = [[2024, [3, 31]], [2025, [4, 20]], [2026, [4, 5]],
+               [2027, [3, 28]], [2038, [4, 25]], [2011, [4, 24]]];
+  for(var i = 0; i < jaren.length; i++){
+    var j = jaren[i][0], d = jaren[i][1];
+    eis('Pasen ' + j, app.paasDatum(j), dg(j, d[0], d[1]));
+  }
+  eis('Hemelvaart 2026 is Pasen plus 39', app.paasDatum(2026) + 39, dg(2026, 5, 14));
+  eis('Carnaval 2026 is Pasen min 49', app.paasDatum(2026) - 49, dg(2026, 2, 15));
+}
+
+function testCodes(){
+  groep('De datumcodes');
+
+  var dg = app.dgVan;
+
+  eis('een vaste datum', app.encode(app.decode('D19661016')), 'D19661016');
+  eis('een wisselende dag', app.encode(app.decode('D00070502')), 'D00070502');
+  eis('de laatste van de maand', app.encode(app.decode('D00070399')), 'D00070399');
+  eis('Pasen plus 39', app.encode(app.decode('D00083900')), 'D00083900');
+  eis('Pasen min 49', app.encode(app.decode('D00080049')), 'D00080049');
+  eis('een onvolledige datum', app.encode(app.decode('D19900200')), 'D19900200');
+  eis('een kapotte code geeft niets', app.decode('D1966101'), null);
+
+  eis('de tweede zondag van mei 2026',
+      app.eventDatum({ code:'D00070502' }, 2026), dg(2026, 5, 10));
+  eis('de laatste zondag van maart 2026',
+      app.eventDatum({ code:'D00070399' }, 2026), dg(2026, 3, 29));
+  eis('Hemelvaart 2026', app.eventDatum({ code:'D00083900' }, 2026), dg(2026, 5, 14));
+  eis('29 februari bestaat niet in 2026', app.eventDatum({ code:'D20000229' }, 2026), null);
+  eis('29 februari bestaat wel in 2028',
+      app.eventDatum({ code:'D20000229' }, 2028), dg(2028, 2, 29));
+  eis('een datum zonder dag heeft geen dag',
+      app.eventDatum({ code:'D19900200' }, 2026), null);
+  eis('maar wel een maand', app.maandVan({ code:'D19900200' }), 2);
+  eis('alleen een jaar heeft ook geen maand', app.maandVan({ code:'D19900000' }), 0);
+}
+
+function testLezen(){
+  groep('Het bestand lezen en schrijven');
+
+  var r = app.parse(PROEF);
+  eis('elf regels gelezen', r.length, 11);
+  eis('geen enkele onleesbaar', r.filter(function(x){ return x.raw !== undefined; }).length, 0);
+  eis('de notitie komt mee', r[10].notitie, 'met notitie');
+  eis('de categorie is een getal', r[0].cat, 2);
+
+  var was = app.records;
+  app.records = r;
+  eis('serialiseren geeft het bestand terug', app.serialize().trim(), PROEF);
+  app.records = was;
+
+  eis('een puntkomma te veel is onleesbaar',
+      app.parse('A;a;Geboren;D20000101;2;met ; erin')[0].raw !== undefined, true);
+  eis('te weinig velden is onleesbaar',
+      app.parse('A;a;Geboren')[0].raw !== undefined, true);
+  eis('een accent telt als de kale letter',
+      app.zonderAccent('Eén april'), 'Een april');
+}
+
+function testCfg(){
+  groep('De configuratie keuren');
+
+  /* een cfg kan met de hand bewerkt zijn, dus de app hoort een waarde van het
+     verkeerde soort weg te laten en niet te struikelen bij het tekenen */
+  function keur(json){
+    var klachten = [];
+    return { cfg: app.keurCfg(JSON.parse(json), klachten), klachten: klachten };
+  }
+  function eigen(o, k){ return Object.prototype.hasOwnProperty.call(o, k); }
+
+  var goed = '{"bestand":"e.txt","titel":"Events","scheidingsteken":";","ofteken":"|",' +
+             '"velden":["Event","Naam","Type","Datum","Categorie","Notitie"],' +
+             '"types":["Geboren",{"omschrijving":"Getrouwd","teken":"&"}],' +
+             '"categorieen":[{"nr":1,"omschrijving":"familie"}],' +
+             '"paasdagen":[{"omschrijving":"eerste paasdag","dagen":0}]}';
+  var a = keur(goed);
+  eis('een goede cfg blijft ongewijzigd', JSON.stringify(a.cfg), goed);
+  eis('en geeft geen klachten', a.klachten.length, 0);
+
+  eis('een lijst is geen cfg', keur('[1,2,3]').cfg, null);
+  eis('een getal is geen cfg', keur('7').cfg, null);
+  eis('null is geen cfg', keur('null').cfg, null);
+
+  eis('__proto__ wordt niet overgenomen', eigen(keur('{"__proto__":{"x":1}}').cfg, '__proto__'), false);
+  eis('en het prototype blijft schoon', ({}).x, undefined);
+  eis('constructor wordt niet overgenomen', eigen(keur('{"constructor":1}').cfg, 'constructor'), false);
+  eis('prototype wordt niet overgenomen', eigen(keur('{"prototype":1}').cfg, 'prototype'), false);
+
+  eis('types als tekst wordt weggelaten', keur('{"types":"abc"}').cfg.types, undefined);
+  eis('een type van null wordt weggelaten',
+      keur('{"types":[null,{"omschrijving":"x"}]}').cfg.types.length, 1);
+  eis('een type als tekst mag blijven staan', keur('{"types":["Geboren"]}').cfg.types.length, 1);
+  eis('een categorie van null wordt weggelaten',
+      keur('{"categorieen":[null,{"nr":1}]}').cfg.categorieen.length, 1);
+  eis('een paasdag van null wordt weggelaten',
+      keur('{"paasdagen":[null,{"dagen":0}]}').cfg.paasdagen.length, 1);
+  eis('velden als tekst wordt weggelaten', keur('{"velden":"abc"}').cfg.velden, undefined);
+  eis('een verkeerde veldnaam schuift de rest niet op',
+      keur('{"velden":["Event",5,"Type"]}').cfg.velden.join(','), 'Event,,Type');
+  eis('een scheidingsteken dat geen tekst is wordt weggelaten',
+      keur('{"scheidingsteken":5}').cfg.scheidingsteken, undefined);
+  eis('een filter dat geen object is wordt weggelaten', keur('{"filter":[1,2]}').cfg.filter, undefined);
+  eis('wat is weggelaten wordt gemeld', keur('{"types":"abc"}').klachten.length, 1);
+
+  /* en met zo'n opgeschoonde cfg moeten alle schermen nog getekend worden */
+  var bewaardCfg = app.cfg, bewaardR = app.records, bewaardS = app.fileState;
+  app.cfg = keur('{"bestand":"e.txt","types":[null],"categorieen":{"nr":1},' +
+                 '"paasdagen":7,"velden":42}').cfg;
+  app.bestandsnaam = 'e.txt'; app.fileState = 'ok';
+  app.records = app.parse(PROEF);
+  var stuk = '';
+  ['render', 'openCfg', 'openFilter'].forEach(function(f){
+    try { app[f](); } catch(e){ stuk += f + ' '; }
+  });
+  try { app.rapport('bestand'); } catch(e){ stuk += 'rapport '; }
+  try { app.openModal(0); } catch(e){ stuk += 'bewerken '; }
+  try { app.toonInfo(0); } catch(e){ stuk += 'bekijken '; }
+  app.cfg = bewaardCfg; app.records = bewaardR; app.fileState = bewaardS;
+  eis('alle schermen tekenen met een opgeschoonde cfg', stuk || 'geen fouten', 'geen fouten');
+
+  /* de icoonnaam komt ook uit de cfg, en die wordt in een tabel opgezocht:
+     een naam die toevallig een eigenschap van Object is mag niets opleveren */
+  var bol = app.svgIcoon('bolletje', 'x');
+  ['constructor', '__proto__', 'toString', 'hasOwnProperty'].forEach(function(n){
+    eis('het icoon "' + n + '" valt terug op het bolletje', app.svgIcoon(n, 'x'), bol);
+  });
+  eis('en levert geen broncode op', app.svgIcoon('constructor', 'x').indexOf('native code') < 0, true);
+  eis('de iconen zijn nog wel alle op te sommen',
+      Object.keys(app.ICONEN).indexOf('notitie') >= 0 && Object.keys(app.ICONEN).length >= 13, true);
+
+  /* Typen in een rij van de configuratie moet in die rij landen en niet in een
+     andere. Het data-attribuut houdt de plek in de lijst vast. */
+  var d2 = app.document;
+  app.cfgTypes = [{ omschrijving:'Eerste', icoon:'', teken:'a' },
+                  { omschrijving:'Tweede', icoon:'', teken:'b' },
+                  { omschrijving:'Derde', icoon:'', teken:'c' }];
+  app.tekenCfgTypes();
+  var velden = d2.getElementById('cfgTypes').querySelectorAll('[data-i]');
+  eis('elke type-rij heeft een invoerveld', velden.length, 3);
+  velden[1].value = 'Gewijzigd'; velden[1].oninput();
+  eis('typen in de tweede rij landt in de tweede rij', app.cfgTypes[1].omschrijving, 'Gewijzigd');
+  eis('en laat de eerste ongemoeid', app.cfgTypes[0].omschrijving, 'Eerste');
+  eis('en de derde ook', app.cfgTypes[2].omschrijving, 'Derde');
+  var tekens = d2.getElementById('cfgTypes').querySelectorAll('[data-tk]');
+  tekens[2].value = 'z'; tekens[2].oninput();
+  eis('het teken van de derde rij landt in de derde rij', app.cfgTypes[2].teken, 'z');
+  eis('en dat van de eerste blijft staan', app.cfgTypes[0].teken, 'a');
+
+  app.cfgVelden = ['A', 'B', 'C'];
+  app.tekenCfgVelden();
+  var vn = d2.getElementById('cfgVelden').querySelectorAll('[data-v]');
+  vn[2].value = 'Nieuw'; vn[2].oninput();
+  eis('een veldnaam landt op zijn eigen plek', app.cfgVelden.join(','), 'A,B,Nieuw');
+
+  app.cfgCats = [{ nr:1, oms:'een' }, { nr:2, oms:'twee' }];
+  app.tekenCfgCats();
+  var co = d2.getElementById('cfgCats').querySelectorAll('[data-oms]');
+  co[1].value = 'anders'; co[1].oninput();
+  eis('een categorie-omschrijving landt op zijn eigen plek', app.cfgCats[1].oms, 'anders');
+  eis('en de andere blijft', app.cfgCats[0].oms, 'een');
+
+  app.cfgPaas = [{ dagen:0, omschrijving:'nul' }, { dagen:1, omschrijving:'een' }];
+  app.tekenCfgPaas();
+  var pd = d2.getElementById('cfgPaas').querySelectorAll('[data-pd]');
+  pd[1].value = '39'; pd[1].oninput();
+  eis('een paasverschuiving landt op zijn eigen plek', app.cfgPaas[1].dagen, '39');
+  eis('en de andere blijft', app.cfgPaas[0].dagen, 0);
+}
+
+function testMacro(macro){
+  groep('De macro, met dezelfde proefgegevens');
+
+  function aantal(vraag){
+    var uit = macro(PROEF, vraag);
+    var m = /(\d+)\/(\d+)/.exec(uit.replace(/<[^>]+>/g, ''));
+    return m ? +m[1] : -1;
+  }
+
+  eis('alles telt elf events', aantal('@a 1-4'), 11);
+  eis('categorie 1 telt er zeven', aantal('@a 1'), 7);
+  eis('alleen met een notitie', aantal('@a 1-4 **'), 1);
+  eis('alleen geboortes', aantal('@a 1-4 t+'), 2);
+  eis('geboren of getrouwd', aantal('@a 1-4 t+&'), 4);
+  eis('de onvolledige datums', aantal('@? 1-4'), 2);
+  eis('december telt er een', aantal('@dec 1-4'), 1);
+  eis('februari telt er twee', aantal('@feb 1-4 2026'), 2);
+  eis('zoeken op een naam', aantal('sinka'), 1);
+  eis('zoeken met het of-teken', aantal('sinka|kerst'), 2);
+  eis('zoeken kijkt naar het hele jaar, en 29 februari valt daarbuiten',
+      aantal('jovek'), 0);
+  eis('met @a doet die wel mee', aantal('jovek@a 1-4'), 1);
+  eis('een onbekende opdracht wordt gemeld',
+      /fout\(en\)/.test(macro(PROEF, '@xyz')), true);
+  eis('de uitleg begint met de vorm',
+      /periode/.test(macro(PROEF, '?')), true);
+}
+
+/* Het rapport van de macro is html. De vaste regel: de opmaak hangt alleen af
+   van de structuur van het rapport, nooit van de inhoud van de velden of van
+   de vraag. Twee bestanden met dezelfde vorm maar andere namen horen dus
+   precies dezelfde reeks tags op te leveren. */
+function testMacroOpmaak(macro){
+  groep('De macro ontsnapt tekens in de uitvoer');
+
+  var CFG = JSON.stringify({ types: [
+    { omschrijving:'Geboren', teken:'+' },
+    { omschrijving:'Getrouwd', teken:'&' },
+    { omschrijving:'Feestdag', teken:'^' }
+  ]});
+  var VUIL = [
+    '<b>Lang;<b>Kort;Geboren;D19800315;1',
+    '<img src=x onerror=stuk>;<i>Plaatje;Geboren;D19800316;1;<u>notitie',
+    'Jansen & Zonen;J&Z;Getrouwd;D19900601;2;ook & hier',
+    '</span></b>Kaper;</b>Kaper;Feestdag;D00001225;1',
+    'Fout, type;Fout;<b>Onbekend;Dxxxx;9'
+  ].join('\n');
+  var NET = [
+    'Aaa Lang;Aaa Kort;Geboren;D19800315;1',
+    'Bbb lange naam hier;Bbb Plaatje;Geboren;D19800316;1;bbb notitie',
+    'Ccc en Zonen;CcZ;Getrouwd;D19900601;2;ook ccc hier',
+    'Ddd Kaper;Ddd Kaper;Feestdag;D00001225;1',
+    'Fout, type;Fout;Eee onbekend;Dxxxx;9'
+  ].join('\n');
+
+  /* de volgorde van de regels verschilt wel, want er wordt op naam gesorteerd;
+     het gaat erom dat er geen tag bij komt of af gaat */
+  function tags(t){ return (t.match(/<[^>]*>/g) || []).sort().join(' '); }
+
+  [['alles', '@a 1-4'], ['als data', '@a 1-4 ='], ['met lange naam', '@a 1-4 l'],
+   ['met notitie', '@a 1-4 **'], ['bij zoeken', '1980'], ['dit jaar', '@a'],
+   ['bij een onbekende opdracht', '@a <b>']].forEach(function(p){
+    eis('dezelfde opmaak bij vuile en nette namen, ' + p[0],
+        tags(macro(VUIL, p[1], CFG)) === tags(macro(NET, p[1], CFG)), true);
+  });
+
+  var uit = macro(VUIL, '@a 1-4 l', CFG);
+  eis('een < in een naam komt er als entiteit uit', uit.indexOf('&lt;b&gt;Kort') >= 0, true);
+  eis('een & in een naam komt er als entiteit uit', uit.indexOf('J&amp;Z') >= 0, true);
+  eis('en de naam zelf blijft leesbaar', uit.indexOf('&lt;img src=x onerror=stuk&gt;') >= 0, true);
+  eis('een onbekend type in het foutblok wordt ook ontsnapt',
+      uit.indexOf('<b>Onbekend') < 0, true);
+
+  /* de melding is platte tekst voor een horloge: die moet juist onopgemaakt
+     blijven, anders staat er &amp; op het scherm */
+  var vd = app.dgYMD(app.dgVandaag());
+  function code(d){
+    var y = app.dgYMD(app.dgVandaag() + d);
+    return 'D' + y.jaar + String(y.maand).padStart(2, '0') + String(y.dag).padStart(2, '0');
+  }
+  var NU = ['Vandaag, een;Jansen & Zn;Geboren;' + code(0) + ';1',
+            'Morgen, een;<b>Piet;Geboren;' + code(1) + ';1'].join('\n');
+  var mld = macro(NU, '@!', CFG);
+  eis('de melding ontsnapt niets', mld.indexOf('&amp;') < 0 && mld.indexOf('&lt;') < 0, true);
+  eis('en noemt de naam van vandaag', mld.indexOf('Jansen & Zn') >= 0, true);
+  eis('en die van morgen', mld.indexOf('<b>Piet') >= 0, true);
+
+  /* een type dat zo heet als een eigenschap van Object mag niets opleveren */
+  var p = macro('A;a;constructor;D20000101;1', '@a 1-4', CFG);
+  eis('een type "constructor" is geen bekend type', /\? type/.test(p), true);
+  eis('en levert geen broncode op', p.indexOf('native code') < 0, true);
+}
+
+/* Een veld van duizenden tekens komt niet uit de app maar uit geplakte tekst.
+   De app weigert het bij opslaan, de macro meldt het, en beide houden dezelfde
+   grens aan. */
+function testLengte(macro){
+  groep('De lengtegrens op de velden');
+
+  var grens = app.VELD_LENGTE_MAX;
+  eis('de app kent een grens', grens > 0, true);
+  eis('de macro houdt dezelfde grens aan',
+      /\? veld te lang/.test(macro('A;' + new Array(grens + 2).join('x') +
+                                   ';Geboren;D20000101;1', '@a 1-4')), true);
+  eis('en net binnen de grens meldt hij niets',
+      /\? veld te lang/.test(macro('A;' + new Array(grens + 1).join('x') +
+                                   ';Geboren;D20000101;1', '@a 1-4')), false);
+
+  /* de bestandscontrole van de app noemt zo'n regel ook */
+  var bewaardR = app.records, bewaardC = app.cfg;
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.records = app.parse('A;' + new Array(grens + 2).join('x') + ';Geboren;D20000101;1\n' +
+                          'B;b;Geboren;D20000102;1');
+  var titels = app.controleer().map(function(g){ return g.titel; });
+  eis('de bestandscontrole meldt een te lang veld',
+      titels.indexOf('Velden die te lang zijn') >= 0, true);
+  app.records = app.parse('B;b;Geboren;D20000102;1');
+  eis('en bij nette regels niet',
+      app.controleer().map(function(g){ return g.titel; })
+         .indexOf('Velden die te lang zijn') < 0, true);
+
+  /* en bij opslaan in de bewerkmodal wordt het geweigerd */
+  var d = app.document;
+  app.openModal(-1);
+  d.getElementById('fSleutel').value = new Array(grens + 2).join('y');
+  d.getElementById('fNaam').value = 'Kort';
+  var voor = app.records.length;
+  app.bewaarModal();
+  eis('opslaan van een te lang veld wordt geweigerd',
+      /tekens/.test(d.getElementById('mErr').textContent), true);
+  eis('en er komt geen record bij', app.records.length, voor);
+  app.sluitModal();
+
+  /* een type dat zo heet als een eigenschap van Object mag in de
+     bestandscontrole geen broncode opleveren */
+  app.cfg = { bestand:'e.txt', scheidingsteken:';',
+              types:[{ omschrijving:'Geboren', teken:'+' }] };
+  app.records = app.parse('A;a;constructor;D20000101;1');
+  var regels = app.controleer().map(function(g){ return g.regels.join(' '); }).join(' ');
+  eis('de bestandscontrole noemt het vreemde type', /constructor/.test(regels), true);
+  eis('en zonder broncode erbij', regels.indexOf('native code') < 0, true);
+
+  app.records = bewaardR; app.cfg = bewaardC;
+}
+
+function testSamen(macro){
+  groep('App en macro naast elkaar');
+
+  var r = app.parse(PROEF);
+  var was = app.records, wasJaar = app.zichtJaar, wasFilter = app.datumFilter;
+  var wasZoek = app.zoekterm, wasAan = app.filterAan;
+  app.records = r;
+  app.zichtJaar = 2026;
+  app.zoekterm = '';
+  app.filterAan = true;
+
+  function macroAantal(vraag){
+    var m = /(\d+)\/(\d+)/.exec(macro(PROEF, vraag).replace(/<[^>]+>/g, ''));
+    return m ? +m[1] : -1;
+  }
+  var kort = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  for(var m = 1; m <= 12; m++){
+    app.datumFilter = String(m);
+    eis(kort[m-1] + ' geeft in beide hetzelfde',
+        app.zichtbaar().length, macroAantal('@' + kort[m-1] + ' 1-4 2026'));
+  }
+  app.datumFilter = 'onbekend';
+  eis('onbekend geeft in beide hetzelfde', app.zichtbaar().length, macroAantal('@? 1-4 2026'));
+  app.datumFilter = '';
+  eis('alles geeft in beide hetzelfde', app.zichtbaar().length, macroAantal('@a 1-4 2026'));
+
+  app.records = was; app.zichtJaar = wasJaar; app.datumFilter = wasFilter;
+  app.zoekterm = wasZoek; app.filterAan = wasAan;
+}
+
+/* ------------------ app en macro leggen de configuratie gelijk uit ------------------ */
+/* De app schrijft de configuratie, de macro leest hem. Een filter dat naar een
+   type verwijst dat niet meer bestaat wordt door beide genegeerd: dan zie je
+   alles in plaats van niets. Eerder deed de app het omgekeerde. */
+function testCfgSamen(macro){
+  groep('App en macro leggen de configuratie gelijk uit');
+
+  var TYPES = [{ omschrijving:'Geboren', teken:'+' }, { omschrijving:'Feestdag', teken:'^' }];
+  var DATA = ['Vasqinter, Drimmelore;Drimmelore;Geboren;D19740812;1',
+              'Kerst, Eerste;Eerste Kerstdag;Feestdag;D00001225;1',
+              'Brulmeer, Jovek;Jovek;Geboren;D19900601;2'].join('\n');
+
+  var bewaard = { cfg:app.cfg, records:app.records, fileState:app.fileState,
+                  bestandsnaam:app.bestandsnaam, filterType:app.filterType,
+                  datumFilter:app.datumFilter, zoekterm:app.zoekterm,
+                  filterAan:app.filterAan, filterCatVan:app.filterCatVan,
+                  filterCatTot:app.filterCatTot, filterNotitie:app.filterNotitie,
+                  zichtJaar:app.zichtJaar };
+
+  /* hoeveel laat elk van de twee zien met deze configuratie? */
+  function appAantal(cfgObject){
+    app.cfg = cfgObject;
+    app.fileState = 'ok'; app.bestandsnaam = 'e.txt';
+    app.pasStandaardFilterToe();
+    app.records = app.parse(DATA);
+    app.sorteer();
+    app.zoekterm = ''; app.filterAan = true;
+    app.datumFilter = '';          /* de periode doet hier niet mee */
+    return app.zichtbaar().length;
+  }
+  /* '@a' en niet '@a 1-4': een categorie achter de @ overstemt die uit de
+     configuratie, en dan meet je de vraag in plaats van de configuratie */
+  function macroAantal(cfgObject){
+    var uit = String(macro(DATA, '@a', JSON.stringify(cfgObject)));
+    var m = /(\d+)\/(\d+)/.exec(uit.replace(/<[^>]*>/g, ''));
+    return m ? +m[1] : -1;
+  }
+
+  var basis = { bestand:'e.txt', scheidingsteken:';', types:TYPES };
+  eis('zonder filter ziet de app alles', appAantal(basis), 3);
+  eis('en de macro ook', macroAantal(basis), 3);
+
+  var bekend = { bestand:'e.txt', scheidingsteken:';', types:TYPES,
+                 filter:{ type:'Geboren' } };
+  eis('een filter op een bekend type werkt in de app', appAantal(bekend), 2);
+  eis('en in de macro', macroAantal(bekend), 2);
+
+  /* dit is de plek die is gelijkgetrokken */
+  var weg = { bestand:'e.txt', scheidingsteken:';', types:TYPES,
+              filter:{ type:'Getrouwd' } };
+  eis('een filter op een type dat niet in de configuratie staat negeert de app',
+      appAantal(weg), 3);
+  eis('en de macro ook', macroAantal(weg), 3);
+  eis('de app zet dat filter dan ook echt niet', app.filterType, '');
+
+  var onzin = { bestand:'e.txt', scheidingsteken:';', types:TYPES,
+                filter:{ type:'volstrekt onbekend' } };
+  eis('idem bij een onzinnige typenaam, in de app', appAantal(onzin), 3);
+  eis('en in de macro', macroAantal(onzin), 3);
+
+  /* categorie en categoriebereik moeten wel hetzelfde doen */
+  [['categorie 1', { categorie:1 }, 2], ['categorie 2', { categorie:2 }, 1],
+   ['bereik 1 tot 2', { categorie:[1,2] }, 3]].forEach(function(p){
+    var c = { bestand:'e.txt', scheidingsteken:';', types:TYPES, filter:p[1] };
+    eis('filter op ' + p[0] + ' in de app', appAantal(c), p[2]);
+    eis('en in de macro', macroAantal(c), p[2]);
+  });
+
+  /* en zonder types in de configuratie vallen beide op dezelfde eigen lijst terug */
+  var zonderTypes = { bestand:'e.txt', scheidingsteken:';', filter:{ type:'Geboren' } };
+  eis('zonder types in de configuratie kent de app Geboren nog', appAantal(zonderTypes), 2);
+  eis('en de macro ook', macroAantal(zonderTypes), 2);
+
+  /* De terugvallijst met types, voor als de configuratie er geen noemt. App en
+     macro hebben elk hun eigen lijst en die moeten dezelfde tekens bij dezelfde
+     types zetten -- anders betekent @t^ in de app iets anders dan in de macro.
+     Niet door de code te lezen maar door het gedrag te meten: welk teken
+     selecteert welk type? */
+  var ZONDER = { bestand:'e.txt', scheidingsteken:';' };
+  var ALLE = app.TYPES.map(function(t, i){
+    return 'N' + i + ', test;N' + i + ';' + t.omschrijving + ';D2026010' + (i + 1) + ';1';
+  }).join('\n');
+  eis('de app heeft zeven standaardtypes', app.TYPES.length, 7);
+  app.TYPES.forEach(function(t, i){
+    app.cfg = ZONDER;
+    eis('zonder configuratie is het teken van ' + t.omschrijving + ' in de app "' + t.teken + '"',
+        app.typeTeken(t.omschrijving), t.teken);
+    var uit = String(macro(ALLE, '@a 1-4 2026 t' + t.teken, JSON.stringify(ZONDER)))
+      .replace(/<[^>]*>/g, '');
+    eis('en in de macro selecteert "' + t.teken + '" alleen ' + t.omschrijving,
+        /^1\/7\b/.test(uit) && uit.indexOf('N' + i) >= 0, true);
+  });
+
+  /* Het jaar staat relatief in de configuratie. Beide horen een onzinwaarde te
+     negeren in plaats van naar een gebroken of onmogelijk jaartal te springen. */
+  function appJaar(waarde){
+    app.cfg = { bestand:'e.txt', scheidingsteken:';', types:TYPES, filter:{ jaar:waarde } };
+    app.pasStandaardFilterToe();
+    return app.zichtJaar - app.huidigJaar();
+  }
+  function macroJaar(waarde){
+    /* De kop eindigt op het jaar, maar alleen als dat niet het huidige is --
+       anders eindigt hij op het categoriebereik. Er is dus een voorafgaande
+       spatie nodig, en een jaartal mag ook gebroken of te groot zijn, want
+       juist dat hoort deze controle te vinden. */
+    var uit = String(macro(DATA, '@a', JSON.stringify(
+      { bestand:'e.txt', scheidingsteken:';', types:TYPES, filter:{ jaar:waarde } })))
+      .replace(/<[^>]*>/g, '').split('\n')[0];
+    var m = /\s(-?\d{3,6}(?:\.\d+)?)$/.exec(uit);
+    return m ? +m[1] - app.huidigJaar() : 0;
+  }
+  [['een jaar vooruit', 1, 1], ['een jaar terug', -1, -1], ['dit jaar', 0, 0],
+   ['vijfhonderd jaar vooruit', 500, 0], ['vijfhonderd jaar terug', -500, 0],
+   ['honderd jaar vooruit', 100, 100], ['honderdeen jaar vooruit', 101, 0],
+   ['een gebroken getal', 1.7, 2], ['tekst in plaats van een getal', '1', 0],
+   ['een onzinnige tekst', 'abc', 0], ['waar in plaats van een getal', true, 0],
+   ['een onmogelijk groot getal', 99999, 0]].forEach(function(p){
+    eis('jaar ' + p[0] + ' in de app', appJaar(p[1]), p[2]);
+    eis('en in de macro', macroJaar(p[1]), p[2]);
+  });
+
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.gelijkgezet(); app.render();
+}
+
+/* ------------------ de vijfde weekdag en 29 februari ------------------ */
+/* Twee afspraken die bewust verschillen tussen app en macro. Ze staan hier
+   vast zoals ze zijn, niet omdat ze mooi zijn maar omdat ze bedoeld zijn: als
+   iemand de weekdagberekening aanraakt, valt deze groep om en zie je het.
+   De beschrijving staat boven beide bestanden. */
+function testVijfdeWeekdag(macro){
+  groep('De vijfde weekdag en 29 februari, zoals bedoeld');
+
+  var CFG = JSON.stringify({ types:[{ omschrijving:'Feestdag', teken:'^' }] });
+
+  /* de app: de rauwe berekening en wat de gebruiker ziet */
+  function appRuw(code, jaar){
+    var st = app.decode(code);
+    var d = app.ndeWeekdag(jaar, st.wmaand, st.weekdag, st.nde);
+    return d === null ? '(geen)' : app.datumTekst(d);
+  }
+  function appTekst(code, jaar){ return app.datumInJaar(code, jaar); }
+  /* De macro: de datum in het weergavejaar. Dat jaar gaat via de vraag, want
+     "vandaag" ligt bij het laden vast en is van buiten niet te zetten. Het
+     rapport begint met een kop en een lege regel; daarna per event een blok,
+     waarin de eerste dd-mm-jjjj de datum in het weergavejaar is. */
+  function macroDatum(code, jaar){
+    var uit = String(macro('X, test;Xtest;Feestdag;' + code + ';1', '@a 1-4 ' + jaar, CFG))
+      .replace(/<[^>]*>/g, '');
+    var m = /(\d{2}-\d{2}-\d{4})/.exec(uit.split('\n\n').slice(1).join('\n'));
+    return m ? m[1] : '(geen)';
+  }
+
+  /* 1. een vijfde weekdag die er wel is: beide hetzelfde */
+  eis('5e zondag mei 2026 bestaat, de app geeft hem',
+      appRuw('D00070505', 2026), 'zondag 31 mei 2026');
+  eis('en de macro ook', macroDatum('D00070505', 2026), '31-05-2026');
+  eis('5e vrijdag april 2027 bestaat ook', appRuw('D00050405', 2027), 'vrijdag 30 april 2027');
+  eis('en in de macro', macroDatum('D00050405', 2027), '30-04-2027');
+
+  /* 2. een vijfde weekdag die er niet is: hier lopen ze bewust uiteen */
+  eis('5e maandag februari 2026 bestaat niet; de app geeft geen datum',
+      appRuw('D00010205', 2026), '(geen)');
+  eis('en zegt dat ook', appTekst('D00010205', 2026), 'bestaat niet in 2026');
+  eis('de macro rolt door naar de volgende maand — bedoeld gedrag',
+      macroDatum('D00010205', 2026), '02-03-2026');
+  eis('5e zondag mei 2024 bestaat niet in de app', appRuw('D00070505', 2024), '(geen)');
+  eis('en de macro geeft 2 juni 2024 — zelfde afspraak',
+      macroDatum('D00070505', 2024), '02-06-2024');
+
+  /* 3. de laatste weekdag blijft wel in de maand, in beide */
+  eis('laatste zondag maart 2026 in de app', appRuw('D00070399', 2026), 'zondag 29 maart 2026');
+  eis('en in de macro', macroDatum('D00070399', 2026), '29-03-2026');
+  eis('laatste zondag oktober 2026 in de app', appRuw('D00071099', 2026), 'zondag 25 oktober 2026');
+  eis('en in de macro', macroDatum('D00071099', 2026), '25-10-2026');
+
+  /* 4. 29 februari: beide wijzen naar de eerstvolgende keer, in een andere vorm */
+  eis('de app heeft 29 februari niet in 2026',
+      app.eventDatum({ code:'D00000229' }, 2026), null);
+  eis('en noemt het eerstvolgende jaar',
+      /eerstvolgend in 2028/.test(appTekst('D00000229', 2026)), true);
+  eis('de macro toont die eerstvolgende datum', macroDatum('D00000229', 2026), '29-02-2028');
+  eis('in een schrikkeljaar zijn ze gelijk — app',
+      app.datumInJaar('D00000229', 2028), 'dinsdag 29 februari 2028');
+  eis('en macro', macroDatum('D00000229', 2028), '29-02-2028');
+
+  /* 5. de kandidaatlus in matchDate: een 29 februari die niet bestaat sluit
+        geen geldig ander jaar uit, want geen venster omspant er twee */
+  ['@a 1-4 2027', '@j 1-4 2027', '@feb 1-4 2027', '@w 1-4 2027', '@m 1-4 2027',
+   '@a 1-4 2028', '@feb 1-4 2028'].forEach(function(q){
+    var uit = String(macro('Schrikkel;Schrikkel;Feestdag;D00000229;1', q, CFG))
+      .replace(/<[^>]*>/g, '');
+    eis('vraag "' + q + '" levert nooit meer dan een treffer op dit ene event',
+        /^[01]\/1\b/.test(uit), true);
+  });
+}
+
+/* ------------------ de macro valt nooit om ------------------ */
+/* Een interne fout mag niet als exception bij MacroDroid belanden: dan is er
+   geen uitvoer, en een melding die wegvalt lijkt op "niets te melden". De macro
+   geeft bij een fout een regel die met '! ' begint, en die is niet te verwarren
+   met "0;0" of met een naamregel. */
+function testMacroFouten(macro){
+  groep('De macro valt nooit om');
+
+  var CFG = JSON.stringify({ types:[{ omschrijving:'Geboren', teken:'+' }] });
+  var SCHOON = 'A, test;A;Geboren;D19800101;1';
+
+  function uit(data, vraag, cfg){
+    try { return { tekst:String(macro(data, vraag, cfg)) }; }
+    catch(e){ return { gooit:e.name }; }
+  }
+
+  /* Drie invoeren die de macro eerder lieten omvallen. Die worden nu gewoon
+     verwerkt: een rotte regel in de configuratie wordt overgeslagen, en geen
+     gegevens is geen fout maar een leeg bestand. */
+  var kapotteCfg = uit(SCHOON, '@a 1-4', '{"categorieen":[null]}');
+  eis('een configuratie met een lege categorieregel wordt verwerkt',
+      /1\/1/.test(kapotteCfg.tekst || ''), true);
+  eis('en levert geen foutregel op', /^! fout /.test(kapotteCfg.tekst || ''), false);
+  eis('een hogere categorie naast die lege regel telt wel mee',
+      /\? categorie/.test(uit('A;a;Geboren;D20000101;9', '@a 1-9',
+                              '{"categorieen":[null,{"nr":9}]}').tekst || ''), false);
+  [['geen gegevens (null)', null], ['geen gegevens (undefined)', undefined]].forEach(function(p){
+    var r = uit(p[1], '@a 1-4', CFG);
+    eis(p[0] + ' geldt als een leeg bestand', /0\/0/.test(r.tekst || ''), true);
+    eis('en levert geen foutregel op', /^! fout /.test(r.tekst || ''), false);
+    eis('en in de melding gewoon 0;0', uit(p[1], '@!', CFG).tekst, '0;0');
+  });
+
+  /* De vangnet-constructie zelf: een invoer die binnen de macro echt een fout
+     veroorzaakt. Dit is het onderscheid waar het om gaat -- zo'n fout mag niet
+     lijken op "niets te melden". */
+  var stuk = { toString: function(){ throw new Error('kapot'); } };
+  var fout = uit(stuk, '@!', CFG);
+  eis('een interne fout laat de macro niet omvallen', !!fout.tekst, true);
+  eis('en komt er als een foutregel uit', /^! fout /.test(fout.tekst || ''), true);
+  eis('die begint niet met 0;0', (fout.tekst || '').indexOf('0;0'), -1);
+  eis('de soort fout staat erbij', /Error/.test(fout.tekst || ''), true);
+  eis('het is een regel, geen lap tekst', (fout.tekst || '').indexOf('\n'), -1);
+  eis('ook in de html-vorm komt er een foutregel',
+      /^! fout /.test(uit(stuk, '@a 1-4', CFG).tekst || ''), true);
+
+  /* en het meldingsprotocol zelf blijft letterlijk zoals het was */
+  eis('een schoon bestand zonder events vandaag en morgen geeft nog 0;0',
+      uit(SCHOON, '@!', CFG).tekst, '0;0');
+  eis('een leeg bestand ook', uit('', '@!', CFG).tekst, '0;0');
+
+  /* een fout in een record hoort de rest niet te blokkeren */
+  var gemengd = ['Goed, een;Goed;Geboren;D19800101;1',
+                 'Stuk, een;Stuk;Onbekend;Dxxxx;9',
+                 'Goed, twee;Ook goed;Geboren;D19800102;1'].join('\n');
+  var r2 = uit(gemengd, '@a 1-4', CFG);
+  eis('een kapot record blokkeert de andere niet', /2\/3/.test(r2.tekst || ''), true);
+  eis('en wordt wel gemeld', /fout\(en\)/.test(r2.tekst || ''), true);
+
+  /* onverwachte soorten invoer leveren uitvoer, geen exception */
+  [['een getal als gegevens', 12345], ['een object als gegevens', { a:1 }],
+   ['een lijst als gegevens', ['A;a;Geboren;D20000101;1']]].forEach(function(p){
+    eis(p[0] + ' levert uitvoer op', !!uit(p[1], '@a 1-4', CFG).tekst, true);
+  });
+  [['een getal als vraag', 42], ['een object als vraag', { a:1 }], ['null als vraag', null]]
+    .forEach(function(p){
+      eis(p[0] + ' levert uitvoer op', !!uit(SCHOON, p[1], CFG).tekst, true);
+    });
+
+  /* en een onbruikbare configuratie valt terug op de eigen standaard */
+  ['', 'geen json', '[1,2,3]', 'null', '7', '{"types":"abc"}', '{"types":[null]}',
+   '{"filter":[1,2]}', '{"scheidingsteken":"abc"}'].forEach(function(c){
+    var r = uit(SCHOON, '@a 1-4', c);
+    eis('configuratie ' + JSON.stringify(c.slice(0, 22)) + ' blokkeert niets', !!r.tekst, true);
+  });
+}
+
+/* ------------------ de terugval zonder File System Access ------------------ */
+/* In een browser die niet in een map mag schrijven downloadt de app het bestand
+   en zet jij het zelf terug. Of die download is gelukt kan de app niet weten,
+   dus mag hij nooit melden dat de gegevens veilig staan. */
+function testTerugval(){
+  groep('Downloaden in een browser zonder maptoegang');
+
+  var bewaard = { hasFSA:app.hasFSA, dirHandle:app.dirHandle, cfg:app.cfg,
+                  fileState:app.fileState, bestandsnaam:app.bestandsnaam,
+                  records:app.records, selIndex:app.selIndex };
+  app.hasFSA = false; app.dirHandle = null;
+  app.cfg = { bestand:'events.txt', scheidingsteken:';' };
+  app.fileState = 'ok'; app.bestandsnaam = 'events.txt'; app.selIndex = -1;
+  app.saveState = '';
+  app.records = app.parse(PROEF);
+  app.gelijkgezet();
+  app.gedownloadVersie = null;
+  app.render();
+  eis('net ingelezen staat alles gelijk', app.opslagStand().tekst, 'opgeslagen');
+
+  /* een wijziging, en dan opslaan: dat kan hier niet */
+  app.records.push({ sleutel:'Z, test', naam:'Z', type:'Geboren',
+                     code:'D20000101', cat:1, notitie:'', id:999 });
+  app.wijzig(); app.render();
+  eis('na een wijziging is er iets niet opgeslagen', app.nietOpgeslagen(), true);
+  eis('en dat staat er ook', app.opslagStand().tekst, 'niet opgeslagen');
+  app.bewaar();
+  eis('opslaan doet hier niets en meldt niets onwaar', app.opslagStand().tekst, 'niet opgeslagen');
+
+  /* downloaden: de klik op het ankerelement onderdrukken, anders start er een
+     echte download in het testvenster */
+  var echteKlik = app.HTMLAnchorElement.prototype.click;
+  app.HTMLAnchorElement.prototype.click = function(){};
+  app.downloaden();
+  app.HTMLAnchorElement.prototype.click = echteKlik;
+
+  eis('na de download geldt de wijziging nog steeds als niet opgeslagen',
+      app.nietOpgeslagen(), true);
+  eis('en de app zegt niet dat het is opgeslagen',
+      app.opslagStand().tekst, 'gedownload, niet automatisch opgeslagen');
+  eis('de melding onder de header zegt wat je zelf nog moet doen',
+      /Zet het bestand zelf terug/.test(app.document.getElementById('filebar').textContent), true);
+
+  /* en na een volgende wijziging is ook die download achterhaald */
+  app.records.push({ sleutel:'Y, test', naam:'Y', type:'Geboren',
+                     code:'D20000102', cat:1, notitie:'', id:998 });
+  app.wijzig(); app.render();
+  eis('een wijziging na de download maakt die achterhaald',
+      app.opslagStand().tekst, 'niet opgeslagen');
+
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.gedownloadVersie = null; app.gelijkgezet(); app.render();
+}
+
+/* ------------------ elke modal sluit op beide manieren ------------------ */
+/* Veertien modals gaan dicht met hun annuleerknop en met een klik naast de
+   modal. De koppeling tussen knop en modal staat hier met de hand uitgeschreven
+   en wordt dus niet uit de app overgenomen: dat is precies wat deze groep
+   nakijkt. Vier gevallen wijken af en houden hun eigen gedrag. */
+var SLUITPAREN = [
+  ['filterCancel',  'filterModal'],
+  ['infoOk',        'infoModal'],
+  ['pickCancel',    'picker'],
+  ['icoonCancel',   'icoonModal'],
+  ['checkOk',       'checkModal'],
+  ['cfgCancel',     'cfgModal'],
+  ['typeCancel',    'typeModal'],
+  ['ndeCancel',     'ndeModal'],
+  ['weekdagCancel', 'weekdagModal'],
+  ['dagCancel',     'dagModal'],
+  ['jaarCancel',    'jaarModal'],
+  ['maandCancel',   'maandModal'],
+  ['pasenCancel',   'pasenModal'],
+  ['catCancel',     'catModal']
+];
+
+function testSluiten(){
+  groep('Elke modal sluit op beide manieren');
+
+  var d = app.document;
+  while(app.bovensteModaal()) app.bergModaal(app.bovensteModaal());
+
+  SLUITPAREN.forEach(function(p){
+    var knop = p[0], id = p[1];
+    /* met de knop */
+    app.toonModaal(id);
+    var open = !d.getElementById(id).hidden && app.bovensteModaal() === id;
+    var k = d.getElementById(knop);
+    if(k) k.click();
+    eis(id + ' sluit met ' + knop,
+        open && d.getElementById(id).hidden && app.bovensteModaal() !== id, true);
+
+    /* met een klik naast de modal */
+    app.toonModaal(id);
+    d.getElementById(id).click();
+    eis(id + ' sluit met een klik ernaast',
+        d.getElementById(id).hidden && app.bovensteModaal() !== id, true);
+  });
+
+  /* de vier afwijkende gevallen */
+  app.toonModaal('modal');
+  d.getElementById('mCancel').click();
+  eis('de bewerkmodal sluit met Annuleren', d.getElementById('modal').hidden, true);
+  app.toonModaal('modal');
+  d.getElementById('modal').click();
+  eis('en met een klik ernaast', d.getElementById('modal').hidden, true);
+
+  var geroepen = 0;
+  app.vraag('Titel', 'Tekst', 'Doen', function(){ geroepen++; });
+  d.getElementById('cNo').click();
+  eis('de vraag sluit met Annuleren', d.getElementById('confirm').hidden, true);
+  eis('en doet dan niets', geroepen, 0);
+  eis('en vergeet wat er moest gebeuren', app.confirmCb, null);
+
+  app.vraag('Titel', 'Tekst', 'Doen', function(){ geroepen++; });
+  d.getElementById('cYes').click();
+  eis('de vraag sluit met de bevestiging', d.getElementById('confirm').hidden, true);
+  eis('en doet dan wel wat er moest gebeuren', geroepen, 1);
+  eis('en vergeet het daarna', app.confirmCb, null);
+
+  app.vraag('Titel', 'Tekst', 'Doen', function(){ geroepen++; });
+  d.getElementById('confirm').click();
+  eis('de vraag sluit ook met een klik ernaast', d.getElementById('confirm').hidden, true);
+  eis('en doet dan niets', geroepen, 1);
+
+  while(app.bovensteModaal()) app.bergModaal(app.bovensteModaal());
+  app.render();
+}
+
+/* ------------------ een stap terug en weer vooruit ------------------ */
+/* De app bewaart een stap terug als een verschil, niet als een kopie van alle
+   records: het nummer van het record en wat er stond. Hier wordt dat heen en
+   terug gedraaid voor alle drie de soorten wijzigingen. */
+function testUndo(){
+  groep('Een stap terug en weer vooruit');
+
+  var bewaard = { records:app.records, cfg:app.cfg, fileState:app.fileState,
+                  bestandsnaam:app.bestandsnaam, hasFSA:app.hasFSA, selIndex:app.selIndex };
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.fileState = 'ok'; app.bestandsnaam = 'e.txt';
+  /* niet echt naar een map schrijven in deze groep */
+  app.hasFSA = false;
+  app.selIndex = -1;
+
+  function opzetten(){
+    app.records = app.parse(PROEF);
+    app.sorteer();
+    app.terug = null;
+    app.gelijkgezet();
+  }
+  function sleutels(){
+    return app.records.map(function(r){ return r.raw !== undefined ? '(raw)' : r.sleutel; }).join('|');
+  }
+
+  /* 1. toevoegen, terug, en weer vooruit */
+  opzetten();
+  var begin = sleutels(), aantal = app.records.length;
+  var nieuw = { sleutel:'Zzz, test', naam:'Zzz', type:'Geboren',
+                code:'D20200101', cat:1, notitie:'', id:999 };
+  app.onthoud('Zzz', 'toegevoegd', 999);
+  app.records.push(nieuw); app.sorteer();
+  eis('na toevoegen staat er een record bij', app.records.length, aantal + 1);
+  eis('de knop biedt ongedaan maken aan', app.terug.herstel, false);
+  eis('en zegt wat er is gebeurd', app.terugTekst(), 'Zzz toegevoegd');
+  eis('een stap terug lukt', app.draaiTerug(), true);
+  eis('en haalt het record weer weg', sleutels(), begin);
+  eis('daarna biedt de knop opnieuw aan', app.terug.herstel, true);
+  eis('en zegt wat terugdraaien deed', app.terugTekst(), 'Zzz verwijderd');
+  eis('opnieuw lukt ook', app.draaiTerug(), true);
+  eis('en zet het record terug', app.records.length, aantal + 1);
+  eis('op dezelfde plek in de sortering',
+      app.records.filter(function(r){ return r.sleutel === 'Zzz, test'; }).length, 1);
+
+  /* 2. wijzigen, terug, en weer vooruit */
+  opzetten();
+  var i0 = app.records.findIndex(function(r){ return r.sleutel === 'Arvenlo, Sinka'; });
+  var oud = app.records[i0];
+  var gewijzigd = { sleutel:oud.sleutel, naam:'Andere naam', type:oud.type,
+                    code:oud.code, cat:oud.cat, notitie:'', id:oud.id };
+  app.onthoud('Sinka Arvenlo', 'gewijzigd', oud.id, oud);
+  app.records[i0] = gewijzigd; app.sorteer();
+  eis('na wijzigen staat de nieuwe naam er',
+      app.records[app.zoekOpId(oud.id)].naam, 'Andere naam');
+  eis('de knop zegt wat er is gebeurd', app.terugTekst(), 'Sinka Arvenlo gewijzigd');
+  eis('een stap terug lukt', app.draaiTerug(), true);
+  eis('en zet de oude naam terug',
+      app.records[app.zoekOpId(oud.id)].naam, 'Sinka Arvenlo');
+  eis('de knop zegt dan hersteld', app.terugTekst(), 'Sinka Arvenlo hersteld');
+  eis('opnieuw lukt ook', app.draaiTerug(), true);
+  eis('en zet de nieuwe naam weer terug',
+      app.records[app.zoekOpId(oud.id)].naam, 'Andere naam');
+  eis('het aantal records verandert niet', app.records.length, 11);
+
+  /* 3. verwijderen, terug, en weer vooruit */
+  opzetten();
+  var i1 = app.records.findIndex(function(r){ return r.sleutel === 'Kerst, Eerste'; });
+  var weg = app.records[i1];
+  app.onthoud('Eerste Kerstdag', 'verwijderd', weg.id);
+  app.terug.rec = weg;
+  app.records.splice(i1, 1); app.sorteer();
+  eis('na verwijderen is het record weg', app.zoekOpId(weg.id), -1);
+  eis('de knop zegt wat er is gebeurd', app.terugTekst(), 'Eerste Kerstdag verwijderd');
+  eis('een stap terug lukt', app.draaiTerug(), true);
+  eis('en zet het record terug', app.records.length, 11);
+  eis('met dezelfde inhoud', app.records[app.zoekOpId(weg.id)].naam, 'Eerste Kerstdag');
+  eis('de knop zegt dan toegevoegd', app.terugTekst(), 'Eerste Kerstdag toegevoegd');
+  eis('opnieuw lukt ook', app.draaiTerug(), true);
+  eis('en haalt het record weer weg', app.zoekOpId(weg.id), -1);
+
+  /* 4. opnieuw inlezen laat de stap terug vervallen: de nummers worden
+        opnieuw uitgedeeld en zouden naar een ander record wijzen */
+  app.onthoud('Iets', 'toegevoegd', 1);
+  app.records = app.parse(PROEF);
+  eis('opnieuw inlezen laat de stap terug vervallen', app.terug, null);
+
+  /* 5. een stap terug naar een record dat er niet meer is mislukt netjes */
+  opzetten();
+  app.onthoud('Spook', 'gewijzigd', 123456, { sleutel:'x', naam:'x', type:'Geboren',
+                                              code:'D20000101', cat:1, notitie:'', id:123456 });
+  eis('een stap terug naar een onbekend record mislukt netjes', app.draaiTerug(), false);
+  eis('en laat de records ongemoeid', app.records.length, 11);
+
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.terug = null; app.gelijkgezet(); app.render();
+}
+
+/* ------------------ filters, los en gecombineerd ------------------ */
+function testFilters(){
+  groep('Filters, los en gecombineerd');
+
+  var bewaard = { records:app.records, cfg:app.cfg, fileState:app.fileState,
+                  zichtJaar:app.zichtJaar, datumFilter:app.datumFilter,
+                  zoekterm:app.zoekterm, filterAan:app.filterAan,
+                  filterType:app.filterType, filterCatVan:app.filterCatVan,
+                  filterCatTot:app.filterCatTot, filterNotitie:app.filterNotitie };
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.fileState = 'ok';
+  app.records = app.parse(PROEF);
+  app.sorteer();
+  app.zichtJaar = 2026;
+
+  /* alles op de uitgangsstand, dan een filter zetten en tellen */
+  function tel(zet){
+    app.datumFilter = ''; app.zoekterm = ''; app.filterAan = true;
+    app.filterType = ''; app.filterCatVan = 0; app.filterCatTot = 0;
+    app.filterNotitie = false;
+    if(zet) zet();
+    return app.zichtbaar().length;
+  }
+
+  var alles = tel();
+  eis('zonder filter zijn alle leesbare records te zien', alles, 11);
+
+  /* los */
+  eis('filter op type Geboren', tel(function(){ app.filterType = 'Geboren'; }), 2);
+  /* Kerst, Nieuwjaar, Moederdag, Pasen, Hemelvaart en Carnaval */
+  eis('filter op type Feestdag', tel(function(){ app.filterType = 'Feestdag'; }), 6);
+  eis('filter op categorie 1', tel(function(){ app.filterCatVan = 1; app.filterCatTot = 1; }), 7);
+  eis('filter op categorie 2', tel(function(){ app.filterCatVan = 2; app.filterCatTot = 2; }), 4);
+  eis('filter op categorie 1 tot 2', tel(function(){ app.filterCatVan = 1; app.filterCatTot = 2; }), 11);
+  eis('filter op alleen met notitie', tel(function(){ app.filterNotitie = true; }), 1);
+  eis('filter op onvolledige datums', tel(function(){ app.datumFilter = 'onbekend'; }), 2);
+  eis('filter op december', tel(function(){ app.datumFilter = '12'; }), 1);
+  eis('filter op februari', tel(function(){ app.datumFilter = '2'; }), 2);
+
+  /* gecombineerd */
+  /* alle feestdagen in de proefgegevens staan in categorie 1 */
+  eis('type en categorie samen',
+      tel(function(){ app.filterType = 'Feestdag'; app.filterCatVan = 1; app.filterCatTot = 1; }), 6);
+  eis('type en categorie die niets overlaten',
+      tel(function(){ app.filterType = 'Feestdag'; app.filterCatVan = 2; app.filterCatTot = 2; }), 0);
+  eis('categorie en notitie samen',
+      tel(function(){ app.filterCatVan = 2; app.filterCatTot = 2; app.filterNotitie = true; }), 1);
+  eis('type en maand samen',
+      tel(function(){ app.filterType = 'Feestdag'; app.datumFilter = '12'; }), 1);
+  eis('notitie en onvolledige datum samen',
+      tel(function(){ app.filterNotitie = true; app.datumFilter = 'onbekend'; }), 1);
+  eis('alle drie de filters samen',
+      tel(function(){ app.filterType = 'Getrouwd'; app.filterCatVan = 2; app.filterCatTot = 2;
+                       app.filterNotitie = true; }), 1);
+
+  /* de filterschakelaar zet het hele filter uit, de datumperiode blijft */
+  eis('met het filter uit doet type niet mee',
+      tel(function(){ app.filterType = 'Geboren'; app.filterAan = false; }), 11);
+  eis('maar de periode wel',
+      tel(function(){ app.filterType = 'Geboren'; app.filterAan = false;
+                       app.datumFilter = '12'; }), 1);
+
+  /* zoeken naast filteren */
+  eis('zoeken op een naam', tel(function(){ app.zoekterm = 'sinka'; }), 1);
+  eis('zoeken met het of-teken', tel(function(){ app.zoekterm = 'sinka|kerst'; }), 2);
+  eis('zoeken en een type dat niet past',
+      tel(function(){ app.zoekterm = 'sinka'; app.filterType = 'Feestdag'; }), 0);
+  eis('zoeken en een type dat wel past',
+      tel(function(){ app.zoekterm = 'sinka'; app.filterType = 'Geboren'; }), 1);
+  eis('zoeken op een notitie', tel(function(){ app.zoekterm = 'met notitie'; }), 1);
+  eis('zoeken op iets dat er niet is', tel(function(){ app.zoekterm = 'qqq'; }), 0);
+
+  /* het jaar van de weergave */
+  eis('29 februari bestaat niet in 2026',
+      tel(function(){ app.datumFilter = '2'; app.zichtJaar = 2026; app.zoekterm = 'jovek'; }), 0);
+  app.zichtJaar = 2024;
+  eis('en in 2024 wel',
+      tel(function(){ app.datumFilter = '2'; app.zoekterm = 'jovek'; }), 1);
+  app.zichtJaar = 2026;
+
+  /* Wat in de filtermodal is gekozen moet volledig worden overgenomen: type,
+     categoriebereik, notitie en het jaar. Dat gebeurt op een plek, en zonder
+     deze controle zou een vergeten veld niet opvallen. */
+  tel();
+  app.fType = 'Feestdag'; app.fcVan = 1; app.fcTot = 2; app.fNot = true; app.fJaar = 2030;
+  app.datumFilter = '';
+  app.neemFilterOver();
+  eis('het type wordt overgenomen', app.filterType, 'Feestdag');
+  eis('het begin van het categoriebereik ook', app.filterCatVan, 1);
+  eis('en het einde', app.filterCatTot, 2);
+  eis('de notitie-schakelaar ook', app.filterNotitie, true);
+  eis('en het jaar', app.zichtJaar, 2030);
+  /* een periode die op vandaag is gebaseerd zegt niets in een ander jaar */
+  app.datumFilter = '~week'; app.fJaar = 2030;
+  app.neemFilterOver();
+  eis('een periode rond vandaag valt weg in een ander jaar', app.datumFilter, '');
+  app.datumFilter = '~week'; app.fJaar = app.huidigJaar();
+  app.neemFilterOver();
+  eis('maar blijft staan in het huidige jaar', app.datumFilter, '~week');
+  app.zichtJaar = 2026; app.datumFilter = '';
+
+  /* bij elk filter hoort een datum in de tabel, ook zonder periode */
+  tel();
+  var metDatum = 0, lijst = app.zichtbaar();
+  lijst.forEach(function(i){ if(app.datumVan[i]) metDatum++; });
+  /* 11 min de twee onvolledige datums, en min 29 februari dat in 2026 niet bestaat */
+  eis('zonder periode staat er toch een datum bij elk event met een datum',
+      metDatum, 8);
+
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.render();
+}
+
+/* ------------------ focus en toetsenbord rond de modals ------------------ */
+/* Tab wordt hier nagebootst met de regel die de browser zelf aanhoudt: de
+   volgorde van focusbare elementen in het document. De app grijpt in op
+   keydown, dus die aanslag wordt echt afgevuurd op het document van de app. */
+function testFocus(){
+  groep('Focus en toetsenbord rond de modals');
+
+  var d = app.document;
+  var bewaard = { fileState:app.fileState, bestandsnaam:app.bestandsnaam,
+                  hasFSA:app.hasFSA, cfg:app.cfg, records:app.records, selIndex:app.selIndex };
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.fileState = 'ok'; app.bestandsnaam = 'e.txt'; app.hasFSA = true;
+  app.records = app.parse(PROEF);
+  /* niets geselecteerd, anders staat de knop waarmee we openen op hidden en
+     kan die de focus niet krijgen */
+  app.selIndex = -1;
+  app.gelijkgezet(); app.render();
+
+  /* eerst opruimen: eerdere groepen laten modals openstaan */
+  while(app.bovensteModaal()) app.bergModaal(app.bovensteModaal());
+
+  /* Een Tab-aanslag afvuren en, als de app hem niet tegenhoudt, zelf de focus
+     verzetten zoals de browser dat zou doen: naar het volgende focusbare
+     element in documentvolgorde. Staat de focus op iets dat zelf niet focusbaar
+     is -- zoals het kader van een modal -- dan gaat de browser verder bij het
+     eerste element dat erna komt, niet bij het begin van de pagina. */
+  function tab(shift){
+    var ev = new app.KeyboardEvent('keydown', { key:'Tab', shiftKey:!!shift,
+                                                bubbles:true, cancelable:true });
+    var voor = d.activeElement;
+    d.dispatchEvent(ev);
+    if(ev.defaultPrevented) return;
+    var alle = app.focusbaar(d.body);
+    if(!alle.length) return;
+    var i = alle.indexOf(voor);
+    if(i < 0){
+      /* documentvolgorde: DOCUMENT_POSITION_FOLLOWING is 4 */
+      var na = -1;
+      for(var j = 0; j < alle.length; j++){
+        if(voor && (voor.compareDocumentPosition(alle[j]) & 4)){ na = j; break; }
+      }
+      i = shift ? (na < 0 ? alle.length : na) : (na < 0 ? -1 : na - 1);
+    }
+    var volgende = alle[(i + (shift ? -1 : 1) + alle.length) % alle.length];
+    if(volgende) volgende.focus();
+  }
+  function binnen(id){ return d.getElementById(id).contains(d.activeElement); }
+
+  /* 1. de focus hoort de modal in te gaan, maar niet in een invoerveld: op een
+        telefoon zou het toetsenbord dan over het formulier schuiven */
+  d.getElementById('btnNew').focus();
+  eis('voor het openen staat de focus op de knop', d.activeElement.id, 'btnNew');
+  app.openModal(-1);
+  eis('na het openen staat de focus in de modal', binnen('modal'), true);
+  eis('en niet in een invoerveld',
+      ['INPUT','TEXTAREA','SELECT'].indexOf(d.activeElement.tagName) < 0, true);
+
+  /* 2. Tab mag er niet uit, heen en terug */
+  var eruit = 0, langs = {};
+  for(var i = 0; i < 30; i++){
+    tab(false);
+    if(!binnen('modal')) eruit++;
+    langs[d.activeElement.id || d.activeElement.className] = true;
+  }
+  eis('dertig keer Tab komt niet buiten de modal', eruit, 0);
+  eis('en loopt wel langs meer dan een element', Object.keys(langs).length > 1, true);
+  eruit = 0;
+  for(i = 0; i < 30; i++){ tab(true); if(!binnen('modal')) eruit++; }
+  eis('dertig keer Shift+Tab ook niet', eruit, 0);
+
+  /* 3. bij sluiten komt de focus terug waar hij was */
+  app.sluitModal();
+  eis('na het sluiten staat de focus terug op de knop', d.activeElement.id, 'btnNew');
+
+  /* 4. twee modals op elkaar */
+  app.openModal(-1);
+  app.openTypeKeuze();
+  eis('de tweede modal krijgt de focus', binnen('typeModal'), true);
+  eruit = 0;
+  for(i = 0; i < 15; i++){ tab(false); if(!binnen('typeModal')) eruit++; }
+  eis('en Tab blijft in de bovenste modal', eruit, 0);
+  app.bergModaal('typeModal');
+  eis('bij sluiten komt de focus terug in de modal eronder', binnen('modal'), true);
+  app.bergModaal('modal');
+
+  /* 5. de bevestigingsvraag, die over een andere modal heen komt */
+  app.toonInfo(0);
+  eis('ook de bekijk-modal krijgt de focus', binnen('infoModal'), true);
+  app.bergModaal('infoModal');
+
+  /* 6. staat er niets open, dan laat de app Tab met rust */
+  d.getElementById('zoek').focus();
+  var ev = new app.KeyboardEvent('keydown', { key:'Tab', bubbles:true, cancelable:true });
+  d.dispatchEvent(ev);
+  eis('zonder open modal houdt de app Tab niet tegen', ev.defaultPrevented, false);
+
+  /* 7. elke modal heeft de rol en het label die een schermlezer nodig heeft */
+  var kaders = d.querySelectorAll('.modal[role="dialog"]');
+  eis('alle modals zijn als dialoog aangemerkt', kaders.length >= 13, true);
+  var zonderModal = Array.prototype.filter.call(kaders, function(k){
+    return k.getAttribute('aria-modal') !== 'true';
+  });
+  eis('en alle met aria-modal', zonderModal.length, 0);
+
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.gelijkgezet(); app.render();
+}
+
+/* ------------------ de service worker, nagespeeld ------------------ */
+/* sw-events.js wordt hier in een nagemaakte omgeving gedraaid: eigen caches,
+   eigen fetch, eigen clients. Zo zijn de drie levensfasen en alle vier de
+   strategieen na te kijken zonder een echte service worker te installeren.
+   De nagemaakte cache houdt, net als een echte, de hele URL als sleutel --
+   zoekstring inbegrepen. */
+function maakSwOmgeving(opzet){
+  var opslag = {}, gedaan = [], berichten = [], offline = false;
+  function Res(body, init){
+    init = init || {};
+    this.body = body;
+    this.init = init;
+    this.status = init.status === undefined ? 200 : init.status;
+    this.ok = this.status >= 200 && this.status < 300;
+    /* De worker bewaart alleen antwoorden van de eigen origin; die hebben in
+       een browser type 'basic'. Zonder dit veld zou de namaak nooit iets
+       bewaren en zou de achtergrondverversing stil niets doen. */
+    this.type = init.type || 'basic';
+    this.statusText = init.statusText || '';
+    /* kleine letters, zoals een echte Headers doet */
+    this.headers = { get:function(k){
+      var h = init.headers || {};
+      return h[k] !== undefined ? h[k] : h[String(k).toLowerCase()];
+    } };
+  }
+  /* een clone houdt de kopregels, anders is de ETag na een ronde door de cache
+     verdwenen en zou de updatecontrole niets te vergelijken hebben */
+  Res.prototype.clone = function(){ return new Res(this.body, this.init); };
+  Res.prototype.text = function(){ return Promise.resolve(this.body); };
+
+  function sleutelVan(k){
+    var s = (k && k.url) ? k.url : String(k);
+    try { var u = new URL(s, opzet.scope); return u.origin + u.pathname + u.search; }
+    catch(e){ return s; }
+  }
+  function vak(naam){
+    if(!opslag[naam]) opslag[naam] = {};
+    var m = opslag[naam];
+    return {
+      match: function(k){ return Promise.resolve(m[sleutelVan(k)]); },
+      put: function(k, res){ m[sleutelVan(k)] = res; return Promise.resolve(); },
+      add: function(u){
+        return haal(u).then(function(r){
+          if(!r.ok) throw new Error('404');
+          m[sleutelVan(u)] = r;
+        });
+      },
+      keys: function(){ return Promise.resolve(Object.keys(m)); }
+    };
+  }
+  function haal(req, init){
+    var s = (req && req.url) ? req.url : String(req);
+    var u = new URL(s, opzet.scope);
+    gedaan.push('netwerk ' + u.pathname);
+    if(offline) return Promise.reject(new Error('offline'));
+    var inhoud = opzet.server[u.pathname];
+    if(inhoud === undefined || inhoud === null) return Promise.resolve(new Res('weg', { status:404 }));
+    /* Een regel in de server mag ook { tekst, etag, gewijzigd, geenLengte }
+       zijn, zodat de updatecontrole in al zijn vormen te meten is. Een server
+       stuurt normaal een content-length mee; zonder etag is dat waar de
+       controle op terugvalt, en zonder allebei blijft alleen de inhoud over. */
+    var tekst = (typeof inhoud === 'object') ? inhoud.tekst : inhoud;
+    var kop = {};
+    if(typeof inhoud === 'object'){
+      if(inhoud.etag) kop.etag = inhoud.etag;
+      if(inhoud.gewijzigd) kop['last-modified'] = inhoud.gewijzigd;
+    }
+    if(!(typeof inhoud === 'object' && inhoud.geenLengte)){
+      kop['content-length'] = String(tekst.length);
+    }
+    var mee = (init && init.headers) || {};
+    var vraag = mee['If-None-Match'] || mee['if-none-match'];
+    if(typeof inhoud === 'object' && vraag && inhoud.etag && vraag === inhoud.etag &&
+       !inhoud.negeerVoorwaarde){
+      return Promise.resolve(new Res('', { status:304, headers:kop }));
+    }
+    /* een HEAD geeft de kopregels en geen lichaam */
+    if(init && init.method === 'HEAD'){
+      gedaan[gedaan.length - 1] = 'kopregels ' + u.pathname;
+      return Promise.resolve(new Res('', { status:200, headers:kop }));
+    }
+    return Promise.resolve(new Res(tekst, { status:200, headers:kop }));
+  }
+  var luisteraars = {};
+  return {
+    gedaan: gedaan, opslag: opslag, berichten: berichten, Res: Res, luisteraars: luisteraars,
+    zetOffline: function(v){ offline = v; },
+    heeft: function(cachenaam, url){
+      return !!(opslag[cachenaam] && opslag[cachenaam][sleutelVan(url)]);
+    },
+    cachenamen: function(){ return Object.keys(opslag).sort(); },
+    self_: {
+      location: { href:opzet.scope, origin:new URL(opzet.scope).origin },
+      addEventListener: function(n, f){ (luisteraars[n] = luisteraars[n] || []).push(f); },
+      skipWaiting: function(){ gedaan.push('skipWaiting'); return Promise.resolve(); },
+      clients: {
+        claim: function(){ gedaan.push('claim'); return Promise.resolve(); },
+        /* een nagemaakte open pagina, die onthoudt wat de worker stuurt */
+        matchAll: function(){ return Promise.resolve([{ postMessage: function(m){ berichten.push(m); } }]); }
+      }
+    },
+    caches_: {
+      open: function(n){ return Promise.resolve(vak(n)); },
+      keys: function(){ return Promise.resolve(Object.keys(opslag)); },
+      'delete': function(n){ var had = !!opslag[n]; delete opslag[n]; return Promise.resolve(had); }
+    },
+    haal: haal
+  };
+}
+function laadSw(bron, omg){
+  var fn = new Function('self', 'caches', 'fetch', 'Response', 'URL',
+                        'setTimeout', 'clearTimeout', bron);
+  fn(omg.self_, omg.caches_, omg.haal, omg.Res, URL, setTimeout, clearTimeout);
+}
+/* Een belofte die nooit terugkomt mag de zelftest niet laten hangen: dan zie je
+   geen uitslag maar een vastgelopen pagina. Na de grens komt GEEN terug en
+   wordt dat een rode regel. */
+var GEEN = { geenAntwoord:true };
+function binnen(belofte, ms){
+  return Promise.race([
+    Promise.resolve(belofte),
+    new Promise(function(k){ setTimeout(function(){ k(GEEN); }, ms); })
+  ]);
+}
+
+/* een gebeurtenis afvuren en wachten tot alles wat eraan hangt klaar is */
+function vuurSw(omg, naam, ev){
+  var wacht = [], antwoord;
+  ev.waitUntil = function(p){ wacht.push(p); };
+  ev.respondWith = function(p){ antwoord = p; };
+  (omg.luisteraars[naam] || []).forEach(function(f){ f(ev); });
+  return Promise.all(wacht).then(function(){ return antwoord; });
+}
+
+function testPWA(){
+  groep('De service worker');
+
+  var SCOPE = location.origin + '/';
+  var server = {
+    '/': 'INDEX', '/index.html': 'INDEX', '/events.html': 'EVENTS v1',
+    '/manifest.json': '{}', '/icon.svg': '<svg/>',
+    '/golf-score.html': 'GOLF', '/trends.html': 'TRENDS', '/events_lite.js': 'MACRO'
+  };
+
+  return fetch('sw-events.js', { cache:'no-store' }).then(function(r){
+    if(!r.ok) throw new Error('sw-events.js geeft status ' + r.status);
+    return r.text();
+  }).then(function(bron){
+    var versie = /CACHE_VERSION\s*=\s*(\d+)/.exec(bron);
+    var eigenCache = 'events-v' + (versie ? versie[1] : '?');
+    eis('de cachenaam begint met events-v', /^events-v\d+$/.test(eigenCache), true);
+
+    var omg = maakSwOmgeving({ scope:SCOPE, server:server });
+    laadSw(bron, omg);
+
+    /* caches van de buren en een oude van onszelf neerzetten */
+    return omg.caches_.open('golf-score-vtest').then(function(c){
+      return c.put(SCOPE + 'golf-score.html', new omg.Res('GOLF'));
+    }).then(function(){
+      return omg.caches_.open('trends-vtest').then(function(c){
+        return c.put(SCOPE + 'trends.html', new omg.Res('TRENDS'));
+      });
+    }).then(function(){
+      return omg.caches_.open('events-v1').then(function(c){
+        return c.put(SCOPE + 'events.html', new omg.Res('HEEL OUD'));
+      });
+    }).then(function(){
+      return vuurSw(omg, 'install', {});
+    }).then(function(){
+      eis('bij installeren stapt de nieuwe versie niet zelf over',
+          omg.gedaan.indexOf('skipWaiting') < 0, true);
+      eis('de eigen bestanden staan in de cache', omg.heeft(eigenCache, SCOPE + 'events.html'), true);
+      return vuurSw(omg, 'activate', {});
+    }).then(function(){
+      var namen = omg.cachenamen();
+      eis('de cache van Golf Score blijft staan', namen.indexOf('golf-score-vtest') >= 0, true);
+      eis('die van Trends ook', namen.indexOf('trends-vtest') >= 0, true);
+      eis('een oude cache van Events wordt opgeruimd', namen.indexOf('events-v1') < 0, true);
+      eis('en de eigen cache blijft', namen.indexOf(eigenCache) >= 0, true);
+
+      function vraag(pad, mode){
+        omg.gedaan.length = 0;
+        return vuurSw(omg, 'fetch', { request:{ method:'GET', url:SCOPE.slice(0, -1) + pad,
+                                                mode: mode || 'no-cors' } });
+      }
+
+      /* 1. bestanden van de buren niet aankomen */
+      return vraag('/golf-score.html').then(function(res){
+        eis('een bestand van Golf Score wordt niet afgehandeld', res, undefined);
+        eis('en komt niet in de cache van Events',
+            omg.heeft(eigenCache, SCOPE + 'golf-score.html'), false);
+        return vraag('/events_lite.js');
+      }).then(function(res){
+        eis('de macro hoort niet bij de offline-kopie en wordt niet afgehandeld', res, undefined);
+
+        /* 2. De pagina komt meteen uit de cache -- niemand wacht op het
+              netwerk -- en daarnaast loopt een verzoek dat de kopie ververst.
+              Die verversing is wat de app later het nieuwe versienummer laat
+              zien; de worker oordeelt daar zelf niet meer over. */
+        server['/events.html'] = 'EVENTS v2';
+        return vraag('/events.html', 'navigate');
+      }).then(function(res){
+        eis('bij een cachetreffer gaat het netwerk er wel naast',
+            omg.gedaan.filter(function(x){ return x.indexOf('netwerk') === 0; }).length, 1);
+        return res.text();
+      }).then(function(t){
+        eis('maar het antwoord komt uit de cache, niet van het netwerk', t, 'EVENTS v1');
+        return tot(function(){
+          var r = omg.opslag[eigenCache][SCOPE + 'events.html'];
+          return !!(r && r.body === 'EVENTS v2');
+        }, 3000);
+      }).then(function(){
+        var regel = omg.opslag[eigenCache][SCOPE + 'events.html'];
+        eis('en de kopie is op de achtergrond ververst', regel && regel.body, 'EVENTS v2');
+        return vraag('/events.html?cfg=werk.json', 'navigate').then(function(r){ return r.text(); });
+      }).then(function(t){
+        eis('een navigatie met ?cfg= vindt dezelfde kopie', t, 'EVENTS v2');
+
+        /* 3. offline: nog steeds die kopie */
+        omg.zetOffline(true);
+        return vraag('/events.html', 'navigate').then(function(r){ return r.text(); });
+      }).then(function(t){
+        eis('offline komt die kopie uit de cache', t, 'EVENTS v2');
+
+        /* Offline met ?cfg= in een verse omgeving die alleen ooit zonder
+           zoekstring online is geweest. Dat is de normale gang van zaken, en
+           het is precies het geval waarin een cache die op de hele URL zoekt
+           niets vindt. */
+        var vers = maakSwOmgeving({ scope:SCOPE, server:server });
+        laadSw(bron, vers);
+        return vuurSw(vers, 'install', {}).then(function(){
+          return vuurSw(vers, 'activate', {});
+        }).then(function(){
+          return vuurSw(vers, 'fetch', { request:{ method:'GET', url:SCOPE + 'events.html',
+                                                   mode:'navigate' } });
+        }).then(function(){
+          vers.zetOffline(true);
+          return vuurSw(vers, 'fetch', { request:{ method:'GET',
+                        url:SCOPE + 'events.html?cfg=werk.json', mode:'navigate' } });
+        });
+      }).then(function(res){
+        eis('offline met ?cfg= geeft ook de pagina, niet undefined', !!res, true);
+        return res ? res.text() : '';
+      }).then(function(t){
+        eis('en dan dezelfde pagina uit de cache', t, 'EVENTS v2');
+
+        /* 4. offline en niets in de cache: een net antwoord, geen undefined */
+        var leeg = maakSwOmgeving({ scope:SCOPE, server:server });
+        laadSw(bron, leeg);
+        leeg.zetOffline(true);
+        return vuurSw(leeg, 'fetch', { request:{ method:'GET', url:SCOPE + 'icon.svg', mode:'no-cors' } });
+      }).then(function(res){
+        eis('offline zonder cache komt er een antwoord in plaats van niets', !!res, true);
+        eis('en dat zegt dat het niet beschikbaar is', res && res.status, 503);
+
+        /* 4b. De zoekstring telt alleen bij een navigatie niet mee. Bij een
+               gewoon bestand hoort ?v=2 juist een nieuwe ophaalactie te zijn,
+               en offline levert dat geen oude kopie maar een net 503-antwoord. */
+        eis('alleen navigaties negeren de zoekstring',
+            /navigatie \? \{ ignoreSearch: true \}/.test(bron), true);
+        var q = maakSwOmgeving({ scope:SCOPE, server:server });
+        laadSw(bron, q);
+        return vuurSw(q, 'install', {}).then(function(){
+          return vuurSw(q, 'activate', {});
+        }).then(function(){
+          q.zetOffline(true);
+          return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE + 'icon.svg',
+                                                mode:'no-cors' } });
+        }).then(function(r){
+          eis('een bestand zonder zoekstring komt offline uit de cache', r && r.status, 200);
+          return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE + 'icon.svg?v=2',
+                                                mode:'no-cors' } });
+        }).then(function(r){
+          eis('met een andere zoekstring valt het niet terug op de oude kopie',
+              r && r.status, 503);
+          return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE + 'events.html?cfg=x.json',
+                                                mode:'navigate' } });
+        }).then(function(r){
+          eis('een navigatie met zoekstring wel', r && r.status, 200);
+          eis('en er komt geen kopie per zoekstring in de cache bij',
+              Object.keys(q.opslag[eigenCache]).filter(function(k){ return k.indexOf('?') >= 0; }).length, 0);
+
+          /* 4c. De cacheregel van een pad is opgeruimd -- de browser doet dat
+                 onder opslagdruk. Een navigatie valt dan terug op de bewaarde
+                 app in plaats van op de offlinepagina. */
+          delete q.opslag[eigenCache][SCOPE];
+          return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE, mode:'navigate' } });
+        }).then(function(r){
+          eis('een pad zonder cacheregel valt terug op de bewaarde app', r && r.status, 200);
+          return r.text();
+        }).then(function(t){
+          /* wat er op de server staat, niet een getal uit mijn hoofd: eerder in
+             deze groep is de server al op v2 gezet */
+          eis('en dat is werkelijk de app', t, server['/events.html']);
+        });
+      }).then(function(){
+        /* 5. Staat een bestand al in de cache, dan komt het antwoord daaruit,
+              ook als er iets nieuwers op de server staat -- niemand wacht op
+              het netwerk. De cacheregel zelf wordt daarna wel ververst. Dat
+              tweede deel van stale-while-revalidate geldt niet alleen voor de
+              pagina (scenario 2) maar ook voor een gewoon bestand; zonder die
+              verversing zou een icoon of manifest nooit meer bijwerken.
+              De zwaardere installatiescenario's staan in events-tests.cjs. */
+        var m4 = maakSwOmgeving({ scope:SCOPE, server:server });
+        laadSw(bron, m4);
+        server['/icon.svg'] = '<svg nieuw/>';
+        return m4.caches_.open(eigenCache).then(function(c){
+          return c.put(SCOPE + 'icon.svg', new m4.Res('<svg oud/>'));
+        }).then(function(){
+          return vuurSw(m4, 'fetch', { request:{ method:'GET', url:SCOPE + 'icon.svg',
+                                                 mode:'no-cors' } });
+        }).then(function(res){
+          return res.text();
+        }).then(function(t){
+          eis('een bestand dat al in de cache staat komt uit de cache', t, '<svg oud/>');
+          /* wachten tot het zover is in plaats van een aantal milliseconden
+             gokken; op een traag toestel is dat het verschil */
+          return tot(function(){
+            var r = m4.opslag[eigenCache][SCOPE + 'icon.svg'];
+            return !!(r && r.body === server['/icon.svg']);
+          }, 3000);
+        }).then(function(){
+          /* niet tegen een waarde uit mijn hoofd maar tegen wat er op de server
+             staat: een eerdere groep kan die hebben gewijzigd */
+          var regel = m4.opslag[eigenCache][SCOPE + 'icon.svg'];
+          eis('en de cacheregel wordt daarna wel ververst',
+              regel && regel.body, server['/icon.svg']);
+        }).then(function(){
+          /* 6. het bericht waarmee de app om de overstap vraagt */
+          omg.gedaan.length = 0;
+          return vuurSw(omg, 'message', { data:{ type:'nuOverstappen' } });
+        });
+      }).then(function(){
+        eis('op verzoek van de app stapt de service worker wel over',
+            omg.gedaan.indexOf('skipWaiting') >= 0, true);
+        omg.gedaan.length = 0;
+        return vuurSw(omg, 'message', { data:{ type:'iets anders' } });
+      }).then(function(){
+        eis('en op een ander bericht niet', omg.gedaan.indexOf('skipWaiting') < 0, true);
+        testNieuweVersieMelding();
+      });
+    });
+  }).catch(function(e){
+    /* een onverwachte uitzondering wordt een rode regel, geen afgebroken run */
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* De melding in de app zelf: die mag niet aanzetten tot herladen zolang er
+   iets niet is opgeslagen, want herladen gooit zo'n wijziging weg. */
+function testNieuweVersieMelding(){
+  var bewaard = { nieuweVersie:app.nieuweVersie, nieuweInhoud:app.nieuweInhoud,
+                  fileState:app.fileState, schrijfBezig:app.schrijfBezig,
+                  hasFSA:app.hasFSA, saveState:app.saveState,
+                  bestandsnaam:app.bestandsnaam, cfg:app.cfg, records:app.records,
+                  herstelKan:app.herstelKan, herstelStand:app.herstelStand,
+                  herstelRij:app.herstelRij };
+  /* De filebar kan vier soorten meldingen tonen. Deze groep telt ze, dus ze
+     moeten alle vier van hier worden gezet -- anders telt hij de toestand van
+     het toestel mee en valt hij op het ene toestel wel en op het andere niet
+     om. Dat gebeurde: op een telefoon stond er een melding meer. */
+  app.herstelKan = null; app.herstelStand = ''; app.herstelRij = null;
+  app.nieuweInhoud = false;
+  var gestuurd = [];
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.bestandsnaam = 'e.txt'; app.fileState = 'ok'; app.hasFSA = true; app.saveState = '';
+  app.records = app.parse(PROEF);
+  app.gelijkgezet();
+  app.nieuweVersie = { postMessage: function(m){ gestuurd.push(m && m.type); } };
+
+  app.render();
+  var knop = app.document.getElementById('fNieuw');
+  eis('de app meldt dat er een nieuwe versie is', !!knop, true);
+  eis('en de herlaadknop kan worden gebruikt', !!(knop && knop.disabled), false);
+
+  app.wijzig();
+  app.render();
+  var knop2 = app.document.getElementById('fNieuw');
+  eis('met een niet-opgeslagen wijziging staat de melding er nog', !!knop2, true);
+  eis('maar is herladen niet mogelijk', !!(knop2 && knop2.disabled), true);
+  app.stapOverNaarNieuweVersie();
+  eis('en een klik doet dan niets', gestuurd.length, 0);
+
+  app.gelijkgezet();
+  app.render();
+  app.stapOverNaarNieuweVersie();
+  eis('zodra alles is opgeslagen vraagt de app om de overstap', gestuurd[0], 'nuOverstappen');
+
+  /* En ook niet midden in een schrijfactie. Alles staat dan wel op schijf, maar
+     er loopt nog een schrijfactie, en herladen zou die afbreken. */
+  app.overstapGevraagd = false;
+  app.schrijfBezig = true;
+  app.render();
+  var knop3 = app.document.getElementById('fNieuw');
+  eis('tijdens een schrijfactie is herladen ook niet mogelijk',
+      !!(knop3 && knop3.disabled), true);
+  gestuurd.length = 0;
+  app.stapOverNaarNieuweVersie();
+  eis('en een klik doet dan ook niets', gestuurd.length, 0);
+  app.schrijfBezig = false;
+
+  /* Twee meldingen tegelijk. Zonder de File System Access API -- Chrome voor
+     Android -- staat de regel over downloaden er altijd, en die mag de melding
+     over een nieuwe versie niet verdringen: dan zou je op dat toestel nooit
+     horen dat er een nieuwe versie klaarstaat. */
+  app.overstapGevraagd = false;
+  app.schrijfBezig = false;
+  app.gelijkgezet();
+  app.hasFSA = false;
+  app.render();
+  /* De eerste woorden van elke melding, in volgorde. Dat telt even streng als
+     een aantal, maar een onverwachte melding noemt zichzelf in de rode regel
+     in plaats van alleen het aantal op te hogen. */
+  function banners(){
+    var b = app.document.getElementById('filebar').querySelectorAll('.banner-text');
+    if(!b.length) return '(geen)';
+    return Array.prototype.map.call(b, function(x){
+      return x.textContent.replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+    }).join(' / ');
+  }
+  /* De downloadmelding verschijnt alleen als er iets te bewaren is -- hij stond
+     eerst permanent in beeld en koste daar 131 pixels. Dus voor deze groep eerst
+     een wijziging maken, anders is er niets om naast de versiemelding te zetten. */
+  var DOWNLOAD = 'Niet opgeslagen.';
+  var NIEUW    = 'Er is een';
+  var MISLUKT  = 'Opslaan mislukt. Controleer';
+  function erStaat(id){ return !!app.document.getElementById(id); }
+  app.wijzig();
+  app.render();
+  eis('zonder bestands-API en met een wijziging staan er twee meldingen',
+      banners(), DOWNLOAD + ' / ' + NIEUW);
+  eis('met de downloadknop', erStaat('fDl'), true);
+  eis('en de herlaadknop', erStaat('fNieuw'), true);
+
+  var echt = app.nieuweVersie;
+  app.nieuweVersie = null;
+  app.render();
+  eis('is er geen nieuwe versie, dan alleen de downloadmelding', banners(), DOWNLOAD);
+  eis('en geen herlaadknop', erStaat('fNieuw'), false);
+
+  app.gelijkgezet();
+  app.render();
+  eis('en zonder wijziging staat er helemaal niets', banners(), '(geen)');
+  eis('ook geen downloadknop', erStaat('fDl'), false);
+  app.wijzig();
+
+  app.nieuweVersie = echt;
+  app.hasFSA = true;
+  app.render();
+  eis('met bestands-API alleen de melding over de nieuwe versie', banners(), NIEUW);
+  eis('en geen downloadknop', erStaat('fDl'), false);
+
+  app.saveState = 'fout';
+  app.render();
+  eis('ook bij een mislukte schrijfactie staan er twee', banners(), MISLUKT + ' / ' + NIEUW);
+  eis('met Opnieuw proberen', erStaat('fOpnieuw'), true);
+  eis('en ook dan de herlaadknop', erStaat('fNieuw'), true);
+
+  app.saveState = '';
+  app.hasFSA = false;
+  app.wijzig();
+  app.render();
+  eis('met twee meldingen en een niet-opgeslagen wijziging staan ze er nog',
+      banners(), DOWNLOAD + ' / ' + NIEUW);
+  var k4 = app.document.getElementById('fNieuw');
+  eis('maar is herladen dan niet mogelijk', !!(k4 && k4.disabled), true);
+  gestuurd.length = 0;
+  app.stapOverNaarNieuweVersie();
+  eis('en een klik doet niets', gestuurd.length, 0);
+
+  app.overstapGevraagd = false;   /* anders herlaadt het testframe zichzelf */
+  for(var k in bewaard) app[k] = bewaard[k];
+  app.gelijkgezet(); app.render();
+}
+
+/* ------------------ opslaan, met een nagemaakte bestandsmap ------------------ */
+/* De File System Access API is hier nagemaakt, zodat het opslaan te volgen is
+   zonder een echte map aan te raken. De namaak houdt net als Chrome een
+   exclusief slot op een bestand zolang er een writable open staat: schrijven
+   er twee tegelijk, dan loopt de tweede ertegenaan en is dat te zien. */
+function maakMap(opt){
+  var o = opt || {};
+  var fs = {}, sloten = {}, gebeurd = [], klok = 1000;
+  var V = o.vertraging || 4;
+  function wacht(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function fout(naam){ var e = new Error('kan niet'); e.name = naam; return e; }
+  function handle(naam){
+    return {
+      name: naam,
+      getFile: function(){
+        return wacht(V).then(function(){
+          if(!fs[naam]) throw fout('NotFoundError');
+          var f = fs[naam];
+          var uit = { lastModified:f.mtime, size:(f.size === undefined ? f.tekst.length : f.size),
+                      text:function(){ return Promise.resolve(f.tekst); } };
+          if(o.naLezen) o.naLezen(naam, fs);
+          return uit;
+        });
+      },
+      createWritable: function(){
+        return wacht(V).then(function(){
+          if(sloten[naam]){ gebeurd.push('slot ' + naam); throw fout('NoModificationAllowedError'); }
+          if(o.backupFaalt && /_backup/.test(naam)) throw fout('NotAllowedError');
+          if(o.schrijfFaalt && !/_backup/.test(naam)) throw fout('NotAllowedError');
+          /* één bestand onschrijfbaar, de rest gewoon: nodig om een halve
+             wijziging over twee bestanden na te bootsen */
+          if(o.weigerNaam === naam){ gebeurd.push('geweigerd ' + naam); throw fout('NotAllowedError'); }
+          sloten[naam] = true;
+          var buf = '';
+          return {
+            write: function(t){ return wacht(V).then(function(){ buf += t; }); },
+            close: function(){
+              return wacht(V).then(function(){
+                klok += 1000;
+                fs[naam] = { tekst:buf, mtime:klok };
+                delete sloten[naam];
+                gebeurd.push('schreef ' + naam);
+              });
+            }
+          };
+        });
+      }
+    };
+  }
+  return {
+    fs: fs, gebeurd: gebeurd,
+    getFileHandle: function(naam, opties){
+      return wacht(V).then(function(){
+        if(!fs[naam] && !(opties && opties.create)) throw fout('NotFoundError');
+        return handle(naam);
+      });
+    },
+    values: function(){ return { next:function(){ return Promise.resolve({ done:true }); },
+                                 [Symbol.asyncIterator]:function(){ return this; } }; }
+  };
+}
+
+function testOpslag(){
+  groep('Opslaan, met een nagemaakte bestandsmap');
+
+  /* alles wat we van de app overnemen gaat na deze groep weer terug */
+  var bewaard = {
+    dirHandle: app.dirHandle, hasFSA: app.hasFSA, bestandsnaam: app.bestandsnaam,
+    cfg: app.cfg, fileState: app.fileState, records: app.records,
+    idbGet: app.idbGet, idbPut: app.idbPut, idbDel: app.idbDel, saveState: app.saveState
+  };
+  var idb = {};
+  app.idbGet = function(k){ return Promise.resolve(idb[k]); };
+  app.idbPut = function(k, v){ idb[k] = v; return Promise.resolve(); };
+  app.idbDel = function(k){ delete idb[k]; return Promise.resolve(); };
+
+  var map;
+  function opzetten(opt){
+    map = maakMap(opt);
+    map.fs['events.txt'] = { tekst:'A;a;Geboren;D20000101;1\n', mtime:1000 };
+    idb = {}; idb['backup:events.txt'] = app.dagsleutel();   /* backup van vandaag al gedaan */
+    app.dirHandle = map; app.hasFSA = true; app.bestandsnaam = 'events.txt';
+    app.cfg = { bestand:'events.txt', scheidingsteken:';' };
+    app.fileState = 'ok'; app.laatstGelezen = 1000; app.saveState = '';
+    /* ook de grootte, want de nagemaakte map geeft die nu net als een echt
+       bestand terug en de botsingscontrole kijkt naar beide */
+    app.laatstGrootte = map.fs['events.txt'].tekst.length;
+    app.schrijfBezig = false; app.negeerBotsing = false;
+    app.records = app.parse('A;a;Geboren;D20000101;1');
+    app.gelijkgezet();
+  }
+  function voegToe(n){
+    app.records.push({ sleutel:'R' + n, naam:'r' + n, type:'Geboren',
+                       code:'D200001' + (n < 10 ? '0' + n : n), cat:1, notitie:'', id:100 + n });
+    app.wijzig();
+  }
+  function regels(){
+    var f = map.fs['events.txt'];
+    return f ? f.tekst.split('\n').filter(function(x){ return x !== ''; }).length : 0;
+  }
+  function wacht(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  /* Wachten tot de app klaar is met opslaan, in plaats van een vast aantal
+     milliseconden. Een schrijfactie duurt op een telefoon langer dan op een
+     laptop; met een vaste wachttijd keek deze groep naar een actie die nog
+     liep, en dan leek de app fout terwijl alleen de test te snel was. */
+  function rust(max){
+    var eind = Date.now() + (max || 15000);
+    return new Promise(function(klaar){
+      (function kijk(){
+        if((!app.schrijfBezig && app.saveState !== 'bezig') || Date.now() > eind) return klaar();
+        setTimeout(kijk, 5);
+      })();
+    });
+  }
+  /* Niets in de nagemaakte map blind uitlezen: mislukt een controle, dan hoort
+     dat een rode regel te geven en niet de hele test af te breken. */
+  function inhoud(naam){ var f = map.fs[naam]; return f ? f.tekst : '(bestaat niet)'; }
+  function bestaat(naam){ return !!map.fs[naam]; }
+  function sloten(){ return map.gebeurd.filter(function(g){ return g.indexOf('slot') === 0; }).length; }
+
+  /* 1. twee keer opslaan in hetzelfde venster: het slot moet er al om zijn
+        voordat de botsingscontrole op het bestandssysteem wacht */
+  opzetten();
+  voegToe(1); app.bewaar();
+  voegToe(2); app.bewaar();
+  return rust().then(function(){
+    eis('twee keer opslaan tegelijk botst niet op het bestandsslot', sloten(), 0);
+    eis('en alles staat op schijf', regels(), app.records.length);
+    /* het bewijs is er, dus de herstelbuffer is overbodig geworden */
+    eis('en de herstelbuffer is weg', !!idb['herstel'], false);
+    voegToe(3);
+    eis('een nieuwe wijziging zet hem er meteen weer neer', !!idb['herstel'], true);
+
+    /* 2. vijftien snelle wijzigingen, elk met een eigen opslagactie */
+    opzetten();
+    var stap = Promise.resolve();
+    for(var i = 1; i <= 15; i++){
+      (function(n){
+        stap = stap.then(function(){ voegToe(n); app.bewaar(); return wacht(3); });
+      })(i);
+    }
+    return stap;
+  }).then(function(){ return rust(); }).then(function(){
+    eis('na vijftien snelle wijzigingen staat alles op schijf', regels(), app.records.length);
+    eis('en de app zegt niet onterecht dat alles is opgeslagen', app.nietOpgeslagen(), false);
+    eis('zonder tegen het bestandsslot te lopen', sloten(), 0);
+
+    /* 3. een wijziging tijdens een lopende schrijfactie moet herkenbaar blijven */
+    opzetten();
+    voegToe(1); app.bewaar();
+    /* de tweede wijziging komt er meteen bij: de eerste schrijfactie loopt dan
+       nog, want die is asynchroon. Mikken op een moment halverwege is op een
+       traag toestel niet te doen. */
+    voegToe(2); app.bewaar();
+    /* blijven kijken tot de app klaar is: zegt hij ooit "opgeslagen" terwijl
+       er minder op schijf staat dan in het geheugen? */
+    var liegend = 0;
+    var stap = (function meet(){
+      if(!app.nietOpgeslagen() && app.saveState !== 'bezig' && !app.schrijfBezig){
+        if(regels() < app.records.length) liegend++;
+        return Promise.resolve();
+      }
+      if(!app.nietOpgeslagen() && regels() < app.records.length) liegend++;
+      return wacht(5).then(meet);
+    })();
+    return stap.then(function(){
+      eis('tijdens het schrijven blijft een nieuwe wijziging als niet-opgeslagen gelden', liegend, 0);
+      eis('en uiteindelijk staat alles op schijf', regels(), app.records.length);
+    });
+  }).then(function(){
+    /* 4. een mislukte schrijfactie: niets kwijt, en daarna lukt het wel */
+    opzetten({ schrijfFaalt:true });
+    var voor = inhoud('events.txt');
+    voegToe(1); app.bewaar();
+    return rust().then(function(){
+      eis('een mislukte schrijfactie wordt gemeld', app.saveState, 'fout');
+      eis('en blijft als niet-opgeslagen gelden', app.nietOpgeslagen(), true);
+      eis('het bestand is dan niet aangeraakt', inhoud('events.txt'), voor);
+      eis('en het geheugen is niets kwijt', app.records.length, 2);
+      /* nu zonder fout opnieuw */
+      map = maakMap();
+      map.fs['events.txt'] = { tekst:voor, mtime:1000 };
+      app.dirHandle = map; app.saveState = '';
+      app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('opnieuw opslaan lukt daarna', app.saveState, 'ok');
+      eis('en dan staat alles op schijf', regels(), app.records.length);
+    });
+  }).then(function(){
+    return testBotsing();
+  }).then(function(){
+    return testBackup();
+  }).then(function(){
+    for(var k in bewaard) app[k] = bewaard[k];
+    app.schrijfBezig = false; app.negeerBotsing = false;
+    app.backupFout = ''; app.backupDag = {};
+    app.gelijkgezet(); app.render();
+  });
+
+  /* ------------- botsingen met een wijziging van buiten ------------- */
+  /* Het bestand wordt hier extern gewijzigd op een gekozen moment in de
+     opslagketen. Met de backup van vandaag al gedaan leest de keten het bestand
+     twee keer voor het schrijven: 1 de controle in bewaar(), 2 de controle vlak
+     voor het schrijven. Door na een bepaalde lezing toe te slaan is te meten
+     welk venster is gedicht en welk venster open blijft. */
+  function testBotsing(){
+    groep('Een wijziging van buiten tijdens het opslaan');
+    var EXTERN = 'EXTERN;x;Geboren;D19990101;1\n';
+
+    function opzettenMetSlag(naLezing){
+      var n = 0;
+      opzetten({ naLezen: function(naam, fs){
+        if(naam !== 'events.txt') return;
+        n++;
+        if(n === naLezing) fs['events.txt'] = { tekst:EXTERN, mtime:77777 };
+      }});
+      idb['backup:events.txt'] = app.dagsleutel();   /* backup niet in de weg */
+    }
+
+    /* 1. de gewone botsing: het bestand is al anders voordat de app begint */
+    opzetten();
+    map.fs['events.txt'] = { tekst:EXTERN, mtime:77777 };
+    voegToe(1); app.bewaar();
+    return rust().then(function(){
+      eis('een bestand dat al gewijzigd is wordt niet overschreven',
+          inhoud('events.txt'), EXTERN);
+      eis('en dat wordt gemeld', app.saveState, 'extern');
+      eis('de wijziging blijft als niet-opgeslagen gelden', app.nietOpgeslagen(), true);
+      eis('het slot blijft niet hangen', app.schrijfBezig, false);
+
+      /* 2. en met 'Toch opslaan' gaat het er alsnog in */
+      app.document.getElementById('cYes').click();
+      return rust();
+    }).then(function(){
+      eis('met "Toch opslaan" wordt er wel geschreven', regels(), app.records.length);
+      eis('en de status klopt daarna weer', app.saveState, 'ok');
+
+      /* 3. de wijziging valt na de eerste controle: dat is het venster dat de
+            tweede controle dicht, en daar zit in het echt de backup in */
+      opzettenMetSlag(1);
+      voegToe(1); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('een wijziging na de eerste controle wordt alsnog opgemerkt', app.saveState, 'extern');
+      eis('en het bestand blijft ongemoeid', inhoud('events.txt'), EXTERN);
+      eis('die wijziging blijft als niet-opgeslagen gelden', app.nietOpgeslagen(), true);
+      app.document.getElementById('cNo').click();
+
+      /* 4. de wijziging valt na de laatste controle, dus tussen die controle en
+            createWritable. Dat venster kan de browser-API niet dichten; het
+            staat hier vast zoals het is, zodat de beperking bekend blijft en
+            niet per ongeluk verandert. */
+      opzettenMetSlag(2);
+      voegToe(1); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('een wijziging tussen de laatste controle en het schrijven kan niet worden ' +
+          'opgemerkt — bekende beperking van de browser', app.saveState, 'ok');
+      eis('en wordt dan overschreven — zelfde beperking',
+          /EXTERN/.test(inhoud('events.txt')), false);
+    });
+  }
+
+  /* ------------- de dagelijkse backup ------------- */
+  /* Alles hier gebruikt dezelfde nagemaakte map; de backupdag staat bij het
+     begin van elke proef op "nog niet gedaan vandaag". */
+  function testBackup(){
+    groep('De dagelijkse backup');
+    var vandaag = app.dagsleutel();
+
+    function opzettenZonderBackup(opt){
+      opzetten(opt);
+      delete idb['backup:events.txt'];
+      app.backupDag = {}; app.backupFout = '';
+    }
+
+    /* 1. de eerste keer opslaan die dag bewaart de inhoud van voor het opslaan */
+    opzettenZonderBackup();
+    var oudeInhoud = inhoud('events.txt');
+    voegToe(1); app.bewaar();
+    return rust().then(function(){
+      eis('de eerste keer opslaan maakt een backup', bestaat('events_backup.txt'), true);
+      eis('en die bevat de inhoud van voor het opslaan',
+          inhoud('events_backup.txt'), oudeInhoud);
+      eis('de dag wordt geboekt', idb['backup:events.txt'], vandaag);
+      eis('en de app weet welke dag dat was', app.backupDag['events.txt'], vandaag);
+      eis('zonder foutmelding', app.backupFout, '');
+
+      /* 2. een tweede keer opslaan die dag laat de backup staan */
+      voegToe(2); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('een tweede keer opslaan vandaag overschrijft de backup niet',
+          inhoud('events_backup.txt'), oudeInhoud);
+      eis('en het opslaan zelf lukt wel', regels(), app.records.length);
+
+      /* 3. een mislukte backup: niet als gedaan boeken, wel melden, en het
+            opslaan gaat door */
+      opzettenZonderBackup({ backupFaalt:true });
+      voegToe(1); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('een mislukte backup wordt niet als gedaan geboekt',
+          idb['backup:events.txt'], undefined);
+      eis('en wordt gemeld', /mislukt/.test(app.backupFout), true);
+      eis('de melding staat onder de header',
+          app.document.getElementById('bad').textContent.indexOf('Backup') >= 0, true);
+      eis('het opslaan zelf gaat wel door', app.saveState, 'ok');
+      eis('en alles staat op schijf', regels(), app.records.length);
+
+      /* 4. en dan lukt het vandaag alsnog, want de dag stond nog open.
+            De map wordt verwisseld voor een die de backup wel aankan; dan hoort
+            laatstGelezen mee te verhuizen, anders ziet de app een botsing. */
+      map = maakMap();
+      map.fs['events.txt'] = { tekst:'A;a;Geboren;D20000101;1\n', mtime:1000 };
+      app.dirHandle = map; app.laatstGelezen = 1000;
+      app.laatstGrootte = map.fs['events.txt'].tekst.length;
+      voegToe(2); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('een volgende poging dezelfde dag maakt de backup alsnog',
+          bestaat('events_backup.txt'), true);
+      eis('en boekt de dag dan wel', idb['backup:events.txt'], vandaag);
+      eis('en de foutmelding verdwijnt', app.backupFout, '');
+
+      /* 5. is er nog geen bestand, dan is er niets te bewaren en blijft de dag
+            open staan */
+      opzettenZonderBackup();
+      delete map.fs['events.txt'];
+      voegToe(1); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('zonder bestand komt er geen backup', bestaat('events_backup.txt'), false);
+      eis('en dat is geen fout', app.backupFout, '');
+      eis('de dag blijft open staan', idb['backup:events.txt'], undefined);
+      eis('het bestand is wel aangemaakt', bestaat('events.txt'), true);
+      voegToe(2); app.bewaar();
+      return rust();
+    }).then(function(){
+      eis('en de eerstvolgende keer volgt de backup alsnog',
+          bestaat('events_backup.txt'), true);
+    });
+  }
+}
+
+/* De opslag vastzetten. Zonder dat mag de browser bij ruimtegebrek zowel de
+   offline-kopie als de mapverwijzing wissen, en dan is de app offline weg en
+   moet de map opnieuw worden aangewezen. De keuzes worden nagerekend met een
+   nagemaakte opslag; daarom neemt de functie er een als argument. */
+function testVastgezetteOpslag(){
+  groep('De vastgezette opslag');
+
+  function nep(alVast, geef){
+    return {
+      gevraagd: 0,
+      persisted: function(){ return Promise.resolve(alVast); },
+      persist: function(){ this.gevraagd++; return Promise.resolve(geef); }
+    };
+  }
+
+  /* Eerst kijken of het er staat. Zonder deze controle zou een app zonder de
+     functie een uitzondering geven en daarmee de hele zelftest afbreken; dan
+     zie je een halve uitslag in plaats van rode regels. */
+  if(typeof app.zetOpslagVast !== 'function' || typeof app.ruimte !== 'function'){
+    eis('de app kan de opslag vastzetten', typeof app.zetOpslagVast, 'function');
+    eis('en kan een aantal bytes in woorden zetten', typeof app.ruimte, 'function');
+    return Promise.resolve();
+  }
+
+  /* Eerst uitlezen wat de app bij het opstarten heeft opgehaald, want de
+     controles hieronder zetten diezelfde variabele met een nagemaakte opslag
+     opnieuw. */
+  var bijStart = app.opslagVast;
+
+  var a = nep(true, false);
+  return app.zetOpslagVast(a).then(function(uit){
+    eis('staat het al vast, dan is de uitkomst dat het vaststaat', uit, true);
+    eis('en wordt er niet opnieuw gevraagd', a.gevraagd, 0);
+
+    var b = nep(false, true);
+    return app.zetOpslagVast(b).then(function(uit2){
+      eis('staat het nog niet vast en wordt het toegekend, dan staat het vast', uit2, true);
+      eis('en is er precies een keer gevraagd', b.gevraagd, 1);
+    });
+  }).then(function(){
+    var c = nep(false, false);
+    return app.zetOpslagVast(c).then(function(uit){
+      eis('wordt het geweigerd, dan is de uitkomst dat het niet vaststaat', uit, false);
+      eis('en is er ook dan een keer gevraagd', c.gevraagd, 1);
+    });
+  }).then(function(){
+    /* een browser die halverwege afbreekt mag het opstarten niet raken */
+    return app.zetOpslagVast({
+      persisted: function(){ return Promise.reject(new Error('kapot')); },
+      persist: function(){ return Promise.resolve(true); }
+    }).then(function(uit){
+      eis('breekt de navraag af, dan komt er geen uitzondering maar null', String(uit), 'null');
+    });
+  }).then(function(){
+    return app.zetOpslagVast({}).then(function(uit){
+      eis('kent de browser het niet, dan ook null', String(uit), 'null');
+    });
+  }).then(function(){
+    eis('de app heeft de functie', typeof app.zetOpslagVast, 'function');
+    /* bij het opstarten moet de app het echt hebben gevraagd: dan is opslagVast
+       geen null meer. Kan de browser het niet, dan valt er niets te meten. */
+    var kan = !!(app.navigator.storage && app.navigator.storage.persist);
+    eis('en heeft het bij het opstarten gevraagd',
+        kan ? (bijStart === true || bijStart === false) : 'niet van toepassing',
+        kan ? true : 'niet van toepassing');
+    eis('een nagemaakte opslag laat de toestand van de app ongemoeid',
+        String(app.opslagVast), String(bijStart));
+
+    eis('de ruimte in bytes', app.ruimte(512), '512 B');
+    eis('de ruimte in kB', app.ruimte(2048), '2 kB');
+    eis('de ruimte in MB', app.ruimte(1572864), '1,5 MB');
+    eis('de ruimte in GB', app.ruimte(2147483648), '2,0 GB');
+    eis('en onzin levert geen onzin op', app.ruimte(undefined), '?');
+  }).then(function(){
+    /* en het statusscherm moet het ook werkelijk tonen */
+    app.vulAppStatus();
+    /* niet op de klok wachten maar tot de regel er staat: statusOpslagVast
+       vraagt het asynchroon na, en dat duurt op een traag toestel langer */
+    return tot(function(){
+      var el = app.document.getElementById('stVast');
+      return !!(el && el.textContent && el.textContent.indexOf('bezig') < 0);
+    }).then(function(){
+      var el = app.document.getElementById('stVast');
+      var tekst = el ? el.textContent : '(geen regel)';
+      eis('het statusscherm toont een regel Vastgezet', /Vastgezet/.test(tekst), true);
+      var o = app.navigator.storage;
+      if(!o || !o.persisted){
+        eis('en die zegt dat de browser het niet kent', /kent het niet/.test(tekst), true);
+        return;
+      }
+      return o.persisted().then(function(al){
+        /* staat het niet vast, dan hoort er te staan of het is gevraagd */
+        if(!al) eis('en zegt of het is gevraagd of alleen niet vaststaat',
+                    /gevraagd, niet toegekend|de vraag is niet gelukt|bij ruimtegebrek/.test(tekst), true);
+        eis('en die klopt met wat de browser zegt',
+            /\bja —/.test(tekst) === !!al, true);
+      });
+    });
+  }).catch(function(e){
+    /* een onverwachte uitzondering wordt een rode regel, geen afgebroken run */
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* Wat App-status zegt als er niets te bereiken is. Offline is dat geen gebrek
+   van de app maar een omstandigheid, en dan hoort er geen rode regel te staan.
+   De weging neemt de verbinding als argument, zodat dit na te rekenen is
+   zonder de verbinding van de browser te hoeven verbreken. */
+function testStatusNetwerk(){
+  groep('App-status bij een slechte verbinding');
+
+  if(typeof app.netwerkFout !== 'function'){
+    eis('de app weegt een mislukte fetch tegen de verbinding',
+        typeof app.netwerkFout, 'function');
+    return Promise.resolve();
+  }
+
+  var fout = new TypeError('Failed to fetch');
+  var uit = app.netwerkFout(fout, false);
+  var aan = app.netwerkFout(fout, true);
+  eis('offline geldt het niet als gebrek', uit.goed === false, false);
+  eis('en staat er dat het niet is gecontroleerd', /niet gecontroleerd/.test(uit.tekst), true);
+  eis('online geldt het wel als gebrek', aan.goed, false);
+  eis('en staat de melding van de browser erbij', /Failed to fetch/.test(aan.tekst), true);
+  eis('een fout zonder melding levert geen undefined op',
+      /onbekende fout/.test(app.netwerkFout({}, true).tekst), true);
+
+  /* en nu het scherm zelf, met een fetch die weigert */
+  var echteFetch = app.fetch, echteWeeg = app.netwerkFout;
+  function meet(online){
+    app.fetch = function(){ return Promise.reject(fout); };
+    app.netwerkFout = function(e){ return echteWeeg(e, online); };
+    app.vulAppStatus();
+    return tot(function(){
+      var a = app.document.getElementById('stMan'), b = app.document.getElementById('stSw');
+      return !!(a && b && a.textContent.indexOf('bezig') < 0 && b.textContent.indexOf('bezig') < 0);
+    }).then(function(){
+      var a = app.document.getElementById('stMan'), b = app.document.getElementById('stSw');
+      return { tekst: a.textContent + ' ' + b.textContent,
+               rood: a.querySelectorAll('.slecht').length + b.querySelectorAll('.slecht').length };
+    });
+  }
+
+  return meet(false).then(function(r){
+    eis('offline staat er geen rode regel over het manifest of de worker', r.rood, 0);
+    eis('en staat er waarom niet', /niet gecontroleerd/.test(r.tekst), true);
+    return meet(true);
+  }).then(function(r){
+    eis('online wel, want dan is er echt iets mis', r.rood > 0, true);
+    eis('en met de melding erbij', /Failed to fetch/.test(r.tekst), true);
+  }).then(function(){
+    /* de echte fetch terug en kijken naar de twee regels in Omgeving */
+    app.fetch = echteFetch;
+    app.netwerkFout = echteWeeg;
+    app.vulAppStatus();
+    var body = app.document.getElementById('checkBody').textContent;
+    eis('Omgeving noemt het protocol', /Protocol/.test(body), true);
+    eis('en niet meer Verbinding, dat twee dingen betekende', /Verbinding/.test(body), false);
+    eis('en zegt of er netwerk is', new RegExp('Netwerk\\s*(online|offline)').test(body.replace(/\s+/g, ' ')), true);
+  }).then(function(){
+    /* De regel "Versie in de offline-kopie" vulde zich nooit: hij werd gevuld
+       voordat zijn eigen element bestond -- dat wordt pas gemaakt als de
+       worker-regels binnen zijn -- en bleef dus op "bezig..." staan. Gemeten in
+       Chromium: na 6 seconden nog steeds, terwijl er een versienummer in de
+       cache stond. Hier met een nagemaakte cacheopslag, zodat het niet van de
+       echte omgeving afhangt. */
+    function nep(namen, tekst){
+      return {
+        keys: function(){ return Promise.resolve(namen); },
+        open: function(){ return Promise.resolve({ match: function(){
+          return Promise.resolve({ text: function(){ return Promise.resolve(tekst); } }); } }); }
+      };
+    }
+    return tot(function(){
+      var e0 = app.document.getElementById('stKopie');
+      return e0 && e0.textContent.indexOf('bezig') < 0;
+    }).then(function(){
+      eis('de regel over de offline-kopie vult zich uit zichzelf',
+          /Versie in de offline-kopie/.test(app.document.getElementById('stKopie').textContent),
+          true);
+      app.document.getElementById('stKopie').innerHTML = 'bezig\u2026';
+      app.statusVersieKopie(nep(['events-v160', 'golf-v3'], 'var APP_VERSIE = 999;'));
+      return tot(function(){
+        var e2 = app.document.getElementById('stKopie');
+        return e2 && e2.textContent.indexOf('bezig') < 0;
+      });
+    }).then(function(){
+      var t = app.document.getElementById('stKopie').textContent;
+      eis('en hij vult zich met het nummer uit de kopie', /999/.test(t), true);
+      eis('en meldt dat die nieuwer is dan deze pagina', /nieuwer dan deze pagina/.test(t), true);
+
+      /* De volgorde moet dezelfde zijn als die van checkAppUpdate: op nummer,
+         niet op tekst. Op tekst komt events-v99 na events-v160. */
+      app.document.getElementById('stKopie').innerHTML = 'bezig\u2026';
+      app.statusVersieKopie(nep(['events-v99', 'events-v160'], 'var APP_VERSIE = 160;'));
+      return tot(function(){
+        var e3 = app.document.getElementById('stKopie');
+        return e3 && e3.textContent.indexOf('bezig') < 0;
+      });
+    }).then(function(){
+      eis('de hoogste cache wordt op nummer gekozen, niet op tekst',
+          /160/.test(app.document.getElementById('stKopie').textContent), true);
+    }, function(e){
+      eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+    });
+  }).catch(function(e){
+    app.fetch = echteFetch;
+    app.netwerkFout = echteWeeg;
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* De herstelbuffer. Een wijziging staat tot het opslaan alleen in het
+   geheugen; sluit Android de app af, dan is hij weg. Hier wordt gemeten dat
+   elke wijziging ook in IndexedDB belandt, dat een weigerende opslag niets
+   kapotmaakt, en dat het snel genoeg is om zonder vertraging te kunnen. */
+function testHerstelbuffer(){
+  groep('De herstelbuffer');
+
+  /* Eerst kijken of alles er staat. Zonder deze controle zou een app zonder een
+     van deze functies een uitzondering geven, en dan krijg je een enkele regel
+     in plaats van te zien wat er mist. */
+  if(typeof app.bewaarHerstel !== 'function' || typeof app.wisHerstel !== 'function' ||
+     typeof app.herstelNaLezen !== 'function' || typeof app.leesHerstel !== 'function' ||
+     typeof app.zetHerstelTerug !== 'function'){
+    eis('de app bewaart een herstelbuffer', typeof app.bewaarHerstel, 'function');
+    eis('en kan hem wissen', typeof app.wisHerstel, 'function');
+    eis('en kan na het inlezen zien of hij overbodig is',
+        typeof app.herstelNaLezen, 'function');
+    eis('en herkent hem bij het opstarten', typeof app.leesHerstel, 'function');
+    eis('en kan hem terugzetten', typeof app.zetHerstelTerug, 'function');
+    return Promise.resolve();
+  }
+
+  /* wijzig() schrijft op de achtergrond; hier wordt gewacht tot dat in de
+     buffer te zien is, in plaats van een aantal milliseconden te gokken */
+  function totBuffer(controle, max){
+    var eind = Date.now() + (max || 8000);
+    return new Promise(function(af){
+      (function kijk(){
+        app.idbGet('herstel').then(function(rij){
+          if(controle(rij) || Date.now() > eind) return af(rij);
+          setTimeout(kijk, 10);
+        }, function(){ setTimeout(kijk, 10); });
+      })();
+    });
+  }
+
+  var namen = ['records','cfg','bestandsnaam','fileState','hasFSA','saveState',
+               'laatstGeopend','laatstGelezen','herstelKan','herstelFout','idbPut',
+               'herstelRij','herstelStand','terug','selIndex'];
+  var bewaard = {};
+  namen.forEach(function(n){ bewaard[n] = app[n]; });
+
+  var echteIdb = app.indexedDB;
+  function zetIdb(f){
+    Object.defineProperty(app, 'indexedDB', { value:f, configurable:true });
+  }
+  function nepIdb(hoe){
+    return { open: function(){
+      var q = {};
+      setTimeout(function(){
+        q.result = { transaction: function(){
+          var t = { objectStore: function(){
+            return { put:function(){}, get:function(){ return {}; },
+                     'delete':function(){} };
+          } };
+          setTimeout(function(){
+            if(hoe === 'afbreken'){
+              t.error = { name:'QuotaExceededError' };
+              if(t.onabort) t.onabort();
+            } else if(hoe === 'niets'){
+              /* antwoordt nooit: zo was het voor deze stap */
+            } else if(t.oncomplete) t.oncomplete();
+          }, 0);
+          return t;
+        } };
+        if(q.onsuccess) q.onsuccess();
+      }, 0);
+      return q;
+    } };
+  }
+  function afloop(belofte){
+    return binnen(belofte.then(function(){ return 'gelukt'; },
+                               function(e){ return (e && e.name) || 'mislukt'; }), 2000);
+  }
+
+
+  function bannerMet(stuk){
+    var b = app.document.getElementById('filebar').querySelectorAll('.banner-text');
+    for(var i = 0; i < b.length; i++) if(b[i].textContent.indexOf(stuk) >= 0) return b[i];
+    return null;
+  }
+
+  function opzetten(){
+    app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+    app.bestandsnaam = 'e.txt'; app.fileState = 'ok'; app.saveState = '';
+    app.hasFSA = false;
+    app.laatstGeopend = { naam:'e.txt', grootte:123, lastModified:1700000000000 };
+    app.records = app.parse('A;a;Gebeurtenis;D20260101;\nB;b;Gebeurtenis;D20260202;');
+    app.gelijkgezet();
+  }
+
+  opzetten();
+  var voor = app.wijzigVersie;
+  return app.bewaarHerstel().then(function(){
+    return app.idbGet('herstel');
+  }).then(function(rij){
+    eis('een wijziging belandt in de herstelbuffer', !!rij, true);
+    eis('met de naam van het bestand', rij && rij.bestand, 'e.txt');
+    eis('met de inhoud van het geheugen', rij && rij.tekst, app.serialize());
+    eis('met de versie waar het bij hoort', rij && rij.versie, voor);
+    eis('en met waar het op is gebaseerd', rij && rij.basis && rij.basis.lastModified,
+        1700000000000);
+    eis('en de app weet dat het is gelukt', app.herstelKan, true);
+  }).then(function(){
+    /* twee wijzigingen achter elkaar: de laatste moet er staan */
+    app.records[0].naam = 'gewijzigd een';
+    app.wijzig();
+    app.records[0].naam = 'gewijzigd twee';
+    app.wijzig();
+    return totBuffer(function(r){ return r && /gewijzigd twee/.test(r.tekst); });
+  }).then(function(rij){
+    eis('na twee wijzigingen staat de laatste in de buffer',
+        /gewijzigd twee/.test(rij && rij.tekst), true);
+    eis('en niet meer de eerste', /gewijzigd een/.test(rij && rij.tekst), false);
+    eis('met de hoogste versie', rij && rij.versie, app.wijzigVersie);
+  }).then(function(){
+    /* een opslag die weigert mag niets kapotmaken */
+    app.idbPut = function(){ var e = new Error('vol'); e.name = 'QuotaExceededError';
+                             return Promise.reject(e); };
+    return app.bewaarHerstel();
+  }).then(function(){
+    eis('een weigerende opslag levert geen uitzondering', app.herstelKan, false);
+    eis('en de reden wordt onthouden', app.herstelFout, 'QuotaExceededError');
+    app.vulAppStatus();
+    var tekst = app.document.getElementById('checkBody').textContent;
+    eis('App-status meldt dat het niet is veiliggesteld',
+        /niet duurzaam veiliggesteld/.test(tekst), true);
+    app.idbPut = bewaard.idbPut;
+  }).then(function(){
+    /* en snel genoeg om het zonder vertraging te kunnen doen */
+    opzetten();
+    var begin = Date.now();
+    for(var i = 0; i < 100; i++){ app.records[0].naam = 'n' + i; app.wijzig(); }
+    var hoofdbaan = Date.now() - begin;
+    eis('honderd wijziging kosten samen minder dan een kwart seconde hoofdbaan',
+        hoofdbaan < 250, true);
+    return totBuffer(function(r){ return r && /n99/.test(r.tekst); });
+  }).then(function(rij){
+    eis('en de laatste van die honderd staat erin', /n99/.test(rij && rij.tekst), true);
+
+    /* wissen mag alleen als er sindsdien niets nieuwers is bijgekomen */
+    return app.wisHerstel(app.wijzigVersie - 1);
+  }).then(function(gewist){
+    eis('wissen op een oudere versie gebeurt niet', gewist, false);
+    return app.idbGet('herstel');
+  }).then(function(rij){
+    eis('en de buffer staat er dus nog', !!rij, true);
+    return app.wisHerstel(app.wijzigVersie);
+  }).then(function(gewist){
+    eis('wissen op de huidige versie wel', gewist, true);
+    return app.idbGet('herstel');
+  }).then(function(rij){
+    eis('en dan is hij weg', !!rij, false);
+
+    /* en het bewijs dat op de downloadweg bij het openen ontstaat */
+    opzetten();
+    app.records[0].naam = 'teruggezet';
+    app.wijzig();
+    return totBuffer(function(r){ return r && /teruggezet/.test(r.tekst); });
+  }).then(function(){
+    return app.herstelNaLezen('e.txt', 'iets heel anders');
+  }).then(function(weg){
+    eis('een bestand met andere inhoud laat de buffer staan', weg, false);
+    return app.herstelNaLezen('ander.txt', app.serialize());
+  }).then(function(weg){
+    eis('een ander bestand ook', weg, false);
+    return app.herstelNaLezen('e.txt', app.serialize());
+  }).then(function(weg){
+    eis('maar is de inhoud precies die van de buffer, dan is hij overbodig', weg, true);
+    return app.idbGet('herstel');
+  }).then(function(rij){
+    eis('en dus weg', !!rij, false);
+
+    /* ---- herkennen bij het opstarten, en de drie gevallen ---- */
+    opzetten();
+    app.records[0].naam = 'niet opgeslagen';
+    app.wijzig();
+    return totBuffer(function(r){ return r && /niet opgeslagen/.test(r.tekst); });
+  }).then(function(){
+    /* doen alsof de app opnieuw begint: geheugen leeg, buffer blijft staan */
+    app.herstelRij = null; app.herstelStand = '';
+    return app.leesHerstel();
+  }).then(function(){
+    eis('bij het opstarten wordt een achtergebleven wijziging herkend',
+        app.herstelStand, 'wacht');
+    eis('en de app weet uit welk bestand', app.herstelRij && app.herstelRij.bestand, 'e.txt');
+    app.fileState = 'leeg';
+    app.render();
+    eis('ook zonder geopend bestand staat de melding er', !!bannerMet('Open dat bestand'), true);
+    app.fileState = 'ok';
+
+    /* het bestand is onveranderd: terugzetten is veilig */
+    return app.herstelNaLezen('e.txt', 'A;a;Gebeurtenis;D20260101;\nB;b;Gebeurtenis;D20260202;');
+  }).then(function(weg){
+    eis('een onveranderd bestand met andere inhoud laat de buffer staan', weg, false);
+    eis('en dan mag er worden teruggezet', app.herstelStand, 'terugzetten');
+    app.render();
+    eis('met een knop Terugzetten', !!app.document.getElementById('fHterug'), true);
+    eis('en een knop Weggooien', !!app.document.getElementById('fHweg'), true);
+
+    /* nu alsof het bestand buiten de app is gewijzigd */
+    app.laatstGeopend = { naam:'e.txt', grootte:999, lastModified:1800000000000 };
+    return app.herstelNaLezen('e.txt', 'A;a;Gebeurtenis;D20260101;');
+  }).then(function(){
+    eis('is het bestand buiten de app gewijzigd, dan wordt dat gemeld',
+        app.herstelStand, 'afwijkend');
+    app.render();
+    eis('en zegt de melding dat ook', !!bannerMet('buiten de app gewijzigd'), true);
+    eis('maar terugzetten blijft mogelijk', !!app.document.getElementById('fHterug'), true);
+
+    /* terugzetten zet het in het geheugen en geldt als niet opgeslagen */
+    app.gelijkgezet();
+    app.zetHerstelTerug();
+    eis('terugzetten haalt de wijziging in het geheugen',
+        /niet opgeslagen/.test(app.serialize()), true);
+    eis('en die geldt als niet opgeslagen', app.nietOpgeslagen(), true);
+    eis('en de melding is weg', app.herstelStand, '');
+
+    /* Twee keer terugzetten -- een dubbele tik, of de knop die na het herladen
+       van de melding nog een keer wordt geraakt. Dezelfde herstelgegevens mogen
+       dan niet een tweede keer worden verwerkt: dat zou de records verdubbelen
+       en de versieteller nog eens verhogen. */
+    /* Het aantal records zegt hier niets: zetHerstelTerug VERVANGT de lijst, dus
+       dat getal verandert ook bij echte dubbele verwerking niet. Wat wel telt is
+       dat de herstelgegevens na één keer verwerken zijn vrijgegeven, en dat de
+       versieteller niet nog eens omhoog gaat -- die tweede verhoging zou een
+       extra bufferschrijfactie uitlokken op gegevens die al verwerkt zijn. */
+    eis('na terugzetten zijn de herstelgegevens vrijgegeven', app.herstelRij, null);
+    var versieNa1 = app.wijzigVersie;
+    app.zetHerstelTerug();
+    eis('twee keer terugzetten verhoogt de versie niet nog eens',
+        app.wijzigVersie, versieNa1);
+    return totBuffer(function(r){ return r && /niet opgeslagen/.test(r.tekst); });
+  }).then(function(rij){
+    eis('en de buffer staat er nog, want het bestand heeft het nog niet', !!rij, true);
+
+    /* weggooien */
+    app.herstelRij = rij; app.herstelStand = 'terugzetten';
+    app.gooiHerstelWeg();
+    eis('weggooien haalt de melding weg', app.herstelStand, '');
+    return totBuffer(function(r){ return !r; });
+  }).then(function(rij){
+    eis('en de buffer ook', !!rij, false);
+
+    /* ---- afgebroken transacties ----
+       Een transactie kan afbreken bij een vol quota of geweigerde opslag.
+       Zonder onabort bleef de belofte dan open, en omdat het opslaan op de
+       backup wacht, bleef de hele app daarna hangen op 'bezig'. */
+    zetIdb(nepIdb('afbreken'));
+    return afloop(app.idbPut('proef', 1));
+  }).then(function(uit){
+    eis('een afgebroken schrijfactie blijft niet hangen maar breekt af',
+        uit === GEEN ? 'bleef hangen' : uit, 'QuotaExceededError');
+    return afloop(app.idbGet('proef'));
+  }).then(function(uit){
+    eis('lezen ook', uit === GEEN ? 'bleef hangen' : uit, 'QuotaExceededError');
+    return afloop(app.idbDel('proef'));
+  }).then(function(uit){
+    eis('en wissen ook', uit === GEEN ? 'bleef hangen' : uit, 'QuotaExceededError');
+
+    /* en wat de app ermee doet */
+    opzetten();
+    app.herstelKan = null; app.herstelFout = '';
+    return binnen(app.bewaarHerstel(), 2000);
+  }).then(function(uit){
+    eis('de buffer schrijven blijft dan ook niet hangen',
+        uit === GEEN ? 'bleef hangen' : 'klaar', 'klaar');
+    eis('en de app weet dat het niet is gelukt', app.herstelKan, false);
+    eis('met de reden erbij', app.herstelFout, 'QuotaExceededError');
+    app.render();
+    eis('en dat staat in beeld, niet alleen in App-status',
+        !!bannerMet('niet veiliggesteld'), true);
+
+    app.herstelKan = null; app.herstelFout = '';
+    return binnen(app.leesHerstel(), 2000);
+  }).then(function(uit){
+    eis('lukt lezen al niet, dan wordt dat meteen gemeld',
+        uit === GEEN ? 'bleef hangen' : 'klaar', 'klaar');
+    eis('en staat de waarschuwing er voordat je iets hebt getypt',
+        app.herstelKan, false);
+    Object.defineProperty(app, 'indexedDB', { value:echteIdb, configurable:true });
+    app.herstelKan = null; app.herstelFout = '';
+    return app.idbDel('herstel');
+  }).then(function(){
+    namen.forEach(function(n){ app[n] = bewaard[n]; });
+    app.herstelKan = null; app.herstelFout = '';
+    app.gelijkgezet(); app.render();
+  }).catch(function(e){
+    namen.forEach(function(n){ app[n] = bewaard[n]; });
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* Het tekenen van de lijst. Met een paar honderd records is dit het duurste
+   dat de app per handeling doet, dus hier staat zowel wat het op dit toestel
+   kost als de afspraak die dat laag houdt: een andere selectie tekent de lijst
+   niet opnieuw. */
+function testTekenen(){
+  groep('Het tekenen van de lijst');
+
+  var namen = ['records','cfg','bestandsnaam','fileState','hasFSA','saveState',
+               'selIndex','zoekterm','filterAan','datumFilter'];
+  var bewaard = {};
+  namen.forEach(function(n){ bewaard[n] = app[n]; });
+
+  /* een lijst van dezelfde orde als een echt bestand */
+  var regels = [];
+  for(var i = 0; i < 240; i++){
+    regels.push('S' + i + ';Naam ' + i + ';Gebeurtenis;D2026' +
+                ('0' + (1 + (i % 12))).slice(-2) + ('0' + (1 + (i % 28))).slice(-2) + ';1');
+  }
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.bestandsnaam = 'e.txt'; app.fileState = 'ok'; app.saveState = '';
+  app.zoekterm = ''; app.filterAan = false; app.datumFilter = '';
+  app.records = app.parse(regels.join('\n'));
+  app.sorteer(); app.gelijkgezet(); app.selIndex = -1;
+  app.render();
+
+  var lijst = app.document.getElementById('lijst');
+  function tabel(){ return lijst.querySelector('table'); }
+  function selRijen(){ return lijst.querySelectorAll('tr.sel'); }
+
+  eis('de lijst staat er', !!tabel(), true);
+  eis('met alle regels', lijst.querySelectorAll('tr[data-i]').length, app.records.length);
+
+  /* een andere selectie mag de tabel niet opnieuw opbouwen */
+  var voor = tabel();
+  app.selIndex = 7; app.render();
+  eis('een andere selectie tekent de lijst niet opnieuw', tabel() === voor, true);
+  eis('en zet precies een rij op geselecteerd', selRijen().length, 1);
+  eis('en wel de juiste', selRijen()[0].getAttribute('data-i'), '7');
+
+  app.selIndex = 19; app.render();
+  eis('bij de volgende selectie staat er weer precies een', selRijen().length, 1);
+  eis('en is dat de nieuwe', selRijen()[0].getAttribute('data-i'), '19');
+
+  app.selIndex = -1; app.render();
+  eis('zonder selectie staat er geen geselecteerde rij', selRijen().length, 0);
+  eis('en de tabel is nog steeds dezelfde', tabel() === voor, true);
+
+  /* een echte wijziging moet wel opnieuw tekenen */
+  app.records[0].naam = 'Heel iets anders';
+  app.wijzig(); app.render();
+  eis('een echte wijziging tekent de lijst wel opnieuw', tabel() === voor, false);
+  eis('en de nieuwe naam staat erin', /Heel iets anders/.test(lijst.textContent), true);
+
+  /* en een klik op een rij werkt nog, ook na een hertekening */
+  var rij = lijst.querySelector('tr[data-i="12"]');
+  if(rij) rij.dispatchEvent(new app.MouseEvent('click', { bubbles:true }));
+  eis('een klik op een rij selecteert hem', app.selIndex, 12);
+  if(rij) rij.dispatchEvent(new app.MouseEvent('click', { bubbles:true }));
+  eis('en nog een klik laat hem weer los', app.selIndex, -1);
+
+  /* wat het op dit toestel kost */
+  function meet(f, n){
+    var t = Date.now();
+    for(var i = 0; i < n; i++) f();
+    return (Date.now() - t) / n;
+  }
+  app.selIndex = -1; app.render();
+  var k = 0, m = 0;
+  var tikken = meet(function(){ app.selIndex = (k++ % 200); app.render(); }, 20);
+  var wijzigen = meet(function(){ app.records[0].naam = 'n' + (m++); app.render(); }, 20);
+  meld('een rij aantikken kost op dit toestel', tikken.toFixed(1) + ' ms');
+  meld('een naam wijzigen kost', wijzigen.toFixed(1) + ' ms');
+  meld('de lijst telt', app.records.length + ' regels');
+
+  namen.forEach(function(n){ app[n] = bewaard[n]; });
+  app.gelijkgezet(); app.render();
+}
+
+/* Een record is altijd precies een regel, en de configuratie mag daar niet
+   dwars tegenin gaan. JSON mag "Ge\nboren" bevatten, het events-bestand niet:
+   elk record met dat type werd dan twee regels, waarvan de tweede bij het
+   inlezen onbegrepen is. Gemeten voordat dit erin zat: 2 regels voor 1 record. */
+function testEenRegel(){
+  groep('Een record is altijd een regel');
+
+  var bewaard = {
+    cfg: app.cfg, records: app.records, cfgKlachten: app.cfgKlachten,
+    fileState: app.fileState, bestandsnaam: app.bestandsnaam, selIndex: app.selIndex
+  };
+  function terug(){
+    Object.keys(bewaard).forEach(function(k){ app[k] = bewaard[k]; });
+    app.gelijkgezet(); app.render();
+  }
+
+  try {
+    /* 1. het inlezen van de configuratie slaat regelovergangen plat en zegt dat */
+    var klachten = [];
+    var uit = app.keurCfg({
+      bestand: 'e.txt', titel: 'Twee\nregels', scheidingsteken: ';',
+      velden: ['Event', 'Naam\nhier', 'Type', 'Datum', 'Categorie', 'Notitie'],
+      types: [{ omschrijving: 'Ge\nboren' }, { omschrijving: 'Gebeurtenis' }],
+      categorieen: [{ nr: 1, omschrijving: 'eerste\nregel' }]
+    }, klachten);
+    var zicht = function(t){ return JSON.stringify(t); };
+    eis('de titel staat op een regel', zicht(uit.titel), '"Twee regels"');
+    eis('een veldnaam ook', zicht(uit.velden[1]), '"Naam hier"');
+    eis('een type ook', zicht(uit.types[0].omschrijving), '"Ge boren"');
+    eis('een categorie-omschrijving ook', zicht(uit.categorieen[0].omschrijving), '"eerste regel"');
+    eis('en een type zonder overgang blijft wat het was',
+        zicht(uit.types[1].omschrijving), '"Gebeurtenis"');
+    eis('en dat wordt gemeld, met het aantal',
+        klachten.filter(function(k){ return /over meer dan een regel/.test(k); }).length, 1);
+    eis('vier waarden, dus vier in de melding',
+        /4 waarde\(n\)/.test(klachten.join(' ')), true);
+
+    /* 2. een schone configuratie levert geen melding op */
+    var schoonKlachten = [];
+    app.keurCfg({ bestand: 'e.txt', titel: 'Eén regel', types: [{ omschrijving: 'Gebeurtenis' }] },
+                schoonKlachten);
+    eis('een schone configuratie levert daarover niets op',
+        /over meer dan een regel/.test(schoonKlachten.join(' ')), false);
+
+    /* 3. en wat er ondanks dat alles nog in zou staan, wordt bij het wegschrijven
+          een spatie -- dat is de garantie, niet de hoop */
+    app.cfg = { bestand: 'e.txt', scheidingsteken: ';' };
+    app.records = [
+      { sleutel: 'A', naam: 'aap\nbeer', type: 'Gebeurtenis', code: 'D20260101', cat: 1, notitie: '', id: 1 },
+      { sleutel: 'B', naam: 'beer', type: 'Ge\nboren', code: 'D20260202', cat: 1, notitie: 'een\ntwee', id: 2 }
+    ];
+    var tekst = app.serialize();
+    eis('twee records leveren twee regels op',
+        tekst.replace(/\n$/, '').split('\n').length, 2);
+    eis('en de overgangen zijn spaties geworden',
+        /aap beer/.test(tekst) && /Ge boren/.test(tekst) && /een twee/.test(tekst), true);
+    eis('er staat nergens nog een regelovergang in een veld',
+        tekst.split('\n').filter(Boolean).every(function(r){ return r.split(';').length >= 5; }), true);
+    /* en terugleesbaar: dat is waar het om gaat */
+    var opnieuw = app.parse(tekst);
+    eis('het teruglezen levert weer twee records', opnieuw.length, 2);
+    eis('en geen enkele onbegrepen regel',
+        opnieuw.filter(function(r){ return r.raw !== undefined; }).length, 0);
+
+    /* 4. het rapport zegt nu wat de macro ook zegt over een categorieveld */
+    app.cfg = { bestand: 'e.txt', scheidingsteken: ';',
+                categorieen: [{ nr: 1 }, { nr: 2 }] };
+    app.bestandsnaam = 'e.txt'; app.fileState = 'ok';
+    app.records = app.parse('A;aap;Gebeurtenis;D20260101;1\n' +
+                            'B;beer;Gebeurtenis;D20260202;\n' +
+                            'C;cees;Gebeurtenis;D20260303;hoog\n');
+    app.sorteer(); app.gelijkgezet(); app.selIndex = -1;
+    var bev = app.controleer();
+    var kop = bev.filter(function(b){ return /Categorie niet te lezen/.test(b.titel); })[0];
+    eis('het rapport heeft de kop over een onleesbare categorie', !!kop, true);
+    eis('met beide regels erin', kop ? kop.regels.length : 0, 2);
+    eis('en wat er stond', kop ? kop.regels.join(' | ') : '',
+        'B — leeg | C — "hoog"');
+    var geen = app.controleer().filter(function(b){ return /buiten de lijst/.test(b.titel); });
+    eis('en die regels gelden niet ook als categorie buiten de lijst', geen.length, 0);
+    eis('want ze staan op de eerste categorie',
+        app.records.filter(function(x){ return x.catRuw !== undefined; })
+                   .every(function(x){ return x.cat === 1; }), true);
+
+    app.records = app.parse('A;aap;Gebeurtenis;D20260101;1\n');
+    app.sorteer(); app.gelijkgezet();
+    var zonder = app.controleer().filter(function(b){ return /Categorie niet te lezen/.test(b.titel); });
+    eis('zonder zo’n regel staat die kop er niet', zonder.length, 0);
+  } catch(e){
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  }
+  terug();
+  return Promise.resolve();
+}
+
+/* Het scheidingsteken wijzigen raakt twee bestanden, en dat kan halverwege
+   stoppen. Gemeten met een map die events.txt weigerde: de cfg stond op "#",
+   het bestand nog op ";", en bij de volgende start was 2 van 2 regels
+   onbegrepen -- met alleen "opslaan mislukt" op het scherm. De app repareert
+   hier niets; hij zegt wat er aan de hand is, op beide momenten. */
+function testSepTweeBestanden(){
+  groep('Het scheidingsteken over twee bestanden');
+
+  var bewaard = {
+    dirHandle: app.dirHandle, hasFSA: app.hasFSA, bestandsnaam: app.bestandsnaam,
+    cfg: app.cfg, fileState: app.fileState, records: app.records, saveState: app.saveState,
+    idbGet: app.idbGet, idbPut: app.idbPut, idbDel: app.idbDel,
+    laatstGelezen: app.laatstGelezen, laatstGrootte: app.laatstGrootte,
+    cfgGelezen: app.cfgGelezen, cfgGrootte: app.cfgGrootte, cfgCRLF: app.cfgCRLF,
+    cfgOverschreven: app.cfgOverschreven, sepOnafgemaakt: app.sepOnafgemaakt,
+    sepMist: app.sepMist, schrijfBezig: app.schrijfBezig, negeerBotsing: app.negeerBotsing
+  };
+  function terug(){
+    Object.keys(bewaard).forEach(function(k){ app[k] = bewaard[k]; });
+    app.gelijkgezet(); app.render();
+  }
+
+  var opslag = {};
+  app.idbGet = function(k){ return Promise.resolve(opslag[k]); };
+  app.idbPut = function(k, v){ opslag[k] = v; return Promise.resolve(); };
+  app.idbDel = function(k){ delete opslag[k]; return Promise.resolve(); };
+
+  var EVENTS = 'A;aap;Gebeurtenis;D20260101;1\nB;beer;Gebeurtenis;D20260202;2\n';
+  var map;
+  function opzetten(weiger){
+    map = maakMap({ weigerNaam: weiger });
+    map.fs['events.txt'] = { tekst:EVENTS, mtime:1000 };
+    map.fs['events_cfg.json'] = { tekst:'{\n  "bestand": "events.txt",\n  "scheidingsteken": ";"\n}\n',
+                                  mtime:1000 };
+    app.dirHandle = map; app.hasFSA = true; app.bestandsnaam = 'events.txt';
+    app.cfg = { bestand:'events.txt', scheidingsteken:';', ofteken:'|' };
+    app.fileState = 'ok'; app.saveState = ''; app.schrijfBezig = false; app.negeerBotsing = false;
+    app.laatstGelezen = 1000; app.laatstGrootte = EVENTS.length;
+    app.cfgGelezen = 1000; app.cfgGrootte = map.fs['events_cfg.json'].tekst.length;
+    app.cfgCRLF = false; app.cfgOverschreven = false;
+    app.sepOnafgemaakt = ''; app.sepMist = '';
+    opslag = {};
+    app.records = app.parse(EVENTS); app.sorteer(); app.gelijkgezet(); app.render();
+  }
+  function rust(ms){ return new Promise(function(r){ setTimeout(r, ms || 250); }); }
+  function melding(){ return app.document.getElementById('bad').textContent; }
+
+  /* 1. de tweede schrijfactie mislukt */
+  opzetten('events.txt');
+  app.openCfg();
+  return rust(60).then(function(){
+    app.document.getElementById('cfgSep').value = '#';
+    app.bewaarCfg();
+    return rust();
+  }).then(function(){
+    eis('de configuratie staat op het nieuwe teken',
+        JSON.parse(map.fs['events_cfg.json'].tekst).scheidingsteken, '#');
+    eis('maar het events-bestand is niet herschreven',
+        map.fs['events.txt'].tekst, EVENTS);
+    eis('de app weet dat de twee niet gelijk staan', app.sepOnafgemaakt, ';');
+    eis('en zegt dat onder de header, met beide tekens',
+        /scheidingsteken staat in events_cfg\.json al op "#".*nog op ";"/.test(melding()), true);
+    eis('en niet alleen dat opslaan mislukte', app.saveState, 'fout');
+
+    /* 2. nog eens opslaan, nu in een map die het wel aankan */
+    var oudeFs = map.fs;
+    map = maakMap();
+    map.fs['events.txt'] = oudeFs['events.txt'];
+    map.fs['events_cfg.json'] = oudeFs['events_cfg.json'];
+    app.dirHandle = map;
+    app.laatstGelezen = map.fs['events.txt'].mtime;
+    app.laatstGrootte = map.fs['events.txt'].tekst.length;
+    app.bewaar();
+    return rust();
+  }).then(function(){
+    eis('dan wordt het bestand alsnog met het nieuwe teken geschreven',
+        /^A#aap#/.test(map.fs['events.txt'].tekst), true);
+    eis('en is de melding weg', app.sepOnafgemaakt, '');
+    eis('ook werkelijk van het scherm', /scheidingsteken staat in/.test(melding()), false);
+
+    /* 3. de volgende start met een cfg die niet bij het bestand past */
+    opzetten();
+    app.cfg.scheidingsteken = '#';
+    return app.laden();
+  }).then(function(){
+    eis('alle regels zijn dan onbegrepen',
+        app.records.filter(function(r){ return r.raw !== undefined; }).length, app.records.length);
+    eis('en de app noemt het teken dat wel past', app.sepMist, ';');
+    eis('met beide tekens in de melding',
+        /past bij scheidingsteken "#"; met ";" passen ze allemaal/.test(melding()), true);
+
+    /* 4. een bestand dat gewoon gelezen kan worden levert geen melding */
+    opzetten();
+    return app.laden();
+  }).then(function(){
+    eis('een leesbaar bestand levert geen suggestie', app.sepMist, '');
+    eis('en geen melding', /passen ze allemaal/.test(melding()), false);
+
+    /* 5. en er wordt niets beweerd als geen enkel teken past */
+    eis('bij echte rommel blijft de app stil',
+        app.zoekBeterSep('dit is geen regel\nen dit ook niet\n',
+                         app.parse('dit is geen regel\nen dit ook niet\n')), '');
+    eis('een leeg bestand ook', app.zoekBeterSep('', app.parse('')), '');
+    eis('een tab wordt leesbaar opgeschreven', app.sepLabel('\t'), 'tab');
+    terug();
+  }, function(e){
+    terug();
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* De verbinding met IndexedDB. idb() opent er een per aanroep en gaf hem nooit
+   terug; bij elke wijziging kwam er een bij. Dat is niet alleen netheid: zolang
+   er een verbinding openstaat blijft een verzoek om de database te verwijderen
+   of van versie te wisselen hangen, en dat is precies waar deze controle naar
+   kijkt -- deleteDatabase meldt 'blocked' zolang er nog iemand binnen is. */
+function testVerbinding(){
+  groep('De verbinding met de opslag');
+
+  if(typeof app.idbPut !== 'function'){
+    eis('de opslagfuncties staan er', 'nee', 'ja');
+    return Promise.resolve();
+  }
+  /* eerst echt iets doen, zodat er een verbinding geopend is geweest */
+  return app.idbPut('proefverbinding', { t: Date.now() }).then(function(){
+    return app.idbGet('proefverbinding');
+  }).then(function(waarde){
+    eis('wat erin gaat komt er ook uit', !!waarde, true);
+    return app.idbDel('proefverbinding');
+  }).then(function(){
+    /* Nu de database proberen te verwijderen. Lukt dat meteen, dan stond er geen
+       verbinding meer open. Blijft hij hangen, dan wel -- en dan zou in een echte
+       sessie ook een nieuwe versie van de app niet door de versiewissel komen. */
+    return new Promise(function(klaar){
+      var afgelopen = false;
+      var q = app.indexedDB.deleteDatabase('events');
+      var geblokkeerd = false;
+      q.onblocked = function(){ geblokkeerd = true; };
+      q.onsuccess = function(){ if(!afgelopen){ afgelopen = true; klaar(geblokkeerd ? 'eerst geblokkeerd' : 'meteen'); } };
+      q.onerror = function(){ if(!afgelopen){ afgelopen = true; klaar('mislukt'); } };
+      setTimeout(function(){ if(!afgelopen){ afgelopen = true; klaar(geblokkeerd ? 'blijft geblokkeerd' : 'geen antwoord'); } }, 2000);
+    });
+  }).then(function(uitkomst){
+    eis('de database kan worden verwijderd zonder dat er nog een verbinding openstaat',
+        uitkomst, 'meteen');
+    /* en de app kan daarna gewoon weer verder: idb() maakt hem opnieuw aan */
+    return app.idbPut('proefverbinding', 1).then(function(){ return app.idbGet('proefverbinding'); });
+  }).then(function(w){
+    eis('en daarna werkt de opslag weer', w, 1);
+    return app.idbDel('proefverbinding').catch(function(){});
+  });
+}
+
+/* Een bestand dat nog niet bestaat. Op dat pad sloeg de app het inlezen van de
+   herstelbuffer over: de banner bleef zeggen "open dat bestand om ze terug te
+   zetten" terwijl dat bestand al gekoppeld was, en een getypt event dat Android
+   had afgebroken was alleen nog met de hand uit IndexedDB te halen. */
+function testHerstelZonderBestand(){
+  groep('De herstelbuffer zonder bestand');
+
+  var bewaard = {
+    dirHandle: app.dirHandle, hasFSA: app.hasFSA, bestandsnaam: app.bestandsnaam,
+    cfg: app.cfg, fileState: app.fileState, records: app.records,
+    idbGet: app.idbGet, idbPut: app.idbPut, idbDel: app.idbDel,
+    laatstGelezen: app.laatstGelezen, laatstGrootte: app.laatstGrootte,
+    herstelRij: app.herstelRij, herstelStand: app.herstelStand, saveState: app.saveState
+  };
+  function terug(){
+    Object.keys(bewaard).forEach(function(k){ app[k] = bewaard[k]; });
+    app.gelijkgezet(); app.render();
+  }
+
+  var opslag = {};
+  app.idbGet = function(k){ return Promise.resolve(opslag[k]); };
+  app.idbPut = function(k, v){ opslag[k] = v; return Promise.resolve(); };
+  app.idbDel = function(k){ delete opslag[k]; return Promise.resolve(); };
+
+  function opzetten(basis, bestand){
+    var map = maakMap();
+    if(bestand !== undefined) map.fs['events.txt'] = { tekst:bestand, mtime:5000 };
+    app.dirHandle = map; app.hasFSA = true; app.bestandsnaam = 'events.txt';
+    app.cfg = { bestand:'events.txt', scheidingsteken:';' };
+    app.fileState = 'ok'; app.laatstGelezen = null; app.laatstGrootte = null;
+    app.records = []; app.gelijkgezet();
+    /* de buffer zoals hij er na een afgebroken sessie in staat */
+    app.herstelRij = null; app.herstelStand = '';
+    opslag['herstel'] = { bestand:'events.txt', tekst:'N;nieuw;Gebeurtenis;D20260101;1\n',
+                          versie:1, basis:basis, tijd:Date.now() };
+    return map;
+  }
+
+  /* 1. buffer van een bestand dat toen niet bestond, en nu nog steeds niet */
+  opzetten({ naam:'events.txt', lastModified:null, grootte:null });
+  return app.laden().then(function(){
+    eis('zonder bestand wordt de buffer alsnog ingelezen', !!app.herstelRij, true);
+    eis('en aangeboden om terug te zetten', app.herstelStand, 'terugzetten');
+    eis('de lijst blijft tot die keuze leeg', app.records.length, 0);
+    eis('en de banner zegt niet meer dat het bestand geopend moet worden',
+        /Open dat bestand/.test(app.document.getElementById('filebar').textContent), false);
+
+    /* 2. buffer van een bestand dat toen wel bestond: dan is er iets veranderd
+          en mag er niets automatisch worden aangeboden om over te schrijven */
+    opzetten({ naam:'events.txt', lastModified:4000, grootte:30 });
+    return app.laden();
+  }).then(function(){
+    eis('een buffer van een bestand dat er toen wel was heet afwijkend',
+        app.herstelStand, 'afwijkend');
+
+    /* 3. en terugzetten kan dan nog steeds, maar op jouw woord */
+    app.zetHerstelTerug();
+    eis('terugzetten voegt de regel toe', app.records.length, 1);
+    eis('en de buffer is daarmee afgehandeld', app.herstelStand, '');
+
+    /* 4. staat het bestand er met precies die inhoud, dan is de buffer klaar */
+    opzetten({ naam:'events.txt', lastModified:null, grootte:null },
+             'N;nieuw;Gebeurtenis;D20260101;1\n');
+    return app.laden();
+  }).then(function(){
+    eis('is de wijziging aangekomen, dan wordt de buffer opgeruimd', app.herstelRij, null);
+    eis('en staat er niets meer in de opslag', opslag['herstel'], undefined);
+    terug();
+  }, function(e){
+    terug();
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* De configuratie werd zonder enige controle overschreven. Wie de instellingen
+   op de pc aanpaste en daarna in de app op Opslaan drukte, zag die aanpassing
+   zonder melding verdwijnen -- terwijl het events-bestand al sinds lang tegen
+   precies dat beschermd was. */
+function testCfgBotsing(){
+  groep('Wijzigingen van buiten in de configuratie');
+
+  var bewaard = {
+    dirHandle: app.dirHandle, hasFSA: app.hasFSA, cfg: app.cfg, fileState: app.fileState,
+    idbGet: app.idbGet, idbPut: app.idbPut, idbDel: app.idbDel,
+    cfgGelezen: app.cfgGelezen, cfgGrootte: app.cfgGrootte,
+    cfgOverschreven: app.cfgOverschreven, cfgCRLF: app.cfgCRLF
+  };
+  function terug(){
+    Object.keys(bewaard).forEach(function(k){ app[k] = bewaard[k]; });
+    app.render();
+  }
+
+  var opslag = {};
+  app.idbGet = function(k){ return Promise.resolve(opslag[k]); };
+  app.idbPut = function(k, v){ opslag[k] = v; return Promise.resolve(); };
+  app.idbDel = function(k){ delete opslag[k]; return Promise.resolve(); };
+
+  var map;
+  function opzetten(){
+    map = maakMap();
+    map.fs['events_cfg.json'] = { tekst:'{\n  "bestand": "events.txt"\n}\n', mtime:7000 };
+    app.dirHandle = map; app.hasFSA = true; app.cfgCRLF = false;
+    app.cfg = { bestand:'events.txt', titel:'Uit de app' };
+    app.cfgGelezen = 7000; app.cfgGrootte = map.fs['events_cfg.json'].tekst.length;
+    app.cfgOverschreven = false;
+    opslag = {}; opslag['backup:events_cfg.json'] = app.dagsleutel();   /* al een backup vandaag */
+  }
+  function backups(){
+    return map.gebeurd.filter(function(x){ return /_backup/.test(x); }).length;
+  }
+
+  /* 1. niets veranderd: gewoon schrijven, geen extra backup */
+  opzetten();
+  return app.schrijfCfg().then(function(){
+    eis('een ongewijzigde configuratie wordt gewoon weggeschreven',
+        /Uit de app/.test(map.fs['events_cfg.json'].tekst), true);
+    eis('zonder extra backup, want die is er vandaag al', backups(), 0);
+    eis('en er is niets te melden', app.cfgOverschreven, false);
+    eis('de basis is bijgewerkt naar wat er nu staat',
+        app.cfgGelezen, map.fs['events_cfg.json'].mtime);
+
+    /* 2. nog een keer opslaan mag de eigen schrijfactie niet als wijziging van
+          buiten zien -- anders zou er bij elke keer een backup bij komen */
+    app.cfg.titel = 'Nog eens';
+    return app.schrijfCfg();
+  }).then(function(){
+    eis('de eigen schrijfactie geldt niet als wijziging van buiten', app.cfgOverschreven, false);
+    eis('dus komt er ook dan geen extra backup', backups(), 0);
+
+    /* 3. buiten de app gewijzigd: wel schrijven -- anders kom je er zonder
+          herladen niet meer uit -- maar die versie eerst apart wegzetten */
+    opzetten();
+    map.fs['events_cfg.json'] = { tekst:'{\n  "bestand": "events.txt",\n  "titel": "Van de pc"\n}\n',
+                                  mtime:9000 };
+    return app.schrijfCfg();
+  }).then(function(){
+    eis('een wijziging van buiten wordt gemeld', app.cfgOverschreven, true);
+    eis('en eerst als backup weggezet, ook al is er vandaag al een', backups(), 1);
+    eis('de backup bevat de versie van buiten',
+        /Van de pc/.test(map.fs[Object.keys(map.fs).filter(function(n){ return /_backup/.test(n); })[0]].tekst),
+        true);
+    eis('en daarna staat de versie uit de app in het bestand',
+        /Uit de app/.test(map.fs['events_cfg.json'].tekst), true);
+    app.render();
+    eis('de melding staat onder de header',
+        /buiten de app gewijzigd/.test(app.document.getElementById('bad').textContent), true);
+
+    /* 4. een onbevraagbare cfg geldt ook niet als ongewijzigd */
+    opzetten();
+    app.dirHandle = { getFileHandle: function(naam, opties){
+      if(opties && opties.create) return map.getFileHandle(naam, opties);
+      return Promise.reject(Object.assign(new Error('niet gelukt'), { name:'NotAllowedError' }));
+    } };
+    return app.cfgGewijzigd();
+  }).then(function(stand){
+    eis('een mislukte controle heet onbekend', stand, 'onbekend');
+    opzetten();
+    app.cfgGelezen = null;
+    return app.cfgGewijzigd();
+  }).then(function(stand){
+    eis('nog nooit gelezen levert geen botsing', stand, 'gelijk');
+    terug();
+  }, function(e){
+    terug();
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* Comfort op een kleine telefoon. Punten uit de koude review die alleen op een
+   echt toestel opvallen, plus de namen die een schermlezer nodig heeft. Ze zijn
+   klein, maar allemaal gemeten op een scherm van 360x640: de teller die zweeg
+   over het periodefilter, de pil die het ongedaan maken weggooide, de naamkolom
+   die 12 van 20 namen afkapte, en het cijferraster dat op een laag scherm de
+   knoppen OK en Annuleren onbereikbaar maakte. */
+function testComfort(){
+  groep('Comfort op een kleine telefoon');
+
+  var d = app.document;
+  var namen = ['records','cfg','bestandsnaam','fileState','hasFSA','saveState',
+               'selIndex','zoekterm','filterAan','datumFilter','terug','pilWeg'];
+  var bewaard = {};
+  namen.forEach(function(n){ bewaard[n] = app[n]; });
+
+  app.cfg = { bestand:'e.txt', scheidingsteken:';' };
+  app.bestandsnaam = 'e.txt'; app.fileState = 'ok'; app.saveState = '';
+  app.zoekterm = ''; app.filterAan = false; app.datumFilter = '';
+  app.records = app.parse('S1;Drimmelore Vasqinter;Gebeurtenis;D20261015;1\n' +
+                          'S2;Bram;Gebeurtenis;D20260301;1');
+  app.sorteer(); app.gelijkgezet(); app.selIndex = -1;
+  app.terug = null; app.pilWeg = false;
+  app.render();
+
+  function herstel(){
+    namen.forEach(function(n){ app[n] = bewaard[n]; });
+    app.gelijkgezet(); app.render();
+  }
+
+  /* 1. De teller noemt de periode die aanstaat. De periodechips staan in een
+     strook van 1841 px in een venster van 328: van de 18 zijn er 3 te zien, dus
+     stond "oktober" aan, dan zag je 1 van 2 events en nergens waarom. */
+  eis('zonder periodefilter staat er alleen een aantal',
+      d.getElementById('count').textContent, '2');
+  app.datumFilter = '10'; app.render();
+  var tel = d.getElementById('count').textContent;
+  eis('met oktober aan noemt de teller die maand', tel.indexOf('oktober') >= 0, true);
+  eis('en nog steeds hoeveel er van hoeveel te zien zijn', tel.indexOf('1 / 2'), 0);
+  app.datumFilter = ''; app.render();
+  eis('en zonder filter eindigt de teller weer op een getal',
+      /[0-9]$/.test(d.getElementById('count').textContent), true);
+
+  /* De teller staat pal naast de periodechips, dus daar hoort precies het woord
+     te staan dat je hebt aangetikt. Bij 'jaar' stond er "het komende jaar": dat
+     hoort in een zin, niet naast een getal. Hier wordt elke chip langsgelopen,
+     zodat geen enkele periode stil een ander woord kan krijgen. */
+  var chips = d.getElementById('chips').querySelectorAll('.chip');
+  eis('er staan periodechips', chips.length > 0, true);
+  var afwijkend = [];
+  Array.prototype.forEach.call(chips, function(c){
+    var waarde = c.getAttribute('data-d');
+    app.datumFilter = waarde; app.render();
+    var t = d.getElementById('count').textContent;
+    var zicht = app.zichtbaar().length;
+    var alle = app.records.filter(function(x){ return x.raw === undefined; }).length;
+    var hoort = zicht + (zicht !== alle ? ' / ' + alle : '') +
+                (waarde === '' ? '' : ' ' + c.textContent);
+    if(t !== hoort) afwijkend.push(c.textContent + ': teller zegt "' + t + '", verwacht "' + hoort + '"');
+  });
+  eis('elke periode staat in de teller zoals op zijn chip',
+      afwijkend.length ? afwijkend.join('; ') : 'alle gelijk', 'alle gelijk');
+  app.datumFilter = ''; app.render();
+
+  /* De strook met meldingen onder de header. Die had altijd 8 px padding boven
+     en onder, ook als er niets te melden was -- en dat is de stand waarin de app
+     bijna altijd staat. Gemeten: 16 px dode ruimte onder de blauwe lijn. */
+  var strook = d.getElementById('bad');
+  eis('zonder meldingen staat de strook er niet', strook.hidden, true);
+  var kop = d.querySelector('.head, header, #kop');
+  eis('en begint de lijst meteen onder de lijn',
+      Math.round(d.getElementById('lijst').getBoundingClientRect().top -
+                 kop.getBoundingClientRect().bottom), 0);
+
+  var warenRecords = app.records;
+  app.records = app.parse('dit is geen regel\nA;aap;Gebeurtenis;D20260101;1\n');
+  app.sorteer(); app.gelijkgezet(); app.render();
+  eis('met iets te melden staat hij er wel', strook.hidden, false);
+  eis('en zegt hij wat er aan de hand is',
+      /onbekend formaat/.test(strook.textContent), true);
+  app.records = warenRecords; app.sorteer(); app.gelijkgezet(); app.render();
+  eis('en daarna is hij weer weg', strook.hidden, true);
+
+  /* 2. De pil over de laatste stap. Die stond pal boven de lijst en werd
+     aangetikt om hem weg te krijgen -- waarmee ook de enige weg terug verdween. */
+  app.onthoud('Drimmelore Vasqinter', 'gewijzigd', app.records[0].id, null);
+  app.render();
+  var pil = d.getElementById('laatste');
+  eis('na een stap staat de pil er', pil.hidden, false);
+  eis('en de knop om die stap terug te draaien ook', d.getElementById('btnUndo').hidden, false);
+  eis('de pil is groot genoeg om te raken', app.getComputedStyle(pil).minHeight, '44px');
+  pil.click();
+  eis('de pil wegtikken laat hem verdwijnen', pil.hidden, true);
+  eis('maar de stap blijft terug te draaien', !!app.terug, true);
+  eis('en de knop daarvoor blijft staan', d.getElementById('btnUndo').hidden, false);
+  app.onthoud('Bram', 'verwijderd', app.records[1].id, null);
+  app.render();
+  eis('een volgende stap zet de pil weer aan', pil.hidden, false);
+  app.terug = null; app.pilWeg = false; app.render();
+
+  /* 3. De naamkolom houdt 169 px over op een scherm van 360. */
+  var naamCel = d.querySelector('#lijst tr[data-i] td.naam');
+  eis('de naam staat in zijn eigen cel', !!naamCel, true);
+  eis('en is kleiner gezet dan de rest van de regel',
+      naamCel ? app.getComputedStyle(naamCel).fontSize : '(geen cel)', '17px');
+  var dagCel = d.querySelector('#lijst tr[data-i] td.dag');
+  eis('de andere kolommen houden hun grootte',
+      dagCel ? app.getComputedStyle(dagCel).fontSize : '(geen cel)', '20px');
+
+  /* 4. Elk venster en elk label heeft een naam. */
+  var vensters = d.querySelectorAll('[role="dialog"]');
+  var metNaam = 0;
+  Array.prototype.forEach.call(vensters, function(v){
+    var id = v.getAttribute('aria-labelledby');
+    var kop = id ? d.getElementById(id) : null;
+    if(kop && kop.textContent.trim()) metNaam++;
+  });
+  eis('alle vensters hebben een naam die ook echt bestaat',
+      metNaam + ' van ' + vensters.length, vensters.length + ' van ' + vensters.length);
+
+  var labels = d.querySelectorAll('label');
+  var losse = [];
+  Array.prototype.forEach.call(labels, function(l){
+    var voor = l.getAttribute('for');
+    if(voor){
+      var doel = d.getElementById(voor);
+      /* een <label for=...> werkt alleen op een invoerveld, niet op een knop */
+      if(!doel || ['INPUT','TEXTAREA','SELECT'].indexOf(doel.tagName) < 0){
+        losse.push(l.textContent.trim() + ' -> ' + voor);
+      }
+      return;
+    }
+    /* zonder for moet er iets naar dit label wijzen */
+    if(!l.id || !d.querySelector('[aria-labelledby~="' + l.id + '"]')){
+      losse.push(l.textContent.trim() + ' (wijst nergens heen)');
+    }
+  });
+  eis('en elk label benoemt werkelijk een besturing',
+      losse.length ? losse.join('; ') : 'geen losse labels', 'geen losse labels');
+
+  /* 5. Eén schuifvlak op een laag scherm: liggend, of met het toetsenbord open.
+     Een eigen schuifvlak binnen een al schuivende modal maakte dat vegen over de
+     cijfers alleen het raster verschoof en OK onbereikbaar bleef. */
+  var raam = document.getElementById('app');
+  var hoogte = raam.style.height;
+  var grid = d.querySelector('.numgrid');
+  eis('het cijferraster staat er', !!grid, true);
+  eis('op een hoog scherm schuift het raster zelf',
+      grid ? app.getComputedStyle(grid).overflowY : '(geen raster)', 'auto');
+
+  raam.style.height = '500px';
+  return nieuwBeeld().then(function(){
+    eis('het venster van de app is werkelijk lager geworden', app.innerHeight <= 560, true);
+    eis('en dan schuift het raster niet meer zelf',
+        grid ? app.getComputedStyle(grid).overflowY : '(geen raster)', 'visible');
+    eis('en wordt het ook niet meer afgekapt',
+        grid ? app.getComputedStyle(grid).maxHeight : '(geen raster)', 'none');
+    var icoon = d.querySelector('.icoongrid');
+    eis('hetzelfde geldt voor het raster met de iconen',
+        icoon ? app.getComputedStyle(icoon).overflowY : '(geen raster)', 'visible');
+    raam.style.height = hoogte;
+    return nieuwBeeld();
+  }).then(function(){
+    eis('en op de oude hoogte is het weer zoals het was',
+        grid ? app.getComputedStyle(grid).overflowY : '(geen raster)', 'auto');
+    /* Een <label> in gegenereerde opmaak valt buiten de controle hierboven als
+       dat stuk nu niet getekend staat; daarom ook in de bron kijken. */
+    return fetch('events.html', { cache:'no-store' }).then(function(r){ return r.text(); });
+  }).then(function(bron){
+    var tags = bron.match(/<label[^>]*>/g) || [];
+    var zonder = tags.filter(function(t){ return t.indexOf('for=') < 0 && t.indexOf('id=') < 0; });
+    eis('ook in de bron staat geen label zonder doel',
+        zonder.length ? zonder.join(' ') : 'geen', 'geen');
+    herstel();
+  }, function(e){
+    herstel();
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* twee beeldopbouwen afwachten, zodat een nieuwe vensterhoogte ook werkelijk in
+   de opmaak is doorgerekend voordat er gemeten wordt */
+function nieuwBeeld(){
+  return new Promise(function(klaar){
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ klaar(); }); });
+  });
+}
+
+/* De versiecontrole van de app. Het versienummer staat op twee plaatsen --
+   sw-events.js en events.html -- en update_cache_version.py houdt ze gelijk.
+   De app vergelijkt zijn eigen nummer met dat in de offline-kopie; staat daar
+   een hoger nummer, dan is er een nieuwe versie binnengehaald. */
+function testVersiecontrole(){
+  groep('De versiecontrole van de app');
+
+  if(typeof app.checkAppUpdate !== 'function' || typeof app.vraagSwUpdate !== 'function' ||
+     typeof app.magHerladenEenmaal !== 'function'){
+    eis('de app kijkt of de offline-kopie nieuwer is', typeof app.checkAppUpdate, 'function');
+    eis('en vraagt de browser om naar de worker te kijken', typeof app.vraagSwUpdate, 'function');
+    eis('en herlaadt hoogstens een keer', typeof app.magHerladenEenmaal, 'function');
+    return Promise.resolve();
+  }
+
+  /* een nagemaakte cacheopslag, zodat de echte niet wordt aangeraakt */
+  function nepCache(naam, tekst){
+    var vak = {
+      match: function(){ return Promise.resolve(tekst === null ? undefined : { text: function(){ return Promise.resolve(tekst); } }); }
+    };
+    return {
+      keys: function(){ return Promise.resolve(naam ? [naam, 'trends-v17', 'golf-score-v41'] : ['trends-v17']); },
+      open: function(n){ return Promise.resolve(n === naam ? vak : { match: function(){ return Promise.resolve(undefined); } }); }
+    };
+  }
+  function app_(n){ return 'var APP_VERSIE = ' + n + ';\n/* verder niets */'; }
+
+  var eigen = app.APP_VERSIE;
+  var bewaard = app.nieuweInhoud;
+  function schoon(){ app.nieuweInhoud = bewaard; }
+
+  eis('de app kent zijn eigen versienummer', typeof eigen, 'number');
+
+  app.nieuweInhoud = false;
+  return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen + 1))).then(function(uit){
+    eis('een hoger nummer in de kopie is een nieuwe versie', uit, true);
+    eis('en de app meldt dat', app.nieuweInhoud, true);
+    app.nieuweInhoud = false;
+    return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen)));
+  }).then(function(uit){
+    eis('hetzelfde nummer is geen nieuwe versie', uit, false);
+    return app.checkAppUpdate(nepCache('events-v' + eigen, app_(eigen - 1)));
+  }).then(function(uit){
+    eis('een lager nummer ook niet', uit, false);
+    return app.checkAppUpdate(nepCache('events-v' + eigen, 'geen nummer hierin'));
+  }).then(function(uit){
+    eis('een kopie zonder nummer levert geen nieuwe versie', uit, false);
+    return app.checkAppUpdate(nepCache('events-v' + eigen, null));
+  }).then(function(uit){
+    eis('een cache zonder events.html ook niet', uit, false);
+    return app.checkAppUpdate(nepCache(null, null));
+  }).then(function(uit){
+    eis('en zonder eigen cache evenmin', uit, false);
+    eis('de app is er niet door omgevallen', app.nieuweInhoud, false);
+    return app.checkAppUpdate({ keys: function(){ return Promise.reject(new Error('stuk')); } });
+  }).then(function(uit){
+    eis('een stukke cacheopslag levert geen uitzondering', uit, false);
+
+    /* de caches van de buren worden niet gelezen */
+    var gevraagd = [];
+    var spion = {
+      keys: function(){ return Promise.resolve(['trends-v17', 'golf-score-v41', 'events-v' + eigen]); },
+      open: function(n){ gevraagd.push(n);
+        return Promise.resolve({ match: function(){ return Promise.resolve({ text: function(){ return Promise.resolve(app_(eigen)); } }); } }); }
+    };
+    return app.checkAppUpdate(spion).then(function(){
+      eis('alleen de eigen cache wordt geopend', gevraagd.join(), 'events-v' + eigen);
+    });
+  }).then(function(){
+    /* Het afknijpen van registration.update(). De app heeft een echte
+       registratie, en die is de terugval als er geen wordt meegegeven; daarom
+       wordt hier een registratie zonder update meegegeven in plaats van null. */
+    var aangeroepen = 0;
+    var reg = { update: function(){ aangeroepen++; return Promise.resolve(); } };
+    app.swUpdateLaatst = 0;
+    eis('zonder bruikbare registratie geen aanroep', app.vraagSwUpdate({}), false);
+    eis('eerste aanroep gaat door', app.vraagSwUpdate(reg), true);
+    eis('en roept update aan', aangeroepen, 1);
+    eis('tweede aanroep er meteen achteraan niet', app.vraagSwUpdate(reg), false);
+    eis('en roept dus niet opnieuw aan', aangeroepen, 1);
+    app.swUpdateLaatst = Date.now() - app.SW_UPDATE_INTERVAL - 1;
+    eis('na het interval mag het weer', app.vraagSwUpdate(reg), true);
+    app.swUpdateLaatst = 0;
+    eis('een mislukte update werpt niet',
+        app.vraagSwUpdate({ update: function(){ return Promise.reject(new Error('offline')); } }), true);
+
+    /* Herladen gebeurt precies een keer. location is in een venster niet te
+       vervangen, en herlaadEenmaal() werkelijk aanroepen zou het testvenster
+       herladen. Daarom is de beslissing apart gezet en wordt die getoetst. */
+    app.overstapGevraagd = true;
+    eis('de eerste keer mag er worden herladen', app.magHerladenEenmaal(), true);
+    eis('de tweede keer niet meer', app.magHerladenEenmaal(), false);
+    eis('en daarna ook niet', app.magHerladenEenmaal(), false);
+    app.overstapGevraagd = false;
+    eis('zonder verzoek om over te stappen nooit', app.magHerladenEenmaal(), false);
+
+    /* De melding over een nieuwe versie gaat over de app, niet over het bestand.
+       Hij stond alleen in de gewone toestand, en op een telefoon begint elke
+       sessie zonder werkmap -- dus zag je hem pas nadat je het bestand had
+       gekozen. */
+    var bewaardState = app.fileState, bewaardInhoud = app.nieuweInhoud,
+        bewaardNaam = app.bestandsnaam, bewaardKopie = app.kopieRij;
+    var balk = function(){ return app.document.getElementById('filebar').textContent; };
+    var knop = function(){ return !!app.document.getElementById('fNieuw'); };
+    app.nieuweInhoud = true;
+    app.kopieRij = { bestand:'e.txt', tekst:'', tijd:Date.now() };
+
+    [['leeg', true], ['kopie', true], ['ok', true],
+     ['auth', false], ['geencfg', false]].forEach(function(paar){
+      app.fileState = paar[0];
+      app.bestandsnaam = 'e.txt';
+      app.render();
+      eis('toestand ' + paar[0] + ': melding over een nieuwe versie',
+          /nieuwe versie van Events/.test(balk()), paar[1]);
+      if(paar[1]) eis('en de knop Herladen doet het daar', knop(), true);
+    });
+
+    app.nieuweInhoud = false;
+    app.fileState = 'leeg'; app.render();
+    eis('zonder nieuwe versie staat die melding er nergens',
+        /nieuwe versie van Events/.test(balk()), false);
+
+    app.fileState = bewaardState; app.nieuweInhoud = bewaardInhoud;
+    app.bestandsnaam = bewaardNaam; app.kopieRij = bewaardKopie; app.render();
+    schoon();
+  }).catch(function(e){
+    schoon();
+    eis('de groep liep door', 'uitzondering: ' + e.message, 'ja');
+  });
+}
+
+/* ------------------ starten ------------------ */
+
+function draai(){
+  _goed = 0; _fout = 0; _rood = [];
+  document.getElementById('uitslag').innerHTML = '';
+  document.getElementById('totaal').hidden = true;
+
+  if(location.protocol === 'file:'){
+    groep('Zo kan het niet');
+    eis('Deze pagina moet via http of https geopend worden. Een pagina uit een map ' +
+        'mag van de browser niet in andere bestanden kijken. Zet de drie bestanden ' +
+        'op je site, of start een servertje in de map.', 'file://', 'https://');
+    toonTotaal();
+    return;
+  }
+
+  laadApp().then(function(){
+    /* Schoon beginnen en schoon eindigen. Groepen die wijzig() aanroepen laten
+       een herstelregel achter in de echte opslag van de app -- met een
+       verzonnen bestandsnaam. Die zou de app daarna een melding laten tonen
+       over een wijziging die nooit heeft bestaan. */
+    return schoon();
+  }).then(function(){
+    testDatums();
+    testPasen();
+    testCodes();
+    testLezen();
+    testCfg();
+    return laadMacro();
+  }).then(function(macro){
+    testMacro(macro);
+    testMacroOpmaak(macro);
+    testLengte(macro);
+    testVijfdeWeekdag(macro);
+    testMacroFouten(macro);
+    testCfgSamen(macro);
+    testSamen(macro);
+    testTerugval();
+    testSluiten();
+    testUndo();
+    testFilters();
+    testFocus();
+    return testPWA();
+  }).then(function(){
+
+    return testVersiecontrole();
+  }).then(function(){
+    return testVastgezetteOpslag();
+  }).then(function(){
+    return testStatusNetwerk();
+  }).then(function(){
+    return testHerstelbuffer();
+  }).then(function(){
+    return testLeeskopie();
+  }).then(function(){
+    return testDownloadbanner();
+  }).then(function(){
+    return testNaBewerken();
+  }).then(function(){
+    return testToetsenbord();
+  }).then(function(){
+    testTekenen();
+    return testComfort();
+  }).then(function(){
+    return testHerstelZonderBestand();
+  }).then(function(){
+    return testCfgBotsing();
+  }).then(function(){
+    return testSepTweeBestanden();
+  }).then(function(){
+    return testEenRegel();
+  }).then(function(){
+    return testOpslag();        /* duurt even: wacht op nagemaakte schrijfacties */
+  }).then(function(){
+    return schoon();
+  }).then(function(){
+    /* als laatste: deze groep verwijdert de database, dus er mag daarna niets
+       meer op staan te wachten */
+    return testVerbinding();
+  }).then(function(){
+    toonTotaal();
+  }).catch(function(e){
+    groep('Kon niet alles nakijken');
+    eis('laden', 'mislukt: ' + e.message, 'gelukt');
+    schoon().then(toonTotaal, toonTotaal);
+  });
+}
+
+/* De zelftest mag niets achterlaten in de opslag die de app zelf gebruikt. */
+/* De lokale leeskopie: de laatst ingelezen inhoud, zodat de app offline iets te
+   tonen heeft voordat het bestand gekoppeld is. Het gevaar zit niet in het
+   bewaren maar in het terugschrijven, dus de controles hieronder draaien vooral
+   om de vraag of er een pad bestaat waarlangs die kopie het bestand kan
+   overschrijven. */
+function testLeeskopie(){
+  groep('De lokale leeskopie');
+  if(typeof app.bewaarKopie !== 'function' || typeof app.leesKopie !== 'function' ||
+     typeof app.vulUitKopie !== 'function' || typeof app.magWijzigen !== 'function'){
+    eis('de app bewaart een leeskopie', typeof app.bewaarKopie, 'function');
+    eis('en leest hem bij het opstarten', typeof app.leesKopie, 'function');
+    eis('en kan hem lezen zonder de toestand te wijzigen', typeof app.vulUitKopie, 'function');
+    eis('en weet wanneer wijzigen mag', typeof app.magWijzigen, 'function');
+    return Promise.resolve();
+  }
+
+  var namen = ['records','bestandsnaam','fileState','kopieRij','selIndex',
+               'herstelRij','herstelStand','terug','idbPut'];
+  var bewaard = {};
+  namen.forEach(function(n){ bewaard[n] = app[n]; });
+  function zetTerug(){ namen.forEach(function(n){ app[n] = bewaard[n]; }); }
+
+  var INHOUD = '15;Proefpersoon;verjaardag;;1\n';
+  return app.idbDel('kopie').catch(function(){}).then(function(){
+    return app.bewaarKopie('proef.txt', INHOUD);
+  }).then(function(){
+    return app.idbGet('kopie');
+  }).then(function(rij){
+    eis('inlezen legt een kopie vast', !!rij, true);
+    eis('met de naam van het bestand', rij && rij.bestand, 'proef.txt');
+    eis('en met de inhoud', rij && rij.tekst, INHOUD);
+
+    /* opstarten zonder gekoppeld bestand -- op Android is dat elke sessie */
+    app.records = []; app.bestandsnaam = ''; app.fileState = 'leeg'; app.kopieRij = null;
+    return app.leesKopie();
+  }).then(function(gelukt){
+    eis('zonder gekoppeld bestand wordt de kopie gebruikt', gelukt, true);
+    eis('en de lijst is gevuld', app.records.length, 1);
+    eis('de toestand zegt dat het een kopie is', app.fileState, 'kopie');
+    eis('maar niets geldt als niet-opgeslagen', app.nietOpgeslagen(), false);
+    eis('wijzigen mag niet', app.magWijzigen(), false);
+    eis('de melding noemt het bestand', /proef\.txt/.test(app.kopieTekst()), true);
+    eis('en zegt dat wijzigen niet kan', /wijzigen kan nu niet/.test(app.kopieTekst()), true);
+
+    /* dit is de kern: er mag geen weg zijn waarlangs de kopie wordt weggezet */
+    var voor = app.gedownloadVersie;
+    app.downloaden();
+    eis('downloaden vanuit de kopie doet niets', app.gedownloadVersie, voor);
+
+    /* een werkelijk gekoppeld bestand gaat altijd voor op de kopie */
+    app.fileState = 'ok';
+    return app.leesKopie();
+  }).then(function(gelukt){
+    eis('met een gekoppeld bestand wordt de kopie niet gebruikt', gelukt, false);
+    eis('en de toestand blijft ongemoeid', app.fileState, 'ok');
+    eis('en wijzigen mag dan wel', app.magWijzigen(), true);
+
+    /* geen toegang tot de map: de melding daarover vraagt om actie en mag niet
+       worden overschreven, maar de events zijn ondertussen wel in te zien */
+    app.records = []; app.fileState = 'auth';
+    return app.vulUitKopie();
+  }).then(function(gelukt){
+    eis('zonder toegang wordt de lijst toch gevuld', gelukt, true);
+    eis('en staat er iets in', app.records.length, 1);
+    eis('maar blijft de melding over de toegang staan', app.fileState, 'auth');
+    eis('en wijzigen mag niet', app.magWijzigen(), false);
+
+    /* de buffer terugzetten: dan is wat je ziet niet meer de kopie */
+    app.fileState = 'kopie'; app.terug = null;
+    app.herstelRij = { bestand:'proef.txt', tekst:'20;Ander;verjaardag;;1\n',
+                       versie:(app.wijzigVersie || 0) + 1, basis:null };
+    app.herstelStand = 'terugzetten';
+    app.zetHerstelTerug();
+    eis('de buffer terugzetten haalt de kopie-melding weg', app.fileState === 'kopie', false);
+    eis('en wat je dan ziet geldt als niet opgeslagen', app.nietOpgeslagen(), true);
+
+    /* een weigerende opslag mag het bewerken niet in de weg zitten */
+    app.idbPut = function(){ return Promise.reject(new Error('QuotaExceededError')); };
+    return app.bewaarKopie('proef.txt', INHOUD).then(
+      function(){ return 'geen uitzondering'; },
+      function(){ return 'gooide'; }
+    );
+  }).then(function(uit){
+    app.idbPut = bewaard.idbPut;
+    eis('een weigerende opslag levert geen uitzondering', uit, 'geen uitzondering');
+
+    /* en zonder kopie gedraagt het opstarten zich als voorheen */
+    app.fileState = 'leeg'; app.records = []; app.kopieRij = null;
+    return app.idbDel('kopie').catch(function(){}).then(function(){
+      return app.leesKopie();
+    });
+  }).then(function(gelukt){
+    eis('zonder kopie verandert er niets aan het opstarten', gelukt, false);
+    eis('en blijft de toestand leeg', app.fileState, 'leeg');
+    zetTerug();
+    return app.idbDel('kopie').catch(function(){});
+  }, function(e){
+    zetTerug();
+    eis('de groep liep door', 'uitzondering: ' + (e && e.message), 'ja');
+  });
+}
+
+/* De downloadbanner op het pad zonder File System Access -- dus wat hij op zijn
+   telefoon elke sessie ziet. Die banner stond permanent in beeld en kostte 131
+   van de 640 pixels; met het toetsenbord open bleef er nul lijstregel over. Hij
+   hoort nu alleen te verschijnen als er werkelijk iets te bewaren is, en de
+   losse downloadknop hoort in App-status te staan zodat die mogelijkheid niet
+   verdwijnt. */
+function testDownloadbanner(){
+  groep('De downloadbanner zonder werkmap');
+  var bewaard = {};
+  ['hasFSA','fileState','bestandsnaam','records','gedownloadVersie','saveState','selIndex']
+    .forEach(function(n){ bewaard[n] = app[n]; });
+
+  function stand(){
+    app.render();
+    var knop = app.document.getElementById('fDl');
+    var tekst = app.document.querySelector('#filebar .banner-text');
+    return { knop: !!knop, knopTekst: knop ? knop.textContent : '',
+             tekst: tekst ? tekst.textContent : '' };
+  }
+
+  app.hasFSA = false;
+  app.fileState = 'ok';
+  app.bestandsnaam = 'e.txt';
+  app.records = app.parse('A;a;Gebeurtenis;D20260101;1\n');
+  app.gelijkgezet();
+  app.gedownloadVersie = null;
+  app.selIndex = -1;
+
+  var a = stand();
+  eis('zonder wijziging staat er geen downloadbanner', a.knop, false);
+  eis('en dus ook geen melding over opslaan', a.tekst, '');
+
+  app.records[0].naam = 'gewijzigd';
+  app.wijzig();
+  var b = stand();
+  eis('met een wijziging verschijnt de knop', b.knop, true);
+  eis('met de tekst dat er niets is opgeslagen', /Niet opgeslagen/.test(b.tekst), true);
+  eis('en de knop heet Downloaden', b.knopTekst, 'Downloaden');
+
+  app.gedownloadVersie = app.wijzigVersie;
+  var c = stand();
+  eis('na het downloaden legt de melding uit wat jij moet doen',
+      /zelf terug in je map/.test(c.tekst), true);
+  eis('en de knop heet dan Opnieuw downloaden', c.knopTekst, 'Opnieuw downloaden');
+
+  app.gelijkgezet();
+  app.gedownloadVersie = null;
+  var d = stand();
+  eis('is het bestand teruggezet, dan is de banner weer weg', d.knop, false);
+
+  /* En de mogelijkheid om los een kopie te maken, die eerst in die permanente
+     banner zat, moet ergens blijven. */
+  app.vulAppStatus();
+  var los = app.document.getElementById('stDl');
+  eis('App-status heeft een eigen downloadknop', !!los, true);
+  eis('die is aangesloten', !!(los && los.onclick), true);
+  eis('en heet Bestand downloaden', los ? los.textContent : '', 'Bestand downloaden');
+
+  app.hasFSA = true;
+  app.vulAppStatus();
+  eis('met een werkmap staat die knop er niet', !!app.document.getElementById('stDl'), false);
+
+  Object.keys(bewaard).forEach(function(n){ app[n] = bewaard[n]; });
+  app.render();
+  return Promise.resolve();
+}
+
+/* Drie reparaties uit de koude review die alleen in een echt venster te meten
+   zijn: de bewerkte regel die in beeld hoort te blijven, het sluiten van een
+   modal dat om invoer hoort te vragen, en de meldingen die boven de lijst horen
+   te staan in plaats van duizenden pixels eronder. */
+function testNaBewerken(){
+  groep('In beeld blijven en veilig sluiten');
+  if(typeof app.toonSelectie !== 'function'){
+    eis('de app brengt de selectie in beeld', typeof app.toonSelectie, 'function');
+    return Promise.resolve();
+  }
+  var namen = ['records','selIndex','fileState','bestandsnaam','hasFSA','terug','editIndex','editRegel'];
+  var bewaard = {};
+  namen.forEach(function(n){ bewaard[n] = app[n]; });
+
+  /* genoeg regels om echt te kunnen scrollen */
+  var regels = [];
+  for(var i = 0; i < 120; i++){
+    var l = String.fromCharCode(65 + (i % 26));
+    regels.push(l + i + ';' + l + ' Naam' + i + ';Gebeurtenis;D2026' +
+                String((i % 12) + 1).padStart(2, '0') + String((i % 28) + 1).padStart(2, '0') + ';1');
+  }
+  app.hasFSA = false;
+  app.fileState = 'ok';
+  app.bestandsnaam = 'e.txt';
+  app.records = app.parse(regels.join('\n') + '\n');
+  app.sorteer();
+  app.gelijkgezet();
+  app.selIndex = -1;
+  app.render();
+
+  function inBeeld(){
+    var m = app.document.querySelector('main');
+    var rij = app.document.getElementById('lijst').querySelector('tr[data-i="' + app.selIndex + '"]');
+    if(!rij) return 'rij niet gevonden';
+    var r = rij.getBoundingClientRect(), mr = m.getBoundingClientRect();
+    return (r.bottom > mr.top && r.top < mr.bottom) ? 'in beeld' : 'buiten beeld';
+  }
+
+  /* het laatste record naar voren halen: dat verplaatst het over de hele lijst */
+  var laatste = app.records.length - 1;
+  var m = app.document.querySelector('main');
+  m.scrollTop = m.scrollHeight;
+  app.selIndex = laatste;
+  app.openModal(laatste);
+  app.document.getElementById('fSleutel').value = 'Aaa, Eerste';
+  app.document.getElementById('fNaam').value = 'Aaa Eerste';
+  app.bewaarModal();
+  eis('een bewerkte regel die anders sorteert blijft in beeld', inBeeld(), 'in beeld');
+
+  /* en een gewone tik op een rij mag het scherm niet laten springen */
+  m.scrollTop = 0;
+  var voorTik = m.scrollTop;
+  app.selIndex = 2; app.render(); app.toonSelectie();
+  eis('een rij die al zichtbaar is laat het scherm staan', m.scrollTop, voorTik);
+
+  /* sluiten met gewijzigde invoer hoort te vragen */
+  app.selIndex = -1; app.render();
+  app.openModal(0);
+  app.document.getElementById('fNaam').value = 'Iets Anders Getypt';
+  app.document.getElementById('modal').dispatchEvent(
+    new app.MouseEvent('click', { bubbles: true }));
+  eis('naast de modal tikken met gewijzigde invoer sluit hem niet',
+      app.document.getElementById('modal').hidden, false);
+  eis('maar vraagt erom', app.document.getElementById('confirm').hidden, false);
+  eis('met de vraag over aangetroffen wijzigingen',
+      app.document.getElementById('cTitle').textContent, 'Wijzigingen aangetroffen');
+  app.document.getElementById('cNo').click();
+  app.document.getElementById('mCancel').click();
+  eis('Annuleren met gewijzigde invoer vraagt ook',
+      app.document.getElementById('confirm').hidden, false);
+  app.document.getElementById('cNo').click();
+  app.bergModaal('modal');
+
+  /* zonder wijziging mag sluiten gewoon doorgaan */
+  app.openModal(0);
+  app.document.getElementById('modal').dispatchEvent(
+    new app.MouseEvent('click', { bubbles: true }));
+  eis('zonder gewijzigde invoer sluit hij zonder te vragen',
+      app.document.getElementById('modal').hidden, true);
+  eis('en zonder vraag', app.document.getElementById('confirm').hidden, true);
+
+  /* de teller: een tweede getal alleen als het iets toevoegt */
+  app.records = app.parse(regels.join('\n') + '\ndit is geen event\n');
+  app.sorteer(); app.selIndex = -1; app.gelijkgezet(); app.render();
+  eis('de teller noemt geen twee keer hetzelfde getal',
+      app.document.getElementById('count').textContent, String(120));
+  eis('en de melding over onbegrepen regels staat er',
+      /onbekend formaat/.test(app.document.getElementById('bad').textContent), true);
+  /* en die melding hoort boven de lijst te staan, niet eronder */
+  var bad = app.document.getElementById('bad');
+  var lijst = app.document.getElementById('lijst');
+  eis('de melding staat boven de lijst in de opbouw',
+      bad.compareDocumentPosition(lijst) & 4 ? 'boven' : 'onder', 'boven');
+
+  namen.forEach(function(n){ app[n] = bewaard[n]; });
+  app.render();
+  return Promise.resolve();
+}
+
+/* Het schermtoetsenbord. Dit is het enige overgebleven punt uit de koude review
+   dat de GEGEVENS kan raken: Gboard kan een achternaam als "Nijhuis" of
+   "d'Hondt" door een woordenboekwoord vervangen, en die correctie belandt dan in
+   events_mark.txt. De attributen hieronder houden dat tegen voor zover de browser
+   zich eraan houdt -- een garantie is het niet, want het hangt ook van de
+   toetsenbordinstellingen van het toestel af. Een bestandsnaam mag bovendien geen
+   hoofdletter krijgen: op schijf is Events.txt een ander bestand dan events.txt. */
+function testToetsenbord(){
+  groep('Het schermtoetsenbord');
+  var d = app.document;
+  function at(id, naam){
+    var el = d.getElementById(id);
+    return el ? (el.getAttribute(naam) === null ? '(geen)' : el.getAttribute(naam)) : '(veld weg)';
+  }
+
+  /* de velden waarvan de inhoud in het bestand terechtkomt */
+  [['fSleutel', 'words'], ['fNaam', 'words']].forEach(function(paar){
+    eis(paar[0] + ': autocorrectie uit', at(paar[0], 'autocorrect'), 'off');
+    eis(paar[0] + ': spellingcontrole uit', at(paar[0], 'spellcheck'), 'false');
+    eis(paar[0] + ': hoofdletter per woord', at(paar[0], 'autocapitalize'), paar[1]);
+  });
+  eis('fNotitie: autocorrectie uit', at('fNotitie', 'autocorrect'), 'off');
+  eis('fNotitie: spellingcontrole uit', at('fNotitie', 'spellcheck'), 'false');
+
+  /* een bestandsnaam: geen hoofdletter, geen correctie */
+  eis('pickNew: geen hoofdletter', at('pickNew', 'autocapitalize'), 'off');
+  eis('pickNew: autocorrectie uit', at('pickNew', 'autocorrect'), 'off');
+  eis('pickNew: spellingcontrole uit', at('pickNew', 'spellcheck'), 'false');
+
+  /* de scheidingstekens: één teken, nooit een hoofdletter */
+  ['cfgSep', 'cfgOf'].forEach(function(id){
+    eis(id + ': geen hoofdletter', at(id, 'autocapitalize'), 'off');
+    eis(id + ': spellingcontrole uit', at(id, 'spellcheck'), 'false');
+  });
+  eis('cfgTitel: autocorrectie uit', at('cfgTitel', 'autocorrect'), 'off');
+
+  /* het zoekveld: geen correctie, en de zoektoets op het toetsenbord */
+  eis('zoek: geen hoofdletter', at('zoek', 'autocapitalize'), 'off');
+  eis('zoek: autocorrectie uit', at('zoek', 'autocorrect'), 'off');
+  eis('zoek: de toetsenbordtoets heet zoeken', at('zoek', 'enterkeyhint'), 'search');
+
+  /* en die toets doet nu iets: het toetsenbord weg, zodat de lijst zichtbaar
+     wordt. Er is geen formulier, dus hij deed eerst niets.
+     Eerst de app in een bruikbare toestand zetten: zonder gekoppeld bestand staat
+     het zoekveld op disabled en kan het de focus niet krijgen. */
+  var terugFileState = app.fileState, terugNaam = app.bestandsnaam;
+  app.fileState = 'ok';
+  app.bestandsnaam = 'e.txt';
+  app.render();
+  var veld = d.getElementById('zoek');
+  veld.focus();
+  var hadFocus = d.activeElement === veld;
+  var ev = new app.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  veld.dispatchEvent(ev);
+  eis('het zoekveld had de focus', hadFocus, true);
+  eis('Enter in het zoekveld laat de focus los', d.activeElement === veld, false);
+  eis('en verstuurt niets', ev.defaultPrevented, true);
+
+  app.fileState = terugFileState; app.bestandsnaam = terugNaam; app.render();
+
+  /* Enter in de velden van de bewerkmodal. Het eventveld is een textarea, dus
+     daar zette Enter een regeleinde -- dat bij het opslaan stil een spatie werd.
+     De toets zegt nu wat ze doet en doet dat ook. */
+  app.fileState = 'ok';
+  app.bestandsnaam = 'e.txt';
+  app.records = app.parse('A;a;Gebeurtenis;D20260101;1');
+  app.sorteer(); app.gelijkgezet(); app.selIndex = -1; app.render();
+  app.openModal(-1);
+  var sl = d.getElementById('fSleutel'), nm = d.getElementById('fNaam'),
+      nt = d.getElementById('fNotitie');
+
+  /* Een nieuw event begint op de eerste categorie, net als een categorieveld dat
+     niet te lezen is. Dat was 2, en 2 hoeft niet in de configuratie te staan. */
+  eis('een nieuw event begint op categorie 1', app.cat, 1);
+
+  eis('het eventveld meldt de toets als doorgaan', at('fSleutel', 'enterkeyhint'), 'next');
+  eis('en de naam als klaar', at('fNaam', 'enterkeyhint'), 'done');
+  eis('en de notitie ook', at('fNotitie', 'enterkeyhint'), 'done');
+
+  function enter(el){
+    el.focus();
+    var ev = new app.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true });
+    el.dispatchEvent(ev);
+    return ev;
+  }
+  sl.value = 'Vasqinter, Drimmelore';
+  var e1 = enter(sl);
+  eis('Enter in het eventveld wordt tegengehouden, dus geen regeleinde',
+      e1.defaultPrevented, true);
+  eis('en de toets gaat door naar het naamveld', d.activeElement === nm, true);
+
+  nm.value = 'Drimmelore';
+  var e2 = enter(nm);
+  eis('Enter in het naamveld laat de focus los', e2.defaultPrevented, true);
+  eis('zodat Type, Datum en Categorie in beeld komen', d.activeElement === nm, false);
+
+  nt.value = 'iets';
+  var e3 = enter(nt);
+  eis('Enter in de notitie doet hetzelfde', e3.defaultPrevented, true);
+  eis('want een regeleinde wordt daar bij het opslaan een spatie',
+      d.activeElement === nt, false);
+  app.sluitBovenste(false);
+
+  /* het jaarveld was al goed; dat vastleggen zodat het zo blijft */
+  eis('jaarVeld: cijfertoetsenbord', at('jaarVeld', 'inputmode'), 'numeric');
+  return Promise.resolve();
+}
+
+function schoon(){
+  if(!app || typeof app.idbDel !== 'function') return Promise.resolve();
+  app.herstelRij = null;
+  app.herstelStand = '';
+  app.kopieRij = null;
+  /* Ook de leeskopie: groepen die bewaarKopie aanroepen laten anders een
+     proefkopie in de echte opslag van de app achter, en die zou de app bij de
+     volgende start als zijn eigen gegevens tonen. */
+  return app.idbDel('herstel').catch(function(){})
+    .then(function(){ return app.idbDel('kopie').catch(function(){}); });
+}
+
+document.getElementById('start').onclick = draai;
+document.getElementById('opnieuw').onclick = draai;
+</script>
+
+</body>
+</html>

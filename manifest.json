@@ -1,0 +1,20 @@
+{
+  "name": "Events",
+  "short_name": "Events",
+  "description": "Editor voor het events-bestand",
+  "start_url": "./events.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12151b",
+  "theme_color": "#12151b",
+  "lang": "nl",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
