@@ -1595,11 +1595,11 @@ function testPWA(){
         eis('offline zonder cache komt er een antwoord in plaats van niets', !!res, true);
         eis('en dat zegt dat het niet beschikbaar is', res && res.status, 503);
 
-        /* 4b. De zoekstring telt alleen bij een navigatie niet mee. Bij een
-               gewoon bestand hoort ?v=2 juist een nieuwe ophaalactie te zijn,
-               en offline levert dat geen oude kopie maar een net 503-antwoord. */
-        eis('alleen navigaties negeren de zoekstring',
-            /navigatie \? \{ ignoreSearch: true \}/.test(bron), true);
+        /* 4b. De zoekstring telt voor geen enkel eigen bestand mee: elk pad
+               heeft een kopie, zoals in Golf Score en Trends. Wie echt een verse
+               versie wil, vraagt dat met cache 'reload' of 'no-store'. */
+        eis('opzoeken en bewaren onder het pad zonder zoekstring',
+            /var bewaarSleutel = sleutel\(url\);/.test(bron), true);
         var q = maakSwOmgeving({ scope:SCOPE, server:server });
         laadSw(bron, q);
         return vuurSw(q, 'install', {}).then(function(){
@@ -1613,8 +1613,8 @@ function testPWA(){
           return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE + 'icon.svg?v=2',
                                                 mode:'no-cors' } });
         }).then(function(r){
-          eis('met een andere zoekstring valt het niet terug op de oude kopie',
-              r && r.status, 503);
+          eis('ook met een zoekstring komt een bestand offline uit de cache',
+              r && r.status, 200);
           return vuurSw(q, 'fetch', { request:{ method:'GET', url:SCOPE + 'events.html?cfg=x.json',
                                                 mode:'navigate' } });
         }).then(function(r){

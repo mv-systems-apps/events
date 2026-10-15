@@ -51,7 +51,7 @@ process.on('uncaughtException', (e) => { afbreken('uncaughtException', e); });
    halverwege afbreekt, valt hiermee op -- anders print de bundel domweg minder
    regels en lijkt alles in orde. Voeg je een groep toe, dan hoort dit getal mee
    omhoog; de controle aan het eind zegt het als je dat vergeet. */
-const GROEPEN_VERWACHT = 16;
+const GROEPEN_VERWACHT = 17;
 let groepen = 0;
 
 let goed = 0, fout = 0;
@@ -260,8 +260,8 @@ const installeer = async (env) => {
   env.maakSw();
   try { await vuur(env, 'install'); return null; } catch (e) { return e; }
 };
-const vraagVan = (env) => async (url, mode = 'no-cors', method = 'GET') =>
-  vuur(env, 'fetch', { request: { method, url, mode } });
+const vraagVan = (env) => async (url, mode = 'no-cors', method = 'GET', cache = 'default') =>
+  vuur(env, 'fetch', { request: { method, url, mode, cache } });
 const rust = () => new Promise((r) => setTimeout(r, 20));
 /* Een gesloopte worker of app mag deze bundel niet laten crashen: dan draaien de
    controles erna niet en leest een stacktrace als 'niets mislukt'. Daarom nergens
@@ -389,14 +389,16 @@ kop('2. Installatie, cache-isolatie en opruimen');
     ok('en de verversing schrijft onder het pad zonder zoekstring',
        sleutels(env).every((k) => k.indexOf('?') < 0),
        sleutels(env).filter((k) => k.indexOf('?') >= 0).join());
-    /* Bij een gewoon bestand blijft de zoekstring onderscheidend: ?v=2 hoort een
-       nieuwe ophaalactie te zijn en niet de oude kopie uit de cache. */
+    /* Eén kopie per pad, voor elk eigen bestand en niet alleen de pagina: zo
+       doen de drie apps het sinds ze gelijk zijn getrokken. Wie echt een verse
+       versie wil, vraagt dat met cache:'reload' of 'no-store' (groep 17). */
     const anders = await vraag(ORIGIN + '/icon.svg?v=2');
-    ok('een bestand met een andere zoekstring haalt wel van het netwerk',
-       !!anders && (await tekst(anders)) === 'ICOON NIEUW', anders && await tekst(anders));
-    ok('en zonder zoekstring komt het wel uit de cache',
-       (await tekst(await vraag(ORIGIN + '/icon.svg'))) === 'ICOON OUD');
-    ok('alleen navigaties negeren de zoekstring', /navigatie \? \{ ignoreSearch: true \}/.test(SW));
+    ok('een bestand met een zoekstring komt uit de cache, onder het pad',
+       !!anders && (await tekst(anders)) === 'ICOON OUD', anders && await tekst(anders));
+    await rust();
+    ok('en er komt geen tweede kopie met die zoekstring bij',
+       sleutels(env).every((k) => k.indexOf('?') < 0),
+       sleutels(env).filter((k) => k.indexOf('?') >= 0).join());
   }
   {
     const env = swOmgeving();
@@ -413,9 +415,9 @@ kop('2. Installatie, cache-isolatie en opruimen');
     ok('ook de map-URL met een zoekstring', !!offMap && offMap.status === 200, offMap && offMap.status);
     ok('een bestand zonder zoekstring komt offline uit de cache',
        ((await vraag(ORIGIN + '/icon.svg')) || {}).status === 200);
-    const weg = await vraag(ORIGIN + '/icon.svg?v=2');
-    ok('een bestand met een andere zoekstring valt niet terug op de oude kopie',
-       !!weg && weg.status === 503, weg && weg.status);
+    const metV = await vraag(ORIGIN + '/icon.svg?v=2');
+    ok('ook een bestand met een zoekstring komt offline uit de cache',
+       !!metV && metV.status === 200, metV && metV.status);
   }
 
   /* ---------- 5. mislukte en halve installatie ---------- */
@@ -690,7 +692,7 @@ kop('2. Installatie, cache-isolatie en opruimen');
     ok('en die is ruimer dan het blokkerende pad', !!ga && !!g && +ga[1] > +g[1],
        ga && g ? ga[1] + ' > ' + g[1] : '');
     ok('de keuze hangt af van een cachetreffer',
-       /metGrens\(e\.request, gecached \? GRENS_ACHTERGROND : GRENS\)/.test(SW));
+       /gecached \? Promise\.resolve\(GRENS_ACHTERGROND\)/.test(SW));
   }
   {
     /* Gedrag, niet alleen de bron: met een cachetreffer en een netwerk dat
@@ -1975,6 +1977,108 @@ kop('16. De worker meldt wanneer er een nieuwe kopie staat');
   ok('en kijkt daarnaast nog een keer na een paar seconden',
      /setTimeout\(function\(\)\{ checkAppUpdate\(\); \}, 4000\);/.test(SCRIPT),
      'vangnet voor een worker van een vorige versie, die dit bericht nog niet kent');
+}
+
+/* ---------- 17. Gelijk met Golf Score en Trends ---------- */
+kop('17. De worker doet hetzelfde als die van Golf Score en Trends');
+{
+  /* Stap 1: ook de installatie heeft een grens. Een installatie die blijft hangen
+     loopt nooit af, en zolang dat zo is doet registration.update() niets: de
+     updatecontrole stond dan stil tot de app helemaal werd afgesloten. */
+  const env = swOmgeving({ hangt: true });
+  env.maakSw(SW.replace(/const GRENS = \d+;/, 'const GRENS = 120;'));
+  const fout = await Promise.race([
+    vuur(env, 'install').then(() => 'GESLAAGD', (e) => e),
+    new Promise((r) => setTimeout(() => r('BLEEF HANGEN'), 2500))
+  ]);
+  ok('een installatie op een hangend netwerk loopt af', fout !== 'BLEEF HANGEN',
+     fout === 'BLEEF HANGEN' ? 'bleef hangen' : '');
+  ok('en mislukt', fout instanceof Error, String(fout && fout.message || fout));
+  await rust();
+  ok('het verzoek is werkelijk afgebroken', env.afgebroken.length >= 1, env.afgebroken.length + ' afgebroken');
+  ok('er blijft geen lege huls achter', !env.store.has(CACHE_NAAM), [...env.store.keys()].join());
+}
+{
+  const env = swOmgeving();
+  await installeer(env);
+  ok('de installatie haalt langs de browsercache',
+     env.log.length > 0 && env.log.every((l) => l.cache === 'reload'),
+     env.log.map((l) => l.cache).join(','));
+}
+{
+  /* Stap 3: bij een cachetreffer ververst de pagina met no-cache. GitHub Pages
+     laat een bestand 10 minuten bewaren; zonder dit kon de verversing dezelfde
+     oude bytes terugschrijven en bleef de melding vlak na een push uit. */
+  const env = swOmgeving();
+  await installeer(env);
+  await vuur(env, 'activate');
+  env.log.length = 0;
+  await vraagVan(env)(ORIGIN + '/events.html', 'navigate');
+  ok('de achtergrondverversing van de pagina gebruikt no-cache',
+     env.log.length === 1 && env.log[0].cache === 'no-cache', env.log.map((l) => l.cache).join(','));
+  env.log.length = 0;
+  await vraagVan(env)(ORIGIN + '/icon.svg');
+  ok('een bijbestand niet: dat heeft geen stempel',
+     env.log.length === 1 && env.log[0].cache !== 'no-cache', env.log.map((l) => l.cache).join(','));
+  await rust();
+}
+{
+  /* Stap 5: mist een paginaverzoek de cache terwijl de app er wel staat, dan
+     niet de volle grens wachten maar na korte tijd de bewaarde app tonen. */
+  const g = /const GRENS_MET_TERUGVAL = (\d+);/.exec(SW);
+  ok('de worker kent een kortere grens als er een bewaarde app is', !!g && +g[1] === 3000, g && g[1] + ' ms');
+  const env = swOmgeving({ hangt: true });
+  env.maakSw(SW.replace(/const GRENS = \d+;/, 'const GRENS = 2000;')
+               .replace(/const GRENS_MET_TERUGVAL = \d+;/, 'const GRENS_MET_TERUGVAL = 120;'));
+  const c = await env.caches.open(CACHE_NAAM);
+  await c.put(ORIGIN + '/events.html', new env.Res('DE APP', { type: 'basic' }));
+  const begin = Date.now();
+  const res = await vraagVan(env)(ORIGIN + '/', 'navigate');
+  const duur = Date.now() - begin;
+  ok('een misser met een bewaarde app levert die app', (await tekst(res)) === 'DE APP', await tekst(res));
+  ok('na de korte grens, niet de volle', duur < 1000, duur + ' ms');
+  await rust();
+}
+{
+  /* Stap 6: een optioneel bestand dat bij de installatie niet binnenkomt,
+     overnemen uit de nieuwste vorige eigen cache. Op nummer, niet op tekst:
+     events-v10 is nieuwer dan events-v9. Nooit uit de cache van een buurapp. */
+  const env = swOmgeving({ server: ['./', './index.html', './events.html'] });
+  env.store.set('events-v9', new Map([[ORIGIN + '/icon.svg', new env.Res('icoon v9', { type: 'basic' })]]));
+  env.store.set('events-v10', new Map([[ORIGIN + '/icon.svg', new env.Res('icoon v10', { type: 'basic' })]]));
+  env.store.set('golf-score-v41', new Map([[ORIGIN + '/manifest.json', new env.Res('van golf', { type: 'basic' })]]));
+  const fout = await installeer(env);
+  ok('de installatie slaagt', fout === null, fout && fout.message);
+  const c = env.store.get(CACHE_NAAM) || new Map();
+  const icoon = c.get(ORIGIN + '/icon.svg');
+  ok('het ontbrekende icoon komt uit de nieuwste vorige eigen cache',
+     !!icoon && icoon.body === 'icoon v10', icoon ? icoon.body : 'ontbreekt');
+  ok('en niets uit de cache van een buurapp', !c.has(ORIGIN + '/manifest.json'),
+     c.has(ORIGIN + '/manifest.json') ? c.get(ORIGIN + '/manifest.json').body : '');
+}
+{
+  /* Stap 7: een verzoek dat uitdrukkelijk vers wil, gaat langs de cache. App-status
+     vraagt het manifest zo op om te zien wat er op de server staat; met de kopie uit
+     de cache meldde die 'gevonden', ook offline of als het bestand weg was. */
+  const inhoud = { [ORIGIN + '/manifest.json']: 'OUD' };
+  const env = swOmgeving({ inhoud });
+  await installeer(env);
+  await vuur(env, 'activate');
+  inhoud[ORIGIN + '/manifest.json'] = 'NIEUW';
+  const vraag = vraagVan(env);
+  const vers = await vraag(ORIGIN + '/manifest.json', 'cors', 'GET', 'no-store');
+  ok('no-store komt van het netwerk', (await tekst(vers)) === 'NIEUW', await tekst(vers));
+  await rust();
+  const bewaard = (env.store.get(CACHE_NAAM) || new Map()).get(ORIGIN + '/manifest.json');
+  ok('en wordt niet bewaard', !!bewaard && bewaard.body === 'OUD', bewaard && bewaard.body);
+  /* eigen inhoud, zodat een kopie die de vorige vraag toch bewaarde hier niet slaagt */
+  inhoud[ORIGIN + '/manifest.json'] = 'NIEUWER';
+  const reload = await vraag(ORIGIN + '/manifest.json', 'cors', 'GET', 'reload');
+  ok('ook reload gaat langs de cache', (await tekst(reload)) === 'NIEUWER', await tekst(reload));
+  env.zetOffline();
+  const off = await vraag(ORIGIN + '/manifest.json', 'cors', 'GET', 'no-store');
+  ok('offline geeft no-store een fout en niet de oude kopie', !!off && off.status === 503,
+     off && (off.status + ' ' + (await tekst(off))));
 }
 
 afsluiten();
