@@ -3787,24 +3787,28 @@ function testLeeskopie(){
   });
 }
 
-/* Lezen zonder toegang, toegang pas bij de eerste wijziging. Zonder toestemming
-   kan de app de werkmap niet lezen; Edge op Android onthoudt die toestemming maar
-   tot de app dicht is. Tot 1352898-001 stond er dan een gele melding met
-   'Toegang autoriseren' en stonden + en wijzigen uit. Nu toont de app de
-   leeskopie zonder melding, en vraagt hij pas om toegang bij de eerste wijziging
-   of bij 'Opnieuw inlezen'; daarna leest hij eerst het bestand zelf, dat altijd
-   wint. De leeskopie bewaart daarvoor ook de configuratie (het scheidingsteken),
-   en wordt na elke geslaagde opslag bijgewerkt. */
+/* Lezen zonder toegang, toegang pas bij het opslaan. Zonder toestemming kan de
+   app de werkmap niet lezen; Edge op Android onthoudt die toestemming maar tot de
+   app dicht is. Tot 1352898-001 stond er dan een gele melding en stonden + en
+   wijzigen uit; in 1352898-002 vroeg de app om toegang bij het openen van het
+   bewerkvenster, ook als je daarna annuleerde. Nu bewerk je op de leeskopie en
+   vraagt de app pas bij het opslaan om toegang. De bestaande botsingscontrole
+   vergelijkt dan het bestand met de stempel uit de kopie: is het buiten de app
+   gewijzigd (een noodbewerking), dan wordt er niets overschreven zonder vraag. */
 function testToegangBijWijzigen(){
-  groep('Lezen zonder toegang, toegang bij de eerste wijziging');
+  groep('Lezen zonder toegang, toegang pas bij het opslaan');
   var d = app.document;
   var namen = ['records','cfg','bestandsnaam','fileState','dirHandle','hasFSA','kopieRij',
-               'selIndex','terug','saveState','idbGet','idbPut','idbDel'];
+               'selIndex','terug','saveState','idbGet','idbPut','idbDel',
+               'laatstGelezen','laatstGrootte','cfgGelezen','cfgGrootte'];
   var bewaard = {};
   namen.forEach(function(n){ bewaard[n] = app[n]; });
   function zetTerug(){
     try { app.sluitModal(); } catch(e){}
+    try { app.bergModaal('confirm'); } catch(e){}
+    try { app.bergModaal('cfgModal'); } catch(e){}
     namen.forEach(function(n){ app[n] = bewaard[n]; });
+    app.gelijkgezet();
     try { app.render(); } catch(e){}
   }
   function wacht(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -3815,27 +3819,35 @@ function testToegangBijWijzigen(){
 
   var CFG = { bestand:'events.txt', scheidingsteken:'|' };
   var KOPIE = 'A|Anna de Vries|Geboren|D19870412|1\n';
+  var NOOD  = KOPIE + 'B|Bram Jansen|Geboren|D19900703|1\n';
   var map, antwoord, gevraagd;
-  function opzetten(perm){
+  /* buiten: true = er is buiten de app een regel bijgekomen (een noodbewerking) */
+  function opzetten(perm, buiten){
     map = maakMap();
-    map.fs['events_cfg.json'] = { tekst: JSON.stringify(CFG), mtime: 1000 };
-    /* buiten de app is er in nood een regel bijgekomen: de kopie loopt achter */
-    map.fs['events.txt'] = { tekst: KOPIE + 'B|Bram Jansen|Geboren|D19900703|1\n', mtime: 2000 };
+    map.fs['events_cfg.json'] = { tekst: JSON.stringify(CFG), mtime: 500 };
+    map.fs['events.txt'] = buiten ? { tekst: NOOD, mtime: 2000 } : { tekst: KOPIE, mtime: 1000 };
     antwoord = perm; gevraagd = 0;
     map.requestPermission = function(){ gevraagd++; return Promise.resolve(antwoord); };
     map.queryPermission = function(){ return Promise.resolve('prompt'); };
     map.name = 'Events';
     idb = {};
-    idb['kopie'] = { bestand:'events.txt', tekst:KOPIE, tijd:Date.now() - 3600000, cfg:CFG };
+    idb['kopie'] = { bestand:'events.txt', tekst:KOPIE, tijd:Date.now() - 3600000, cfg:CFG,
+                     mtime:1000, grootte:KOPIE.length, cfgMtime:500,
+                     cfgGrootte:JSON.stringify(CFG).length };
     idb['backup:events.txt'] = app.dagsleutel();
     app.dirHandle = map; app.hasFSA = true; app.bestandsnaam = ''; app.cfg = {};
     app.records = []; app.selIndex = -1; app.terug = null; app.saveState = '';
     app.kopieRij = null; app.fileState = 'auth';
-    return app.vulUitKopie().then(function(){ app.render(); });
+    return app.vulUitKopie().then(function(){ app.gelijkgezet(); app.render(); });
   }
-  function modaalOpen(){ var m = d.getElementById('modal'); return !!m && !m.hidden; }
+  function modaalOpen(id){ var m = d.getElementById(id); return !!m && !m.hidden; }
+  function voegToe(){
+    app.records.push(app.parse('C|Cees|Geboren|D20000101|1')[0]);
+    app.sorteer(); app.wijzig(); app.bewaar();
+    return wacht(400);
+  }
 
-  return opzetten('granted').then(function(){
+  return opzetten('granted', false).then(function(){
     eis('zonder toegang staat de leeskopie in de lijst', app.records.length, 1);
     eis('gelezen met het scheidingsteken uit de kopie',
         app.records[0] && app.records[0].naam, 'Anna de Vries');
@@ -3843,49 +3855,67 @@ function testToegangBijWijzigen(){
         /Geen toegang/.test(d.getElementById('filebar').textContent), false);
     eis('en + staat aan', d.getElementById('btnNew').disabled, false);
     d.getElementById('btnNew').click();
-    return wacht(250);
+    return wacht(150);
   }).then(function(){
-    eis('de eerste wijziging vraagt om toegang', gevraagd, 1);
-    eis('daarna is het bestand gekoppeld', app.fileState, 'ok');
-    eis('en is het bestand zelf gelezen, niet de kopie', app.records.length, 2);
-    eis('en gaat de handeling door: het venster voor een nieuw event staat open', modaalOpen(), true);
-    try { app.sluitModal(); } catch(e){}
-
-    /* wijzigen van een gekozen event: na het inlezen hetzelfde event */
-    return opzetten('granted');
-  }).then(function(){
+    eis('+ opent het venster meteen', modaalOpen('modal'), true);
+    eis('zonder om toegang te vragen', gevraagd, 0);
+    app.sluitModal();
+    eis('annuleren vraagt ook niets', gevraagd, 0);
+    eis('en de toestand blijft de leeskopie', app.fileState, 'auth');
     app.selIndex = 0; app.render();
     eis('met een gekozen event staat wijzigen aan', d.getElementById('btnEdit').disabled, false);
     d.getElementById('btnEdit').click();
-    return wacht(250);
+    return wacht(150);
   }).then(function(){
-    eis('wijzigen opent na de toegang het gekozen event',
-        (modaalOpen() && app.editIndex >= 0) ? app.records[app.editIndex].naam : '(geen venster)',
+    eis('wijzigen opent het gekozen event, ook zonder toegang',
+        (modaalOpen('modal') && app.editIndex >= 0) ? app.records[app.editIndex].naam : '(geen venster)',
         'Anna de Vries');
-    try { app.sluitModal(); } catch(e){}
+    app.sluitModal();
 
-    /* na een geslaagde opslag is de kopie het bestand */
-    app.records.push(app.parse('C|Cees|Geboren|D20000101|1')[0]);
-    app.sorteer(); app.wijzig(); app.bewaar();
+    /* opslaan: nu pas de vraag, en het bestand was niet veranderd */
+    return voegToe();
+  }).then(function(){
+    eis('opslaan vraagt om toegang', gevraagd, 1);
+    eis('daarna is het bestand gekoppeld', app.fileState, 'ok');
+    eis('en staat de wijziging in het bestand', /C\|Cees/.test(map.fs['events.txt'].tekst), true);
+    eis('en geldt alles als opgeslagen', app.nietOpgeslagen(), false);
+    eis('de kopie is daarna gelijk aan het bestand',
+        idb['kopie'] && idb['kopie'].tekst === map.fs['events.txt'].tekst, true);
+    eis('met de stempel van het bestand', idb['kopie'] && idb['kopie'].mtime, map.fs['events.txt'].mtime);
+    eis('en de configuratie', idb['kopie'] && idb['kopie'].cfg && idb['kopie'].cfg.scheidingsteken, '|');
+
+    /* een noodbewerking buiten de app: niets overschrijven zonder vraag */
+    return opzetten('granted', true);
+  }).then(function(){
+    return voegToe();
+  }).then(function(){
+    eis('na een noodbewerking: opslaan vraagt om toegang', gevraagd, 1);
+    eis('en ziet dat het bestand buiten de app is gewijzigd', app.saveState, 'extern');
+    eis('dus is er niets overschreven', map.fs['events.txt'].tekst, NOOD);
+    eis('en staat de vraag over de botsing open', modaalOpen('confirm'), true);
+    try { app.bergModaal('confirm'); } catch(e){}
+
+    /* toegang geweigerd: de wijziging blijft staan als niet opgeslagen */
+    return opzetten('denied', false);
+  }).then(function(){
+    return voegToe();
+  }).then(function(){
+    eis('geweigerd: niets in het bestand', map.fs['events.txt'].tekst, KOPIE);
+    eis('de wijziging staat nog in beeld', app.records.length, 2);
+    eis('als niet opgeslagen', app.nietOpgeslagen(), true);
+    eis('en de app zegt dat opslaan toegang vraagt',
+        /pas met toegang/.test(d.getElementById('filebar').textContent), true);
+    antwoord = 'granted';
+    var knop = d.getElementById('fAuth');
+    eis('met een knop om alsnog toegang te geven', !!knop, true);
+    if(knop) knop.click();
     return wacht(400);
   }).then(function(){
-    eis('na opslaan is de kopie gelijk aan het bestand',
-        idb['kopie'] && idb['kopie'].tekst === map.fs['events.txt'].tekst, true);
-    eis('met de configuratie erbij', idb['kopie'] && idb['kopie'].cfg && idb['kopie'].cfg.scheidingsteken, '|');
-
-    /* toegang geweigerd: niets gewijzigd, en dat wordt gezegd */
-    return opzetten('denied');
-  }).then(function(){
-    d.getElementById('btnNew').click();
-    return wacht(250);
-  }).then(function(){
-    eis('geweigerd: geen venster', modaalOpen(), false);
-    eis('de lijst blijft de kopie', app.records.length, 1);
-    eis('en de app zegt dat wijzigen toegang vraagt',
-        /pas met toegang/.test(d.getElementById('filebar').textContent), true);
+    eis('toegang geven slaat de wijziging alsnog op', /C\|Cees/.test(map.fs['events.txt'].tekst), true);
+    eis('en daarna is alles opgeslagen', app.nietOpgeslagen(), false);
 
     /* Opnieuw inlezen vraagt ook om toegang en leest dan het bestand */
-    return opzetten('granted');
+    return opzetten('granted', true);
   }).then(function(){
     /* de knop staat in het instellingenscherm: dat eerst openen, zoals in het echt */
     app.openCfg();
@@ -3894,7 +3924,6 @@ function testToegangBijWijzigen(){
   }).then(function(){
     eis('opnieuw inlezen vraagt om toegang', gevraagd, 1);
     eis('en leest daarna het bestand', app.records.length, 2);
-    try { app.bergModaal('cfgModal'); } catch(e){}
     zetTerug();
   }, function(e){
     zetTerug();

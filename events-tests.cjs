@@ -1157,7 +1157,7 @@ if (AANWEZIG.length) {
     const fn = new Function('ctx', [
       'var hasFSA = true, dirHandle = {}, bestandsnaam = "events_mark.txt";',
       'var schrijfBezig = false, negeerBotsing = ' + (hoe.negeer ? 'true' : 'false') + ';',
-      'var saveState = "";',
+      'var saveState = "", fileState = "ok", toegangGeweigerd = false;',
       hoe.gooit === 'synchroon'
         ? 'function externGewijzigd(){ throw new TypeError("geen getFileHandle"); }'
         : hoe.gooit === 'belofte'
@@ -1406,22 +1406,28 @@ kop('13. Reparaties na de koude review');
      openModal zelf. */
   /* De poort zelf, letterlijk uit de app: de eerste twee regels van openModal. */
   const poortBron = haal('openModal');
-  ok('openModal weigert zonder een gekoppeld bestand',
-     /if\(!magWijzigen\(\)\) return;/.test(poortBron), 'poort aanwezig');
+  ok('openModal weigert zonder bestand en zonder kopie',
+     /if\(!magBewerken\(\)\) return;/.test(poortBron), 'poort aanwezig');
   ok('de verwijderknop ook',
-     /if\(editIndex < 0 \|\| !magWijzigen\(\)\) return;/.test(SCRIPT));
+     /if\(editIndex < 0 \|\| !magBewerken\(\)\) return;/.test(SCRIPT));
   ok('en de knop Ongedaan maken ook',
-     /\$\('btnUndo'\)\.onclick = function\(\)\{\s*\n\s*if\(!magWijzigen\(\)\) return;/.test(SCRIPT));
-  /* Sinds 1352898-002 staan + en wijzigen ook aan als er alleen om toegang
-     gevraagd kan worden: de tik vraagt dan eerst om toegang. De poort blijft
-     openModal zelf (hierboven), dus zonder bestand wordt er niets bewerkt. */
+     /\$\('btnUndo'\)\.onclick = function\(\)\{\s*\n\s*if\(!magBewerken\(\)\) return;/.test(SCRIPT));
+  ok('en magBewerken is magWijzigen of op de kopie met toegang te vragen',
+     /function magBewerken\(\)\{ return magWijzigen\(\) \|\| kanToegangVragen\(\); \}/.test(SCRIPT));
+  /* Sinds 1352898-003 mag bewerken op de leeskopie als er om toegang gevraagd
+     kan worden; die vraag komt bij het opslaan. De poort blijft openModal zelf
+     (magBewerken), dus zonder bestand en zonder kopie wordt er niets bewerkt. */
   ok('btnEdit staat op dezelfde voorwaarde als btnNew',
-     /\$\('btnEdit'\)\.disabled = !\(magWijzigen\(\) \|\| kanToegangVragen\(\)\);/.test(SCRIPT) &&
-     /\$\('btnNew'\)\.disabled = !\(magWijzigen\(\) \|\| kanToegangVragen\(\)\);/.test(SCRIPT),
+     /\$\('btnEdit'\)\.disabled = !magBewerken\(\);/.test(SCRIPT) &&
+     /\$\('btnNew'\)\.disabled = !magBewerken\(\);/.test(SCRIPT),
      'dit was het gat: alleen btnNew was afgedicht');
-  ok('en beide gaan via metToegang, dat zonder toegang eerst daarom vraagt',
-     /\$\('btnNew'\)\.onclick = function\(\)\{ metToegang\(/.test(SCRIPT) &&
-     /\$\('btnEdit'\)\.onclick = function\(\)\{ metToegang\(/.test(SCRIPT));
+  ok('bewerken op de kopie kan alleen met een werkmap en een kopie',
+     /function kanToegangVragen\(\)\{ return fileState === 'auth' && !!dirHandle && !!kopieRij && !!bestandsnaam; \}/.test(SCRIPT));
+  ok('opslaan zonder toegang vraagt eerst daarom',
+     /if\(fileState === 'auth'\)\{[\s\S]{0,200}dirHandle\.requestPermission/.test(haal('bewaar')));
+  ok('een kopie zonder stempel geldt bij het opslaan als niet na te gaan',
+     /if\(laatstGelezen === -1\) return 'onbekend';/.test(SCRIPT) &&
+     /if\(cfgGelezen === -1\) return 'onbekend';/.test(SCRIPT));
 }
 
 {

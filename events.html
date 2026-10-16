@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-002</div>
+    <div id="appVersieStempel">Versie 1352898-003</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2135,6 +2135,7 @@ function cfgGewijzigd(){
   return dirHandle.getFileHandle(CFG_NAAM).then(function(h){ return h.getFile(); })
     .then(function(f){
       if(cfgGelezen === null) return 'gelijk';
+      if(cfgGelezen === -1) return 'onbekend';
       if(f.lastModified !== cfgGelezen) return 'anders';
       if(cfgGrootte !== null && f.size !== cfgGrootte) return 'anders';
       return 'gelijk';
@@ -2191,11 +2192,16 @@ var kopieRij = null;
    een kopie met een ander teken dan ';' bij het lezen uiteen in onbegrepen
    regels, en de titel en de types ontbraken. Een losse kopie van het object,
    zodat latere wijzigingen in het geheugen hem niet raken. */
+/* De stempels (wijzigingstijd en grootte) van het bestand en de configuratie
+   gaan ook mee. Daarmee kan de botsingscontrole bij het opslaan nagaan of het
+   bestand sinds deze kopie buiten de app is gewijzigd. */
 function bewaarKopie(naam, tekst){
   if(!naam) return Promise.resolve();
   var cfgKopie = null;
   try { cfgKopie = JSON.parse(JSON.stringify(cfg || {})); } catch(e){}
-  return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie })
+  return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie,
+                         mtime: laatstGelezen, grootte: laatstGrootte,
+                         cfgMtime: cfgGelezen, cfgGrootte: cfgGrootte })
     .then(function(){}, function(){ /* vol of geweigerd: dan is er geen kopie */ });
 }
 
@@ -2210,6 +2216,15 @@ function vulUitKopie(){
        deze tekst. Met een gekoppeld bestand wint altijd dat bestand. */
     if(fileState !== 'ok' && rij.cfg && typeof rij.cfg === 'object'){
       cfg = rij.cfg; pasStandaardFilterToe();
+    }
+    /* De stempels uit de kopie: daartegen vergelijkt de botsingscontrole bij het
+       opslaan. Een kopie zonder stempel (van voor 1352898-003) geeft -1, en dat
+       leest de controle als 'niet na te gaan': dan vraagt de app eerst. */
+    if(fileState !== 'ok'){
+      laatstGelezen = typeof rij.mtime === 'number' ? rij.mtime : -1;
+      laatstGrootte = typeof rij.grootte === 'number' ? rij.grootte : null;
+      cfgGelezen = typeof rij.cfgMtime === 'number' ? rij.cfgMtime : -1;
+      cfgGrootte = typeof rij.cfgGrootte === 'number' ? rij.cfgGrootte : null;
     }
     records = parse(rij.tekst); sorteer(); selIndex = -1; gelijkgezet();
     if(!bestandsnaam) bestandsnaam = rij.bestand || '';
@@ -2390,12 +2405,17 @@ function herleesExtern(){
 
 /* Toegang tot de werkmap. Zonder toegang kan de app het bestand niet eens
    lezen, en Edge op Android onthoudt de toestemming maar tot de app dicht is.
-   Daarom vraagt de app er pas om als het nodig is: bij de eerste wijziging en
-   bij 'Opnieuw inlezen'. Tot dan staat de leeskopie in beeld, zonder melding.
-   Wordt de toegang geweigerd, dan zegt de app dat wijzigen pas met toegang kan.
-   Geeft een promise terug die uitkomt als het bestand (opnieuw) is ingelezen. */
+   Daarom vraagt de app er pas om als het nodig is: bij het opslaan (zie bewaar)
+   en bij 'Opnieuw inlezen'. Tot dan staat de leeskopie in beeld, zonder melding.
+   Wordt de toegang geweigerd, dan zegt de app dat opslaan pas met toegang kan.
+   autoriseer leest na de toegang het bestand in; gebruik hem dus niet met een
+   niet-opgeslagen wijziging, want inlezen gooit die weg. */
 var toegangGeweigerd = false;
-function kanToegangVragen(){ return fileState === 'auth' && !!dirHandle; }
+function kanToegangVragen(){ return fileState === 'auth' && !!dirHandle && !!kopieRij && !!bestandsnaam; }
+/* Bewerken mag met een gekoppeld bestand, of op de leeskopie als er om toegang
+   gevraagd kan worden: dat gebeurt dan bij het opslaan. Downloaden en de
+   configuratie blijven aan een gelezen bestand gebonden (magWijzigen). */
+function magBewerken(){ return magWijzigen() || kanToegangVragen(); }
 function autoriseer(){
   if(!dirHandle) return Promise.resolve();
   return dirHandle.requestPermission({ mode:'readwrite' }).then(function(p){
@@ -2403,24 +2423,6 @@ function autoriseer(){
     toegangGeweigerd = false;
     return laadCfg();
   }, function(){ toegangGeweigerd = true; render(); });
-}
-/* Een wijziging die eerst toegang nodig heeft. Na de toegang is het bestand zelf
-   gelezen -- dat wint van de kopie -- en pas dan gaat de handeling door. Een
-   gekozen event wordt in het ingelezen bestand teruggezocht; staat het er niet
-   meer in, dan stopt het hier en zie je de nieuwe stand. */
-function metToegang(actie){
-  if(magWijzigen()) return actie();
-  if(!kanToegangVragen()) return;
-  var regel = selIndex >= 0 && records[selIndex] ? regelVan(records[selIndex]) : null;
-  autoriseer().then(function(){
-    if(!magWijzigen()) return;
-    if(regel !== null){
-      var i = vindRegel(regel, -1);
-      if(i < 0){ render(); return; }
-      selIndex = i; render();
-    }
-    actie();
-  });
 }
 function ontkoppel(){
   dirHandle = null; bestandsnaam = ''; cfg = {}; cfgFout = ''; cfgKlachten = [];
@@ -2505,6 +2507,7 @@ function externGewijzigd(){
   return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
     .then(function(f){
       if(laatstGelezen === null) return 'gelijk';   /* nog nooit gelezen */
+      if(laatstGelezen === -1) return 'onbekend';   /* kopie zonder stempel */
       if(f.lastModified !== laatstGelezen) return 'anders';
       if(laatstGrootte !== null && f.size !== laatstGrootte) return 'anders';
       return 'gelijk';
@@ -2604,6 +2607,24 @@ function schrijfEvents(negeer){
 }
 function bewaar(){
   if(!hasFSA || !dirHandle || !bestandsnaam){ render(); return; }
+  /* Op de leeskopie bewerkt: nu pas om toegang vragen. Na 'toestaan' gaat het
+     verder als een gewone opslag, en de botsingscontrole vergelijkt het bestand
+     met de stempel uit de kopie. Na een weigering blijft de wijziging staan als
+     niet opgeslagen (de herstelbuffer heeft hem) en zegt de app dat opslaan
+     toegang vraagt. */
+  if(fileState === 'auth'){
+    if(schrijfBezig) return;
+    schrijfBezig = true;
+    var gevraagd;
+    try { gevraagd = dirHandle.requestPermission({ mode:'readwrite' }); }
+    catch(err){ gevraagd = Promise.reject(err); }
+    return gevraagd.then(function(p){
+      schrijfBezig = false;
+      if(p !== 'granted'){ toegangGeweigerd = true; render(); return; }
+      toegangGeweigerd = false; fileState = 'ok';
+      return bewaar();
+    }, function(){ schrijfBezig = false; toegangGeweigerd = true; render(); });
+  }
   /* Het slot gaat hier al om en niet pas in schrijfEvents: de botsingscontrole
      hieronder wacht op het bestandssysteem, en in dat venster kwam een tweede
      bewaar() er anders langs. Dan schreven er twee tegelijk en ging de laatste
@@ -2727,11 +2748,14 @@ function renderFilebar(){
        weigering staat hier dat wijzigen pas met toegang kan. */
     el.innerHTML = (toegangGeweigerd
       ? '<div class="banner">' +
-        '<div class="banner-text">Wijzigen en opslaan kan pas met toegang tot ' +
+        '<div class="banner-text">' + (nietOpgeslagen() ? 'Niet opgeslagen: o' : 'O') +
+        'pslaan kan pas met toegang tot ' +
         esc(dirHandle ? dirHandle.name : 'de werkmap') + '.</div>' +
         '<button class="btn btn-warn" id="fAuth">Toegang geven</button></div>'
       : '') + herstelBanner() + versieBanner();
-    if($('fAuth')) $('fAuth').onclick = function(){ autoriseer(); };
+    /* Met een niet-opgeslagen wijziging slaat de knop op (en vraagt daarbij om
+       toegang); inlezen zou die wijziging weggooien. Zonder wijziging leest hij in. */
+    if($('fAuth')) $('fAuth').onclick = function(){ if(nietOpgeslagen()) bewaar(); else autoriseer(); };
     koppelHerstelKnoppen();
     koppelVersieKnop();
     return;
@@ -2943,7 +2967,7 @@ function tekenBestandStatus(){
   var kleur = stand.kleur, tekst = stand.tekst;
   if(fileState === 'auth'){
     kleur = toegangGeweigerd ? ' warn' : '';
-    tekst = 'leeskopie; om toegang wordt gevraagd bij de eerste wijziging';
+    tekst = 'leeskopie; om toegang wordt gevraagd bij het opslaan';
   }
   else if(fileState === 'geencfg'){ kleur = ' err'; tekst = cfgFout; }
   $('cfgDot').className = 'dot' + kleur;
@@ -3870,9 +3894,9 @@ function render(){
       (jaren === null ? '' : '<span class="jr">(' + jaren + ')</span>');
   }
   $('btnNew').hidden = selIndex >= 0;
-  $('btnNew').disabled = !(magWijzigen() || kanToegangVragen());
+  $('btnNew').disabled = !magBewerken();
   $('btnEdit').hidden = selIndex < 0;
-  $('btnEdit').disabled = !(magWijzigen() || kanToegangVragen());
+  $('btnEdit').disabled = !magBewerken();
   $('btnCfg').disabled = fileState === 'leeg';
   $('stapbalk').hidden = !terug;
   $('stapTekst').textContent = terugTekst();
@@ -4289,8 +4313,10 @@ function openModal(i){
      gezet maar btnEdit niet, en een rij is in de leeskopie-toestand gewoon
      selecteerbaar -- dus kon er wel worden bewerkt. Die bewerking belandde dan
      met verouderde kopie-inhoud in de herstelbuffer en kon later een nieuwer
-     bestand overschrijven. */
-  if(!magWijzigen()) return;
+     bestand overschrijven. Sinds 1352898-003 mag bewerken op de leeskopie wel,
+     want de kopie draagt de stempel van het bestand: bij het opslaan ziet de
+     botsingscontrole een nieuwer bestand en overschrijft het niet zonder vraag. */
+  if(!magBewerken()) return;
   editIndex = (i === undefined ? -1 : i);
   var r = editIndex >= 0 ? records[editIndex] : null;
   /* De regel zoals hij in het bestand staat, als identiteit. De index alleen is
@@ -4529,15 +4555,15 @@ $('lijst').onclick = function(e){
    bestand niet. Daarna valt er niets meer terug te draaien en verdwijnt de balk. */
 $('btnStapOk').onclick = function(){ terug = null; render(); };
 $('btnUndo').onclick = function(){
-  if(!magWijzigen()) return;
+  if(!magBewerken()) return;
   if(!draaiTerug()){ terug = null; render(); return; }
   selIndex = -1; wijzig(); render(); toonSelectie(); bewaar();
 };
 $('btnCfg').onclick = openCfg;
-$('btnNew').onclick = function(){ metToegang(function(){ openModal(); }); };
-$('btnEdit').onclick = function(){ metToegang(function(){ if(selIndex >= 0) openModal(selIndex); }); };
+$('btnNew').onclick = function(){ openModal(); };
+$('btnEdit').onclick = function(){ if(selIndex >= 0) openModal(selIndex); };
 $('mDel').onclick = function(){
-  if(editIndex < 0 || !magWijzigen()) return;
+  if(editIndex < 0 || !magBewerken()) return;
   var r = records[editIndex], regel = editRegel;
   vraag('Event verwijderen?', r.naam + ' \u2014 ' + r.type + ' (' + leesbaar(r.code) + ')', 'Verwijderen', function(){
     /* Tussen de vraag en dit antwoord zit gebruikerstijd. Daarin kan het bestand
