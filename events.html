@@ -125,10 +125,9 @@ svg{display:block}
 .btn-warn:hover{opacity:.88;border-color:var(--warn)}
 
 /* ---------- toolbar ---------- */
-/* De laatste stap: tekst, ongedaan maken en bevestigen in één balk boven de lijst.
-   Bevestigen vergeet de stap en de balk verdwijnt; de kopregel houdt daardoor
-   alleen + of wijzigen over. De tekst zelf is geen knop, zodat wegtikken niet per
-   ongeluk kan. Neutraal van kleur: het is informatie, geen waarschuwing. */
+/* Eén balk voor de laatste stap; bevestigen vergeet de stap. De tekst is geen knop,
+   zodat wegtikken niet per ongeluk kan. Neutraal van kleur: informatie, geen
+   waarschuwing. */
 .stapbalk{
   display:flex;align-items:center;gap:8px;margin:2px 0 8px;
   padding:4px 4px 4px 14px;border:1px solid var(--line);border-radius:8px;
@@ -167,8 +166,8 @@ svg{display:block}
   font-size:17px;font-weight:600;color:var(--muted);white-space:nowrap;
 }
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0e1219}
-/* .35 gaf een contrast van 1,6 : 1 -- niet gedempt maar verdwenen. De chip moet
-   te lezen blijven, ook als hij niet te kiezen is. */
+/* De chip moet te lezen blijven, ook als hij niet te kiezen is; bij een veel lagere
+   dekking (.35 geeft een contrast van 1,6 : 1) is hij niet gedempt maar verdwenen. */
 .chip:disabled{opacity:.6}
 .chip svg{width:21px;height:21px;flex:0 0 auto}
 
@@ -182,12 +181,11 @@ svg{display:block}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 /* De naamkolom krijgt wat de andere kolommen overlaten: 169 px op een scherm van
-   360. In 20 px mono werd daarmee 12 van 20 gewone Nederlandse namen afgekapt --
-   een naam van 19 tekens hield er 16 over; in 17 px nog 6, zonder dat een rij
-   hoger wordt.
-   Afbreken over twee regels was het alternatief, maar dat maakt de lijst 45%
-   langer (gemiddeld 58 px per rij) en je scrolt door 237 records. Wil je de
-   grote letter terug, dan is dit het ene getal. */
+   360. In 20 px mono wordt daarin de meerderheid van gewone Nederlandse namen
+   afgekapt; in 17 px de meeste niet meer, zonder dat een rij hoger wordt.
+
+   Afbreken over twee regels maakt de lijst bijna de helft langer, en je scrolt door
+   honderden records. Wil je de grote letter terug, dan is dit het ene getal. */
 .list td.naam{font-size:17px}
 .list tbody tr{cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .list tbody tr:nth-child(even) td{background:rgba(255,255,255,.06)}
@@ -224,8 +222,8 @@ svg{display:block}
 }
 .modal{
   width:100%;max-width:520px;background:var(--panel);
-  /* dvh rekent met het venster zoals je het ziet; vh telt de balken mee die
-     tijdens scrollen verdwijnen, waardoor de onderkant onbereikbaar werd */
+  /* dvh rekent met het venster zoals je het ziet; vh telt de balken mee die tijdens
+     scrollen verdwijnen, en dan is de onderkant onbereikbaar */
   max-height:94%;
   overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
   border:1px solid var(--line);border-radius:16px 16px 0 0;padding:16px;
@@ -329,10 +327,10 @@ svg{display:block}
 .numgrid button.selected{background:rgba(122,162,247,.30);border-color:var(--accent)}
 .numgrid button:disabled{opacity:.28;cursor:not-allowed}
 .icoongrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow-y:auto}
-/* Op een laag scherm -- liggend, of met het toetsenbord open -- maakte dit eigen
-   schuifvlak binnen een al schuivende modal dat de knoppen OK en Annuleren
-   onbereikbaar waren: vegen over de cijfers schoof alleen het raster. Daar is de
-   modal het enige schuifvlak, en dat is er een. */
+/* Op een laag scherm (liggend, of met het toetsenbord open) maakt een eigen
+   schuifvlak binnen de al schuivende modal de knoppen OK en Annuleren onbereikbaar:
+   vegen over de cijfers schuift dan alleen het raster. Daar is de modal het enige
+   schuifvlak. */
 @media (max-height:560px){
   .numgrid{max-height:none;overflow-y:visible}
   .icoongrid{max-height:none;overflow-y:visible}
@@ -835,7 +833,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-007</div>
+    <div id="appVersieStempel">Versie 1352898-008</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -919,10 +917,8 @@ svg{display:block}
 
 var MAANDEN = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAGEN = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
-/* Tekeningen blijven in de code; welk icoon bij welk type hoort staat in de cfg.
-   Beide tabellen hieronder zonder prototype: de naam komt uit de cfg, en een
-   naam als 'constructor' zou anders een bestaande eigenschap van Object
-   opleveren in plaats van niets. Net als _EVENT_TYPE in de macro. */
+/* Tabellen zonder prototype, net als _EVENT_TYPE in de macro: de naam komt uit de
+   cfg, en 'constructor' zou anders een eigenschap van Object opleveren. */
 var ICONEN = Object.assign(Object.create(null), {
   'scheut':          '<path d="M12 21v-7"/><path d="M12 14c0-3.3 2.7-6 6-6 0 3.3-2.7 6-6 6z"/><path d="M12 14c0-2.2-1.8-4-4-4 0 2.2 1.8 4 4 4z"/>',
   'grafsteen':       '<path d="M6.5 21h11"/><path d="M8 21V9a4 4 0 0 1 8 0v12"/>',
@@ -938,10 +934,8 @@ var ICONEN = Object.assign(Object.create(null), {
   'bolletje':        '<circle cx="12" cy="12" r="3.5"/>',
   'notitie':         '<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>'
 });
-/* Het teken is de eenletterige aanduiding die de macro gebruikt, in de melding
-   en in het @t-filter. Deze lijst is de terugval als de configuratie geen types
-   noemt, en hij is woordelijk gelijk aan _EVENT_TYPE_FALLBACK in events_lite.js:
-   anders betekent hetzelfde teken in de app iets anders dan in de macro. */
+/* Terugval als de cfg geen types noemt. Woordelijk gelijk aan _EVENT_TYPE_FALLBACK
+   in events_lite.js, anders betekent hetzelfde teken in app en macro iets anders. */
 var TYPES = [
   { omschrijving:'Geboren',     icoon:'scheut',          teken:'+' },
   { omschrijving:'Overleden',   icoon:'grafsteen',       teken:'-' },
@@ -1006,18 +1000,15 @@ var records = [];      // {sleutel,naam,type,code,cat,notitie} of {raw:'...'}
 /* Elke wijziging in het geheugen verhoogt wijzigVersie; bewaardeVersie is de
    laatste versie waarvan bewezen is dat hij op schijf staat. Zolang die twee
    verschillen is er iets niet opgeslagen.
-   Hiervoor stond er een losse vlag naast de opslagstatus, en die twee konden
-   uit elkaar lopen: een schrijfactie zette de vlag op "opgeslagen" terwijl er
-   tijdens het schrijven alweer iets was gewijzigd. Met een teller kan dat niet,
-   want een schrijfactie zet alleen de versie die hij zelf heeft weggeschreven. */
+
+   Een teller en geen vlag: een schrijfactie zet alleen de versie die hij zelf heeft
+   weggeschreven, dus een wijziging tijdens het schrijven blijft als niet opgeslagen
+   staan. */
 var wijzigVersie = 0;
 var bewaardeVersie = 0;
-/* In een browser zonder File System Access schrijft de app niet zelf: je
-   downloadt het bestand en zet het zelf terug. Of die download is gelukt kan de
-   app niet weten -- een <a download> heeft geen afloopgebeurtenis en de
-   gebruiker kan het opslaanvenster wegzetten. Daarom geldt de wijziging daarna
-   nog steeds als niet opgeslagen; wat de app wel weet is voor welke versie er
-   een download is gestart, en dat staat in de statusregel. */
+/* Zonder File System Access weet de app niet of de download is gelukt (<a download>
+   meldt niets), dus de wijziging blijft niet opgeslagen. De statusregel noemt voor
+   welke versie een download is gestart. */
 var gedownloadVersie = null;
 /* Elke wijziging gaat meteen ook naar de herstelbuffer; zie daar waarom dat
    zonder vertraging kan. */
@@ -1061,12 +1052,9 @@ function terugTekst(){
   if(!terug) return '';
   return terug.naam + ' ' + (terug.herstel ? TEGENDEEL[terug.actie] : terug.actie);
 }
-/* Eén stap terug, en die stap is zelf ook weer terug te draaien: de knop wisselt
-   na gebruik om naar opnieuw. Daardoor is er geen bevestiging nodig — het is de
-   handeling die je beschermt, niet een die bescherming vraagt.
-   Bewaard wordt alleen het verschil: welk record het betrof en hoe het eruitzag.
-   Het record wordt teruggevonden op zijn nummer, dat bij het inlezen wordt
-   uitgedeeld en dat een wijziging of een hersortering overleeft. */
+/* Eén stap terug, zelf ook terug te draaien (de knop wordt opnieuw), dus geen
+   bevestiging nodig. Bewaard wordt alleen het verschil; het record wordt
+   teruggevonden op zijn nummer, dat wijzigen en hersorteren overleeft. */
 var terug = null;
 function onthoud(naam, actie, id, oud){
   terug = { naam:naam, actie:actie, herstel:false, id:id, oud:oud || null, rec:null };
@@ -1164,13 +1152,9 @@ function berekenLeesbaar(code){
 }
 
 /* ------------------ dagnummers ------------------ */
-/* Een datum is een geheel getal: het aantal dagen sinds een vast ijkpunt, het
-   Juliaanse dagnummer. Optellen is +, vergelijken is <, en de weekdag zit al in
-   het getal. Er is precies een plek waar de app aan het toestel vraagt welke
-   dag het is; vanaf daar rekent alles met getallen, zodat tijdzones, zomertijd
-   en de datumfuncties van de browser nergens meer meespelen.
-   De macro houdt zijn eigen laag aan in het jjjjmmdd-formaat van het bestand;
-   de zelftest kijkt na of beide op hetzelfde uitkomen. */
+/* Een datum is een Juliaans dagnummer: rekenen en vergelijken met gewone getallen,
+   zonder tijdzones of zomertijd. Het datumrekenen haalt de dag van vandaag alleen
+   via dgVandaag. De zelftest vergelijkt met de jjjjmmdd-laag van de macro. */
 
 /* De letters a, b en c komen uit de standaardformule, zodat de code naast de
    bron te leggen is. */
@@ -1304,10 +1288,8 @@ function berekenEventDatum(code, jaar){
 /* heeft dit event uberhaupt een datumregel? zo niet, dan is de datum onbekend.
    Een schrikkeldag of een 5e dinsdag heeft die regel wel, maar valt in sommige
    jaren nergens: dat is niet onbekend maar niet-bestaand. */
-/* De uit de datumcode afgeleide velden om in te zoeken: de datum in het gekozen
-   jaar en de oorspronkelijke datum, elk met de afgekorte weekdag erachter, plus
-   de leeftijd als 60jr. Ze worden met het scheidingsteken aan elkaar geregen,
-   zodat je met za; precies op een veldeinde kunt mikken. */
+/* Afgeleide zoekvelden, met het scheidingsteken aan elkaar geregen zodat je met za;
+   precies op een veldeinde kunt mikken. */
 function zoekExtra(r, jaar){
   var k = r.code + '|' + jaar;
   if(k in cacheZoek) return cacheZoek[k];
@@ -1383,11 +1365,9 @@ function dagenLang(n){
   return n > 0 ? 'over ' + n + ' dagen' : Math.abs(n) + ' dagen geleden';
 }
 
-/* ~dag   = vandaag en morgen
-   ~week  = drie dagen terug t/m de zondag van volgende week
-   ~maand = drie dagen terug t/m het einde van volgende maand
-   jaar   = vandaag t/m dezelfde datum volgend jaar min een dag, zodat elke
-            jaarlijkse datum er precies een keer in valt */
+/* ~dag is vandaag en morgen; ~week en ~maand beginnen drie dagen terug. jaar
+   eindigt een dag voor dezelfde datum volgend jaar, zodat elke jaarlijkse datum er
+   precies één keer in valt. */
 function datumVenster(f){
   var vandaag = dgVandaag();
   if(f === '~dag'){
@@ -1406,9 +1386,9 @@ function datumVenster(f){
 }
 function isVenster(f){ return f === '~dag' || f === '~week' || f === '~maand' || f === 'jaar'; }
 /* De periode zoals hij op de chip staat. De teller staat pal naast die chips, dus
-   daar hoort hetzelfde woord te staan als wat je hebt aangetikt. Alleen 'jaar'
-   week af: datumLabel maakt daar "het komende jaar" van, en dat hoort in een zin
-   ("Geen events in het komende jaar") maar is naast de teller te lang. */
+   daar hoort hetzelfde woord te staan als wat je hebt aangetikt. Alleen bij 'jaar'
+   wijkt het af: datumLabel maakt daar "het komende jaar" van, en dat hoort in een
+   zin ("Geen events in het komende jaar") maar is naast de teller te lang. */
 function periodeChip(v){ return v === 'jaar' ? 'jaar' : datumLabel(v); }
 function datumLabel(v){
   if(!v) return '';
@@ -1444,24 +1424,20 @@ function ofTeken(){
   var t = cfg.ofteken;
   return (typeof t === 'string' && t.length === 1) ? t : '|';
 }
-/* Het scheidingsteken wijzigen raakt twee bestanden: eerst de configuratie,
-   daarna het events-bestand. Mislukt die tweede schrijfactie -- een ingetrokken
-   machtiging, een botsing die onbeantwoord blijft -- dan staat in de cfg een
-   ander teken dan in het bestand, en is bij de volgende start elke regel
-   onbegrepen. Gemeten met een map die niet te schrijven was: 2 van 2 regels,
-   met alleen "opslaan mislukt" op het scherm en niets over het teken.
-   Hier staat zolang die twee niet gelijk zijn het oude teken, zodat de app kan
+/* Het scheidingsteken wijzigen raakt twee bestanden: eerst de configuratie, daarna
+   het events-bestand. Mislukt die tweede schrijfactie (een ingetrokken machtiging,
+   een botsing die onbeantwoord blijft), dan staat in de cfg een ander teken dan in
+   het bestand en is bij de volgende start elke regel onbegrepen, terwijl er alleen
+   "opslaan mislukt" op het scherm staat.
+
+   Zolang die twee niet gelijk zijn staat hier het oude teken, zodat de app kan
    zeggen wat er aan de hand is. Hij gaat uit zodra het events-bestand wel is
-   weggeschreven -- ook via Toch opslaan, of door gewoon nog eens op te slaan. */
+   weggeschreven, ook via Toch opslaan of door nog eens op te slaan. */
 var sepOnafgemaakt = '';
 
-/* Welk teken past wel? Alle regels onbegrepen is bijna altijd hetzelfde ding:
-   het scheidingsteken in de configuratie past niet bij het bestand -- door een
-   met de hand gewijzigde cfg, of doordat het wijzigen halverwege is afgebroken.
-   De app repareert hier niets en verzint geen formaat; hij zegt alleen welk
-   teken het wel zou zijn, zodat je het zelf in een tik goedzet.
-   Dit draait alleen in dat ene geval, dus niet bij een bestand dat gewoon
-   gelezen kan worden: geen kosten op de normale weg. */
+/* Alle regels onbegrepen betekent bijna altijd een scheidingsteken in de cfg dat
+   niet bij het bestand past. De app repareert niets, maar noemt het teken dat wel
+   past. Draait alleen in dat geval. */
 var SEP_KANDIDATEN = [';', ',', '|', '\t', '#', ':', '~'];
 var sepMist = '';            /* het teken dat wel zou passen, of '' */
 function zoekBeterSep(tekst, gelezen){
@@ -1499,16 +1475,16 @@ function parse(text){
       out.push({ raw:line, nr:i + 1, id:++volgnr });
       continue;
     }
-    /* Hier stond parseInt(f[4],10) || 2, en die || maakte van een getypte 0
-       stilletjes een 2 -- je typte iets anders dan er daarna in het bestand
-       stond, en de eigen controle 'categorieen die niet in de configuratie
-       staan' zag het niet meer, want die vangt alleen waarden die het parsen
-       overleven. Een echt getal blijft nu staan zoals het er staat, 0 dus ook.
-       Voor een leeg veld of tekst wordt het 1: die regels als onbegrepen
-       behandelen zou bestaande events uit de lijst laten verdwijnen, en dat is
-       een zwaardere ingreep dan het probleem. 1 is de eerste categorie en staat
-       er dus altijd; het rapport noemt deze regels apart, zodat de 1 geen
-       verzonnen waarde is die je niet terugvindt. */
+    /* Een echt getal blijft staan zoals het er staat, 0 dus ook. Geen || met een
+       standaardwaarde: die maakt van een getypte 0 stilletjes iets anders, en dan
+       ziet de eigen controle 'categorieen die niet in de configuratie staan' het
+       niet meer, want die vangt alleen waarden die het parsen overleven.
+
+       Een leeg veld of tekst wordt 1: die regels als onbegrepen behandelen laat
+       bestaande events uit de lijst verdwijnen, en dat is een zwaardere ingreep dan
+       het probleem. 1 is de eerste categorie en staat er dus altijd; het rapport
+       noemt deze regels apart, zodat de 1 geen verzonnen waarde is die je niet
+       terugvindt. */
     var catRuw = f[4].trim();
     var catGetal = /^\d+$/.test(catRuw);
     var rec = {
@@ -1517,21 +1493,18 @@ function parse(text){
       notitie: f.length > VELD_MIN ? f[VELD_MIN] : '',
       nr: i + 1, id: ++volgnr
     };
-    /* Wat er stond, als het geen getal was. De macro leest datzelfde veld met
-       +veld en meldt het dan als "? categorie"; de app vult stil 2 in. Dat de
-       app die 2 gebruikt is een bewuste keuze -- anders verdwijnen bestaande
-       events uit de lijst -- maar dat hij er niets over zei, liet je een klacht
-       in het macrorapport zien die de app nooit toonde. Daarom hier bewaard,
-       alleen bij de regels waar het misgaat, zodat het rapport het kan zeggen. */
+    /* Wat er stond, als het geen getal was. De macro leest datzelfde veld met +veld
+       en meldt het als "? categorie"; de app gebruikt dan 1. Bewaard alleen bij de
+       regels waar het misgaat, zodat het rapport het ook noemt; anders toont het
+       macrorapport een klacht die de app verzwijgt. */
     if(!catGetal) rec.catRuw = catRuw;
     out.push(rec);
   }
   return out;
 }
-/* Eén record als bestandsregel. Apart, omdat de selectie na het opnieuw inlezen
-   op inhoud wordt teruggezocht: parse deelt de nummers opnieuw uit, dus de index
-   wijst daarna naar iets anders. Serialize gebruikt dezelfde functie, zodat er
-   geen tweede versie van deze opmaak kan ontstaan. */
+/* Apart, zodat de selectie na opnieuw inlezen op inhoud kan worden teruggezocht
+   (parse deelt nieuwe nummers uit). Serialize gebruikt dezelfde functie: één
+   opmaak. */
 function regelVan(r){
   if(r.raw !== undefined) return r.raw;
   var f = [r.sleutel, r.naam, r.type, r.code, String(r.cat)];
@@ -1539,13 +1512,13 @@ function regelVan(r){
   var regel = f.join(sep());
   /* Een record is altijd precies een regel. Dat is geen opmaakkeuze maar de
      afspraak waar het hele formaat op rust: beide lezers delen het bestand op
-     regels. Een regelovergang in een veld maakte van een record stilletjes twee
-     regels, waarvan de tweede bij het inlezen onbegrepen is -- gemeten: 2 regels
-     voor 1 record. De bewerkmodal houdt dat al tegen, maar een type komt uit de
-     configuratie en die kan met de hand zijn bewerkt; JSON mag "Ge\nboren"
-     immers gewoon bevatten. Daarom staat de garantie hier, op de enige plek waar
-     een record een bestandsregel wordt.
-     De kosten: eerst kijken, dan pas vervangen. */
+     regels, dus een regelovergang in een veld maakt van een record stilletjes twee
+     regels, waarvan de tweede bij het inlezen onbegrepen is. De bewerkmodal houdt
+     dat al tegen, maar een type komt uit de configuratie en die kan met de hand
+     zijn bewerkt; JSON mag "Ge\nboren" gewoon bevatten. Daarom staat de garantie
+     hier, op de enige plek waar een record een bestandsregel wordt.
+
+     Eerst kijken, dan pas vervangen, zodat een gewone regel niets extra kost. */
   return /[\r\n]/.test(regel) ? regel.replace(/[\r\n]+/g, ' ') : regel;
 }
 function serialize(){
@@ -1573,39 +1546,33 @@ function sorteer(){
 }
 
 /* ------------------ werkmap, configuratie en bestand ------------------ */
-/* Het versienummer van deze app, verhoogd door update_cache_version.py bij elke
-   wijziging. De app vergelijkt dit met het nummer in de offline-kopie; staat
-   daar een hoger nummer, dan is er een nieuwe versie binnengehaald en meldt de
-   app dat.
-   Dit is een andere teller dan CACHE_VERSION in sw-events.js: die is de naam van
-   de cache en hoeft alleen omhoog als de worker zelf wijzigt. De twee lopen dus
-   uiteen, en dat hoort zo. Vergeet je dit nummer, dan gaat er niets stuk -- de
-   nieuwe versie komt dan stil bij de volgende start, alleen zonder melding. */
-/* Het versiestempel staat in het scherm, onderaan de instellingen, en de app
-   leest het daar uit -- dezelfde opzet als golf-score en trends, en hetzelfde
-   formaat: HEX(yyyymmdd)-NNN. Beide delen hebben een vaste lengte, dus gewone
+/* Het versiestempel staat in het scherm, onderaan de instellingen, en de app leest
+   het daar uit -- dezelfde opzet en hetzelfde formaat als golf-score en trends:
+   HEX(yyyymmdd)-NNN. Beide delen hebben een vaste lengte, dus gewone
    tekstvergelijking houdt de volgorde aan; HEX(yyyymmdd) is 7 tekens voor elke
-   datum tussen 1677 en 2137, en NNN laat 4095 wijzigingen per dag toe.
-   Het stempel gaat met de HAND omhoog bij elke wijziging, niet via een script;
-   zo schrijven de gedeelde conventies het voor. */
+   datum van 1678 tot en met 9999, en NNN laat 4095 wijzigingen per dag toe.
+
+   Het stempel gaat met de HAND omhoog bij elke wijziging, niet via een script; zo
+   schrijven de gedeelde conventies het voor. Het is een andere teller dan
+   CACHE_VERSION in sw-events.js, die alleen omhoog gaat als de worker zelf wijzigt.
+   De twee lopen dus uiteen, en dat hoort zo. */
 function appStempel(){
   var el = document.getElementById('appVersieStempel');
   var m = /Versie\s+([0-9A-F]+-[0-9A-F]+)/.exec((el && el.textContent) || '');
   return m ? m[1] : '';
 }
-/* Blijft deze ene uitgave nog staan: de vorige versie van de app zoekt in de
-   offline-kopie naar APP_VERSIE en vindt zonder dit regeltje niets, waardoor
-   juist de overstap zelf geen melding zou geven. Mag eruit zodra iedereen op
-   een versie met een stempel draait. */
+/* Blijft staan voor de vorige versie van de app: die zoekt in de offline-kopie naar
+   APP_VERSIE en meldt zonder dit regeltje juist de overstap niet. Mag eruit zodra
+   iedereen op een versie met een stempel draait. */
 var APP_VERSIE = 180;
 
 var DB = 'events', STORE = 'handles';
 var CFG_STANDAARD = 'events_cfg.json';
 var NAAM_MAX = 120;         /* langste bestandsnaam die de app accepteert */
-/* De naam van het metabestand mag met ?cfg=... in de URL worden meegegeven.
-   Zonder die parameter blijft het events_cfg.json, dus er verandert niets.
-   Alleen een gewone bestandsnaam is toegestaan: geen pad, geen aanhalings-
-   tekens, zodat de app niet buiten de werkmap kan worden gestuurd. */
+/* De naam van het metabestand mag met ?cfg=... in de URL worden meegegeven; zonder
+   die parameter is het events_cfg.json. Alleen een gewone bestandsnaam is
+   toegestaan: geen pad, geen aanhalingstekens, zodat de app niet buiten de werkmap
+   kan worden gestuurd. */
 var CFG_NAAM = (function(){
   try {
     var p = new URLSearchParams(location.search).get('cfg');
@@ -1625,11 +1592,11 @@ function idb(){
     q.onerror = function(){ rej(q.error); };
   });
 }
-/* Een transactie kan afbreken: quota vol, opslag geweigerd, of de browser die
-   de database sluit. Zonder onabort en onerror bleef de belofte dan voor altijd
-   open, en omdat schrijfEvents op maybeBackup wacht, bleef de app in dat geval
-   hangen met 'bezig' en kon er niets meer worden opgeslagen. Hier breekt alles
-   netjes af, zodat de aanroeper het kan melden. */
+/* Een transactie kan afbreken: quota vol, opslag geweigerd, of de browser die de
+   database sluit. Zonder onabort en onerror blijft de belofte dan open, en omdat
+   schrijfEvents op maybeBackup wacht, hangt de app dan op 'bezig' en kan er niets
+   meer worden opgeslagen. Hier breekt alles netjes af, zodat de aanroeper het kan
+   melden. */
 function transactie(db, modus, werk){
   return new Promise(function(res, rej){
     var t;
@@ -1641,12 +1608,10 @@ function transactie(db, modus, werk){
     catch(e){ try { t.abort(); } catch(e2){} rej(e); }
   });
 }
-/* Elke aanroep opent een eigen verbinding, en die moet weer dicht. Een open
-   verbinding blokkeert een versiewissel en een verzoek om de database te
-   verwijderen, en bij elke wijziging kwam er een bij: na een middag bewerken
-   stonden ze allemaal nog open en bleven ze dat tot de browser het tabblad
-   opruimde. Sluiten gebeurt in beide uitkomsten, want juist na een mislukte
-   transactie bleef er anders een verbinding hangen. */
+/* Elke aanroep opent een eigen verbinding, en die moet weer dicht: een open
+   verbinding blokkeert een versiewissel en het verwijderen van de database, en
+   anders komt er bij elke wijziging een bij. Sluiten gebeurt in beide uitkomsten,
+   ook na een mislukte transactie. */
 function metDb(werk){
   return idb().then(function(db){
     function dicht(){ try { db.close(); } catch(e){ /* al dicht */ } }
@@ -1667,33 +1632,24 @@ function idbDel(k){ return metDb(function(db){
   return transactie(db, 'readwrite', function(st){ st['delete'](k); }); }); }
 
 /* ------------------ herstelbuffer ------------------
-   Een wijziging staat tot het opslaan alleen in het geheugen. Sluit Android de
-   app af, dan is hij weg. Daarom gaat elke wijziging ook naar IndexedDB --
-   naast het bestand, niet in plaats daarvan. Het bestand blijft de bron.
+   Een wijziging staat tot het opslaan alleen in het geheugen; sluit Android de app
+   af, dan is hij weg. Daarom gaat elke wijziging ook naar IndexedDB -- naast het
+   bestand, niet in plaats daarvan. Het bestand blijft de bron.
 
-   Zonder vertraging, en dat is gemeten en niet aangenomen: met 237 records op
-   een 8x afgeknepen processor kost dit 1,3 ms hoofdbaan per wijziging, tegen
-   63 ms die render() daar toch al kost. Een vertraging zou alleen een venster
-   opleveren waarin een wijziging nergens staat. Dat idbPut de database elke
-   keer opent is ook nagemeten: 1,3 ms tegen 1,6 ms met een vastgehouden
-   verbinding, dus binnen de ruis, en daarom blijft idb() zoals hij is -- met
-   dien verstande dat de verbinding nu wel wordt gesloten; zie metDb. */
+   Zonder vertraging: gemeten kost dit per wijziging een fractie van wat render()
+   toch al kost, en een vertraging levert alleen een venster op waarin een wijziging
+   nergens staat. Een vastgehouden verbinding scheelt binnen de ruis, dus opent
+   idb() de database per aanroep en sluit metDb hem weer. */
 var HERSTEL = 'herstel';
 var herstelKan = null;        // null = nog niets geprobeerd, anders de laatste poging
 var herstelFout = '';
-/* Waar de inhoud in het geheugen op is gebaseerd. Met een werkmap is dat
-   laatstGelezen; zonder werkmap het bestand dat is geopend, want daar is geen
-   handle van en bij het terugzetten moet de app kunnen zien of het nog
-   hetzelfde bestand is. */
+/* Met een werkmap laatstGelezen; zonder werkmap het geopende bestand, want daar is
+   geen handle van en bij terugzetten moet blijken of het nog hetzelfde is. */
 var laatstGeopend = null;     // { naam, grootte, lastModified }
 
-/* Waar de buffer op is gebaseerd. lastModified is null zolang er geen bestand
-   is: op het FSA-pad wordt laatstGelezen alleen gevuld door een gelukte
-   leesactie, en een leesactie die op NotFoundError eindigt zet hem terug op
-   null. Twee keer null betekent dus niet "we weten het niet" maar "er was geen
-   bestand en er is er nog geen", en dat is juist het geval waarin terugzetten
-   veilig is. Een basis met een getal past daarmee nooit op een verdwenen
-   bestand, en een basis van voor het bestand nooit op een bestand met inhoud. */
+/* lastModified null betekent: er was geen bestand en er is er nog geen. Dan is
+   terugzetten veilig; een basis met een getal past nooit op een verdwenen bestand,
+   en omgekeerd. */
 function herstelBasis(){
   if(hasFSA) return { naam: bestandsnaam, lastModified: laatstGelezen,
                       grootte: laatstGrootte };
@@ -1701,20 +1657,15 @@ function herstelBasis(){
   return { naam: laatstGeopend.naam, grootte: laatstGeopend.grootte,
            lastModified: laatstGeopend.lastModified };
 }
-/* Wissen mag pas als het wegschrijven aantoonbaar is gelukt, en alleen als er
-   sindsdien niets nieuwers bij is gekomen: anders zou het wissen juist de
-   wijziging weggooien die nergens anders staat. De versiecontrole doet dat; de
-   volgorde van IndexedDB-transacties regelt de rest, want een put die na deze
-   aanroep wordt aangemaakt komt ook na de delete aan de beurt. */
+/* Alleen wissen na een gelukte schrijfactie en als er sindsdien niets nieuwers is,
+   anders verdwijnt een wijziging die nergens anders staat. Een latere put komt in
+   IndexedDB ook na de delete. */
 function wisHerstel(versie){
   if(versie !== undefined && versie !== wijzigVersie) return Promise.resolve(false);
   return idbDel(HERSTEL).then(function(){ return true; }, function(){ return false; });
 }
-/* Na het inlezen van een bestand: staat er een buffer voor dit bestand en is
-   die woordelijk gelijk aan wat er nu in het bestand staat, dan is de wijziging
-   aangekomen en is de buffer overbodig. Op de downloadweg is dit het enige
-   moment waarop dat bewijs kan ontstaan -- de app kan niet zien of jij het
-   gedownloade bestand hebt teruggezet, maar bij het openen blijkt het. */
+/* Is de buffer woordelijk gelijk aan het ingelezen bestand, dan is de wijziging
+   aangekomen. Op de downloadweg is dit het enige bewijs daarvoor. */
 function herstelNaLezen(naam, tekst){
   return idbGet(HERSTEL).then(function(rij){
     if(!rij || rij.bestand !== naam){
@@ -1728,10 +1679,8 @@ function herstelNaLezen(naam, tekst){
       herstelRij = null; herstelStand = '';
       return idbDel(HERSTEL).then(function(){ return true; }, function(){ return false; });
     }
-    /* Er staat iets dat niet in het bestand zit. Of terugzetten veilig is hangt
-       ervan af of het bestand nog hetzelfde is als waar de buffer op was
-       gebaseerd. Is dat niet zo, dan is het buiten de app gewijzigd en wordt er
-       niets automatisch overschreven -- de gebruiker beslist. */
+    /* Terugzetten alleen als het bestand nog hetzelfde is als de basis van de
+       buffer; anders beslist de gebruiker. */
     herstelRij = rij;
     var b = rij.basis, nu = herstelBasis();
     var gelijk = !!(b && nu && b.naam === nu.naam && b.lastModified === nu.lastModified &&
@@ -1742,10 +1691,8 @@ function herstelNaLezen(naam, tekst){
   }).catch(function(){ return false; });
 }
 
-/* Wat er uit een vorige sessie is blijven staan. Bij het opstarten is het
-   bestand nog niet ingelezen -- zonder werkmap is er zelfs nog geen bestand --
-   dus dan is het hoogst haalbare: melden dat er iets staat en zeggen wat er
-   nodig is om het te kunnen wegen. */
+/* Bij het opstarten is het bestand nog niet ingelezen, dus alleen melden dat er
+   iets staat en wat er nodig is om het te wegen. */
 var herstelRij = null;
 var herstelStand = '';          // '' | wacht | terugzetten | afwijkend
 
@@ -1826,30 +1773,23 @@ function bewaarHerstel(){
 
 /* ------------------ nieuwe versie herkennen ------------------
    De service worker houdt de offline-kopie bij; hier wordt alleen gekeken welk
-   versienummer daarin staat. Geen netwerk: de vergelijking gaat tegen de cache.
-   De cacheopslag komt als argument binnen zodat de zelftest dit kan narekenen
-   zonder de echte caches aan te raken. */
+   versiestempel daarin staat. Geen netwerk: de vergelijking gaat tegen de cache. De
+   cacheopslag komt als argument binnen zodat de zelftest dit kan narekenen zonder
+   de echte caches aan te raken. */
 function cacheOpslag(opslag){ return opslag || (window.caches || null); }
 
-/* Het NIEUWSTE stempel uit de eigen caches, zoals de gedeelde conventies het
-   voorschrijven en zoals trends het al doet.
+/* Het nieuwste stempel uit alle eigen caches, zoals de gedeelde conventies en
+   Trends het doen, en niet alleen uit de hoogst genummerde: de cachenaam gaat
+   alleen omhoog als sw-events.js wijzigt.
 
-   Niet de hoogste cachenaam opzoeken en alleen daaruit lezen: die naam gaat
-   alleen omhoog als sw-events.js wijzigt, dus het nieuwste stempel staat niet
-   per se in de hoogst genummerde cache. Laat een afgebroken installatie een
-   lege huls achter, of is de hoogste cache niet te openen, dan verviel de
-   melding terwijl het nieuwe stempel in de cache ernaast stond.
+   Alleen de eigen caches, want die van Golf Score en Trends staan op hetzelfde
+   domein. Geen eigen cache betekent niets melden, uitdrukkelijk zonder terugval op
+   alle caches.
 
-   Alleen de eigen caches. De cacheopslag is van het hele domein, dus die van
-   Golf Score en Trends staan er ook in; zonder die filter zou een vreemde
-   kopie meebeslissen. Geen eigen cache betekent dus niets melden, en
-   uitdrukkelijk GEEN terugval op alle caches.
-
-   De caches worden een voor een gelezen in plaats van met Promise.all. Dat is
-   de simpele en iets langzamere variant: in de praktijk staan er een of twee,
-   en deze controle draait pas vier seconden na de start en bij een
-   blikwisseling. Komen er ooit veel meer caches, dan is dit de plek om het
-   parallel te doen. */
+   Eén voor één gelezen, niet met Promise.all: de simpele en iets langzamere
+   variant, want het zijn er een of twee, en dit draait pas na vier seconden en bij
+   een blikwisseling. Komen er veel meer caches, dan is dit de plek om het parallel
+   te doen. */
 function nieuwsteStempelUitCache(c){
   if(!c) return Promise.resolve({ stempel: null, reden: 'geen cache' });
   return c.keys().then(function(namen){
@@ -1910,14 +1850,14 @@ function vraagSwUpdate(reg){
   return true;
 }
 
-/* De opslag vastzetten. Zonder dit staat alles wat de app bewaart -- de
-   offline-kopie van de service worker en de mapverwijzing hierboven -- in
-   opslag die de browser bij ruimtegebrek mag wissen. Gebeurt dat, dan is de
+/* De opslag vastzetten, anders mag de browser bij ruimtegebrek wissen wat de app
+   bewaart -- de offline-kopie van de service worker en de mapverwijzing -- en is de
    app offline weg en moet de map opnieuw worden aangewezen.
+
    Eerst navragen en alleen vragen als het nog niet vaststaat: sommige browsers
-   tonen er een venstertje bij, en dat hoort niet bij elke start te komen.
-   De opslag komt als argument binnen zodat de zelftest de keuzes kan narekenen
-   zonder aan navigator te sleutelen. */
+   tonen er een venstertje bij, en dat hoort niet bij elke start te komen. De opslag
+   komt als argument binnen zodat de zelftest de keuzes kan narekenen zonder aan
+   navigator te sleutelen. */
 var opslagVast = null;             // true, false, of null = niet gelukt
 function zetOpslagVast(opslag){
   var o = opslag || navigator.storage || null;
@@ -1939,9 +1879,8 @@ var cfgCRLF = true;           // regeleindes van het cfg-bestand aanhouden
 var cfgFout = '';             // leesfout in de cfg
 var cfgKlachten = [];         // wat er bij het keuren van de cfg is weggelaten
 /* Waarop de cfg in het geheugen is gebaseerd -- dezelfde metadata als bij het
-   events-bestand. Het events-bestand werd al tegen een wijziging van buiten
-   beschermd, de cfg niet: wie de instellingen op de pc aanpaste en daarna in de
-   app op Opslaan drukte, zag die aanpassing zonder melding verdwijnen. */
+   events-bestand, zodat een aanpassing van buiten aan de cfg bij het opslaan niet
+   zonder melding verdwijnt. */
 var cfgGelezen = null;
 var cfgGrootte = null;
 /* De cfg is bij het opslaan buiten de app gewijzigd en de versie van buiten is
@@ -1982,12 +1921,9 @@ function bestandenInMap(){
 
 /* --- configuratie --- */
 
-/* De cfg komt uit een bestand dat met de hand of door een andere app bewerkt
-   kan zijn, dus hier eerst keuren. Een sleutel met het verkeerde soort waarde
-   wordt weggelaten in plaats van overgenomen: de app valt dan terug op zijn
-   eigen standaard en blijft werken, in plaats van te struikelen bij het
-   tekenen. Wat er is weggelaten komt in cfgKlachten en staat onder de header,
-   zodat een typefout in de json zichtbaar is en niet stil doorwerkt. */
+/* De cfg kan met de hand bewerkt zijn. Een sleutel met een verkeerd soort waarde
+   wordt weggelaten, zodat de standaard geldt en het tekenen niet struikelt; de
+   klacht staat onder de header. */
 var CFG_TEKST = ['bestand','titel','scheidingsteken','ofteken'];
 var CFG_LIJST = ['velden','types','categorieen','paasdagen'];
 /* __proto__ is het gevaarlijkst: verderop zet ordenCfg uit[k] = c[k], en dat
@@ -2011,11 +1947,9 @@ function keurCfg(c, klachten){
       klachten.push('"' + k + '" is geen tekst en is overgeslagen');
     }
   });
-  /* Een regelovergang in de configuratie. JSON mag die bevatten, het
-     events-bestand niet: een type met een regelovergang erin maakt van elk
-     record met dat type twee regels. regelVan vangt dat af, maar dan staat er
-     in het bestand iets anders dan in de instellingen -- dus hier meteen
-     schoonmaken en zeggen dat het is gebeurd. */
+  /* Een regelovergang in de cfg maakt van elk record met dat type twee regels.
+     regelVan vangt dat af, maar dan wijkt het bestand af van de instellingen; dus
+     hier schoonmaken en melden. */
   var platGeslagen = 0;
   function plat(t){
     if(typeof t !== 'string' || !/[\r\n]/.test(t)) return t;
@@ -2127,10 +2061,9 @@ function ordenCfg(c){
   Object.keys(c).forEach(function(k){ if(!(k in uit)) uit[k] = c[k]; });
   return uit;
 }
-/* Is de cfg buiten de app gewijzigd? Opgezet als externGewijzigd voor het
-   events-bestand, met dezelfde drie uitkomsten en dezelfde afspraken: nog nooit
-   gelezen is geen botsing, een bestand dat niet bestaat valt niets te
-   overschrijven, en een mislukte controle heet onbekend. */
+/* Zelfde uitkomsten en afspraken als externGewijzigd: nooit gelezen is geen
+   botsing, geen bestand valt niets te overschrijven, een mislukte controle heet
+   onbekend. */
 function cfgGewijzigd(){
   return dirHandle.getFileHandle(CFG_NAAM).then(function(h){ return h.getFile(); })
     .then(function(f){
@@ -2148,11 +2081,9 @@ function schrijfCfg(){
   cfg = ordenCfg(cfg);
   var tekst = JSON.stringify(cfg, null, 2) + '\n';
   if(cfgCRLF) tekst = tekst.replace(/\n/g, '\r\n');
-  /* Weigeren zou de instellingen onbruikbaar maken tot een herlaadactie, en in
-     dit venster staat de gebruiker met een half ingevuld formulier. Daarom
-     dezelfde keuze als bij Toch opslaan op het events-bestand: de versie van
-     buiten eerst apart wegzetten -- ook als er vandaag al een backup is -- en
-     daarna schrijven. Zo gaat er niets verloren en loopt de bewerking door. */
+  /* Weigeren laat een half ingevuld formulier hangen. Daarom zoals Toch opslaan:
+     eerst de versie van buiten apart wegzetten (ook met een backup van vandaag),
+     dan schrijven. */
   return cfgGewijzigd().then(function(stand){
     cfgOverschreven = stand !== 'gelijk';
     return maybeBackup(CFG_NAAM, cfgOverschreven);
@@ -2171,32 +2102,31 @@ function schrijfCfg(){
 }
 
 /* --- lokale leeskopie ---
-   De laatst met succes ingelezen inhoud van het bestand. Zonder deze kopie
-   staat de app bij het opstarten leeg zolang het bestand niet gekoppeld is, en
-   op Android is dat elke sessie: daar bestaat geen werkmap, dus moet het bestand
-   elke keer opnieuw worden gekozen. Offline opstarten gaf dan niets te zien.
+   De laatst met succes ingelezen inhoud van het bestand. Zonder deze kopie staat de
+   app bij het opstarten leeg zolang het bestand niet gekoppeld is, en op Android is
+   dat elke sessie: daar bestaat geen werkmap, dus moet het bestand elke keer
+   opnieuw worden gekozen.
 
-   Dit is uitdrukkelijk categorie 1 uit de opdracht: inhoud die aantoonbaar in
-   het bestand stond. Hij wordt nooit teruggeschreven. In de toestand 'kopie' kan
-   er niets worden gewijzigd of opgeslagen, en zodra het bestand wel gekoppeld is
-   wint dat bestand altijd -- ook als het ouder is dan de kopie. Daarmee bestaat
-   er geen pad waarlangs deze kopie gebruikersgegevens kan overschrijven.
+   De kopie bevat alleen inhoud die aantoonbaar in het bestand stond. In de toestand
+   'kopie' kan er niets worden gewijzigd of opgeslagen. Bewerken op de kopie kan
+   alleen als de app om toegang kan vragen (magBewerken); bij het opslaan vergelijkt
+   de botsingscontrole het bestand dan met de stempel uit de kopie en overschrijft
+   een nieuwer bestand niet zonder vraag. Zodra het bestand gekoppeld is, wint dat
+   bestand altijd -- ook als het ouder is dan de kopie.
 
-   De kopie is iets anders dan de herstelbuffer: die bewaart juist wat NIET in
-   het bestand staat. Staan ze er beide, dan toont de app de kopie en meldt de
-   buffer er bovenop, zodat jij kiest en de app niets stilzwijgend samenvoegt. */
+   De kopie is iets anders dan de herstelbuffer: die bewaart juist wat NIET in het
+   bestand staat. Staan ze er beide, dan toont de app de kopie en meldt de buffer er
+   bovenop, zodat jij kiest en de app niets stilzwijgend samenvoegt. */
 var KOPIE = 'kopie';
 var kopieRij = null;
 
-/* De configuratie gaat mee: zonder het scheidingsteken uit de configuratie viel
-   een kopie met een ander teken dan ';' bij het lezen uiteen in onbegrepen
-   regels, en de titel en de types ontbraken. Een losse kopie van het object,
-   zodat latere wijzigingen in het geheugen hem niet raken. */
-/* De stempels (wijzigingstijd en grootte) van het bestand en de configuratie
-   gaan ook mee. Daarmee kan de botsingscontrole bij het opslaan nagaan of het
-   bestand sinds deze kopie buiten de app is gewijzigd. Zonder werkmap (een
-   gekozen bestand) komt de stempel van dat bestand mee als derde argument: ook
-   die kopie moet een stempel hebben, anders telt hij niet. */
+/* De configuratie gaat mee, anders valt een kopie met een ander scheidingsteken dan
+   ';' bij het lezen uiteen in onbegrepen regels en ontbreken de titel en de types.
+   Een losse kopie van het object, zodat latere wijzigingen in het geheugen hem niet
+   raken. */
+/* De stempels gaan mee, zodat de botsingscontrole bij het opslaan ziet of het
+   bestand sindsdien is gewijzigd. Zonder werkmap komt de stempel als derde argument
+   mee; een kopie zonder stempel telt niet. */
 function bewaarKopie(naam, tekst, stempel){
   if(!naam) return Promise.resolve();
   var cfgKopie = null;
@@ -2215,11 +2145,9 @@ function bewaarKopie(naam, tekst, stempel){
    toegangsprobleem blijft die melding staan -- die vraagt om actie -- en zijn de
    events ondertussen toch in te zien.
 
-   metStempel: alleen een kopie met de stempel van het bestand telt. Zo werkt het
-   ook in Trends. Op een kopie zonder stempel (van voor 1352898-003) mag niet
-   worden bewerkt: die werd niet bijgewerkt na het opslaan, dus kon hij
-   achterlopen, en zonder stempel ziet de botsingscontrole dat niet. Dan geldt
-   er geen kopie en vraagt de app eerst om toegang, net als Trends de eerste keer. */
+   metStempel: alleen een kopie met de stempel van het bestand telt, net als in
+   Trends. Zonder stempel ziet de botsingscontrole niet of de kopie achterloopt; dan
+   geldt er geen kopie en vraagt de app eerst om toegang. */
 function vulUitKopie(metStempel){
   return idbGet(KOPIE).then(function(rij){
     if(!rij || !rij.tekst) return false;
@@ -2231,8 +2159,8 @@ function vulUitKopie(metStempel){
       cfg = rij.cfg; pasStandaardFilterToe();
     }
     /* De stempels uit de kopie: daartegen vergelijkt de botsingscontrole bij het
-       opslaan. Een kopie zonder stempel (van voor 1352898-003) geeft -1, en dat
-       leest de controle als 'niet na te gaan': dan vraagt de app eerst. */
+       opslaan. Een kopie zonder stempel geeft -1, en dat leest de controle als
+       'niet na te gaan': dan vraagt de app eerst. */
     if(fileState !== 'ok'){
       laatstGelezen = typeof rij.mtime === 'number' ? rij.mtime : -1;
       laatstGrootte = typeof rij.grootte === 'number' ? rij.grootte : null;
@@ -2248,9 +2176,9 @@ function vulUitKopie(metStempel){
 /* Hetzelfde, maar met de toestand erbij. Alleen als er nog niets is: een
    gekoppeld bestand, een toegangsprobleem of een configuratiefout heeft een
    eigen, dringender melding die hier niet overheen mag worden geschreven. */
-/* Ook hier alleen een kopie met stempel, net als bij het opstarten zonder
-   toegang en in Trends: een oude kopie zonder stempel kon flink achterlopen,
-   en een lijst die er gewoon uitziet maar wijzigingen mist is verwarrend. */
+/* Ook hier alleen een kopie met stempel, net als bij het opstarten zonder toegang
+   en in Trends: een kopie zonder stempel kan achterlopen, en een lijst die er
+   gewoon uitziet maar wijzigingen mist is verwarrend. */
 function leesKopie(){
   if(fileState !== 'leeg') return Promise.resolve(false);
   return vulUitKopie(true).then(function(gelukt){
@@ -2275,19 +2203,17 @@ function laden(){
     .then(function(f){ laatstGelezen = f.lastModified; laatstGrootte = f.size; return f.text(); })
     .then(function(t){
       records = parse(t); sorteer(); selIndex = -1; gelijkgezet();
-      /* Na de echte parse, want zoekBeterSep parseert zelf nog een paar keer en
-         deelt daarmee nieuwe nummers uit; de echte lijst staat er dan al en
-         wordt hieronder niet meer aangeraakt. volgnr gaat bij de volgende
-         parse() toch weer op nul. */
+      /* Na de echte parse: zoekBeterSep parseert zelf ook en deelt nummers uit,
+         maar raakt de echte lijst niet meer aan. */
       sepMist = zoekBeterSep(t, records);
       bewaarKopie(bestandsnaam, t);
       var bufferKlaar = herstelNaLezen(bestandsnaam, t);
       leesBackupDagen();
       if(filterType && !records.some(function(r){ return r.type === filterType; })) filterType = '';
       terug = null; fileState = 'ok'; saveState = ''; render();
-      /* herstelNaLezen beslist asynchroon wat er met de buffer moet gebeuren,
-         dus na die beslissing nog een keer tekenen. Anders bleef de banner tot
-         de eerstvolgende willekeurige hertekening het oude verhaal vertellen. */
+      /* herstelNaLezen beslist asynchroon wat er met de buffer moet gebeuren, dus
+         na die beslissing nog een keer tekenen; anders vertelt de banner tot de
+         eerstvolgende hertekening het oude verhaal. */
       return bufferKlaar.then(render, render);
     })
     .catch(function(e){
@@ -2296,12 +2222,10 @@ function laden(){
         /* er is geen bestand, dus ook geen basis om tegen af te zetten */
         laatstGelezen = null; laatstGrootte = null;
         fileState = 'ok'; saveState = ''; render();
-        /* Een bestand dat nog niet bestaat is ook een leesuitkomst. Stond er een
-           buffer voor deze naam, dan kan die hier juist veilig worden
-           aangeboden: er is niets om te overschrijven. Zonder deze aanroep bleef
-           de banner op 'wacht' staan -- "open dat bestand om ze terug te zetten"
-           terwijl dat bestand al gekoppeld was -- en was een getypt event dat
-           Android had afgebroken niet meer terug te halen. */
+        /* Een bestand dat nog niet bestaat is ook een leesuitkomst. Staat er een
+           buffer voor deze naam, dan kan die hier juist veilig worden aangeboden:
+           er is niets om te overschrijven. Anders blijft de banner op 'wacht' staan
+           terwijl het bestand al gekoppeld is, en is de buffer niet terug te halen. */
         return herstelNaLezen(bestandsnaam, null).then(render, render);
       }
       fileState = 'auth'; render();
@@ -2309,53 +2233,46 @@ function laden(){
 }
 /* --- terugkeren naar de app: is het bestand buiten de app gewijzigd? ---
    Met dezelfde externGewijzigd() en laden() als bij het opslaan, dus geen tweede
-   mechanisme. Alleen op het FSA-pad: zonder werkmap is er geen handle en kan de
-   app het bestand na het openen niet meer bekijken. Op Chrome Android kiest elke
-   sessie het bestand opnieuw, dus is de inhoud daar bij het openen per definitie
-   vers.
+   mechanisme. Alleen op het FSA-pad: zonder werkmap is er geen handle en kan de app
+   het bestand na het openen niet meer bekijken. Op Chrome Android kiest elke sessie
+   het bestand opnieuw, dus is de inhoud daar bij het openen vers.
+
    De tijdrem is er omdat focus en visibilitychange vlak na elkaar afgaan als je
-   terugschakelt: zonder rem werden het twee controles op hetzelfde moment. */
+   terugschakelt: zonder rem worden het twee controles op hetzelfde moment. */
 var EXTERN_INTERVAL = 1500;
 var externLaatst = 0;
 var externGemeld = false;
-/* Een slot naast de tijdrem. De rem beperkt hoe vaak er wordt gekeken, het slot
-   dat er twee controles naast elkaar lopen: duurt een controle langer dan het
-   interval -- een trage schijf, een netwerkmap -- dan startte de volgende er
-   gewoon bovenop en werd er twee keer opnieuw ingelezen. */
+/* Een slot naast de tijdrem. De rem beperkt hoe vaak er wordt gekeken, het slot dat
+   er twee controles naast elkaar lopen: duurt een controle langer dan het interval
+   -- een trage schijf, een netwerkmap -- dan start de volgende er anders bovenop en
+   wordt er twee keer opnieuw ingelezen. */
 var externBezig = false;
-/* De laatste controle kon niet worden uitgevoerd. Dit is een toestand en geen
-   gebeurtenis: zolang hij waar is staat de melding er, en hij gaat uit zodra een
-   controle wel lukt. Daarmee blijft hij staan bij een blijvend probleem zonder
-   dat elke keer terugschakelen dezelfde melding opnieuw oplevert. */
+/* Een toestand, geen gebeurtenis: de melding blijft staan zolang de controle
+   mislukt en verdwijnt zodra er een lukt, zonder bij elk terugschakelen opnieuw te
+   verschijnen. */
 var externOnbekend = false;
 
 function kijkExtern(){
   if(!hasFSA || !dirHandle || !bestandsnaam || fileState !== 'ok') return false;
   if(schrijfBezig) return false;                 /* midden in een schrijfactie niet */
-  /* Niet terwijl er een modal openstaat. Daar houdt de app een verwijzing naar
-     een record vast over gebruikerstijd heen -- de bewerkmodal en de
-     verwijdervraag -- en opnieuw inlezen vervangt die records onder zijn handen.
-     De controle volgt zodra de modal dicht is; de tijdrem staat dat toe. */
+  /* Niet met een open modal: die houdt een record vast en opnieuw inlezen vervangt
+     het. De controle volgt na het sluiten; de tijdrem staat dat toe. */
   if(modalStapel.length) return false;
   if(externBezig) return false;
   var nu = Date.now();
   if(nu - externLaatst < EXTERN_INTERVAL) return false;
   externLaatst = nu;
   externBezig = true;
-  /* De vangnetten hieronder zitten op de belofte. Gooit externGewijzigd
-     SYNCHROON -- een ingetrokken handle waarbij getFileHandle meteen gooit in
-     plaats van een afgewezen belofte te geven -- dan verliet die uitzondering
-     deze functie voordat het slot werd vrijgegeven, en merkte de app daarna geen
-     enkele wijziging van buiten meer op. Stil en blijvend, tot herladen. */
+  /* Ook een SYNCHRONE uitzondering van externGewijzigd -- een ingetrokken handle
+     waarbij getFileHandle meteen gooit in plaats van een afgewezen belofte te geven
+     -- moet het slot vrijgeven; de vangnetten hieronder zitten op de belofte.
+     Anders merkt de app tot herladen geen enkele wijziging van buiten meer op. */
   var bezig;
   try { bezig = externGewijzigd(); }
   catch(err){ externBezig = false; return true; }
   bezig.then(function(stand){
-    /* 'onbekend' is iets anders dan 'anders': niet weten dat het bestand
-       hetzelfde is, is geen vaststelling dat het is gewijzigd. Dus niet opnieuw
-       inlezen -- dat zou de stap terug weggooien en een melding geven die niet
-       waar is -- en niets wissen. Bij de volgende gelegenheid gewoon weer
-       proberen; de vlag hieronder gaat uit zodra dat lukt. */
+    /* Onbekend is geen vaststelling van gewijzigd: niet inlezen (dat gooit de stap
+       terug weg) en niets wissen, volgende keer opnieuw proberen. */
     if(stand === 'onbekend'){
       if(!externOnbekend){ externOnbekend = true; render(); }
       return;
@@ -2363,18 +2280,16 @@ function kijkExtern(){
     if(externOnbekend){ externOnbekend = false; render(); }
     if(stand === 'gelijk') return;
     if(nietOpgeslagen() && saveState !== 'fout'){
-      /* Er staat iets in het geheugen en de app gaat dat zelf nog wegschrijven.
-         Dan hier niets doen: bewaar() doet vlak voor het schrijven zijn eigen
+      /* Er staat iets in het geheugen en de app gaat dat zelf nog wegschrijven. Dan
+         hier niets doen: bewaar() doet vlak voor het schrijven zijn eigen
          botsingscontrole, en dat is het juiste moment. Een melding hier zet
-         saveState op 'extern' en houdt juist die schrijfactie tegen -- dat
-         kostte in de zelftest vijftien van de zestien wijzigingen. */
+         saveState op 'extern' en houdt juist die schrijfactie tegen. */
       return;
     }
     if(nietOpgeslagen() || herstelRij){
-      /* Opslaan lukt niet of er staan herstelgegevens: dan komt er niets meer
-         vanzelf en moet het gemeld worden. Dezelfde melding als bij een botsing
-         tijdens het opslaan, met dezelfde knop Opnieuw laden; de herstelbuffer
-         blijft staan en er wordt niets overheen gelezen. */
+      /* Opslaan lukt niet of er staan herstelgegevens: melden zoals bij een
+         botsing, met Opnieuw laden. De buffer blijft staan en er wordt niets
+         overheen gelezen. */
       saveState = 'extern'; render();
       return;
     }
@@ -2385,10 +2300,8 @@ function kijkExtern(){
   return true;
 }
 
-/* Opnieuw inlezen met behoud van wat de gebruiker in beeld had. De selectie gaat
-   op inhoud en niet op index: parse deelt de nummers opnieuw uit, dus dezelfde
-   index wijst daarna naar een ander record. Filters en zoekterm zijn eigen
-   variabelen en blijven staan. */
+/* Selectie op inhoud, niet op index: parse deelt de nummers opnieuw uit. Filters en
+   zoekterm blijven staan. */
 function herleesExtern(){
   var was = (selIndex >= 0 && records[selIndex]) ? regelVan(records[selIndex]) : null;
   var pos = window.scrollY;
@@ -2399,11 +2312,8 @@ function herleesExtern(){
         if(regelVan(records[i]) === was){ selIndex = i; break; }
       }
     }
-    /* Is er tijdens het inlezen getypt, dan heeft laden() die wijziging uit het
-       geheugen verdrongen en gelijkgezet() aangeroepen. De buffer heeft hem nog
-       en de melding erover biedt Terugzetten aan, dus er gaat niets verloren --
-       maar dan niet melden dat de wijzigingen netjes zijn ingelezen, want dat
-       klopt voor jouw wijziging juist niet. */
+    /* Getypt tijdens het inlezen: laden() heeft de wijziging verdrongen, de buffer
+       heeft hem nog. Dan niet melden dat alles netjes is ingelezen. */
     if(wijzigVersie !== versieVoor){
       saveState = 'extern'; render();
       window.scrollTo(0, pos);
@@ -2416,13 +2326,10 @@ function herleesExtern(){
   });
 }
 
-/* Toegang tot de werkmap. Zonder toegang kan de app het bestand niet eens
-   lezen, en Edge op Android onthoudt de toestemming maar tot de app dicht is.
-   Daarom vraagt de app er pas om als het nodig is: bij het opslaan (zie bewaar)
-   en bij 'Opnieuw inlezen'. Tot dan staat de leeskopie in beeld, zonder melding.
-   Wordt de toegang geweigerd, dan zegt de app dat opslaan pas met toegang kan.
-   autoriseer leest na de toegang het bestand in; gebruik hem dus niet met een
-   niet-opgeslagen wijziging, want inlezen gooit die weg. */
+/* Edge op Android onthoudt de toegang maar tot de app dicht is, dus de app vraagt
+   er pas om bij opslaan en bij 'Opnieuw inlezen'; tot dan staat de leeskopie in
+   beeld. autoriseer leest daarna het bestand in, dus niet gebruiken met een
+   niet-opgeslagen wijziging. */
 var toegangGeweigerd = false;
 function kanToegangVragen(){ return fileState === 'auth' && !!dirHandle && !!kopieRij && !!bestandsnaam; }
 /* Bewerken mag met een gekoppeld bestand, of op de leeskopie als er om toegang
@@ -2445,16 +2352,16 @@ function ontkoppel(){
   records = []; selIndex = -1; gelijkgezet(); fileState = 'leeg'; saveState = '';
   idbDel('dir');
   /* De leeskopie blijft: ontkoppelen is het losmaken van de werkmap, niet het
-     weggooien van wat er gelezen is. Zonder deze regel stond het scherm leeg
-     tot de volgende start, en dat las als gegevensverlies. */
+     weggooien van wat er gelezen is. Zonder dit staat het scherm leeg tot de
+     volgende start, en dat leest als gegevensverlies. */
   leesKopie().then(render, render);
 }
 
 /* --- schrijven, met dagelijkse backup per bestand --- */
 /* Wat er van de backups bekend is. backupDag houdt per bestand de dag van de
-   laatste geslaagde backup; backupFout is de reden als de laatste poging
-   misging. Beide zijn te zien bij App-status, en een fout staat ook onder de
-   header, want hiervoor verdween die geruisloos. */
+   laatste geslaagde backup; backupFout is de reden als de laatste poging misging.
+   Beide zijn te zien bij App-status, en een fout staat ook onder de header, zodat
+   hij niet geruisloos verdwijnt. */
 var backupDag = {};
 var backupFout = '';
 function leesBackupDagen(){
@@ -2471,18 +2378,19 @@ function backupTekst(naam){
   return backupNaam(naam) + ' — ' + datumTekst(+d) +
          (d === dagsleutel() ? ' (vandaag)' : '');
 }
-/* Backup van een bestand, voor de eerste keer dat het die dag wordt
-   overschreven. De dag wordt alleen opgeschreven als de backup er echt staat:
-   anders gold een mislukte poging als gedaan en kwam er die dag geen tweede.
-   Het opslaan zelf gaat wel door -- een backup die niet kan is geen reden om
-   ook de wijziging te laten vallen -- maar de fout is zichtbaar. */
+/* Backup van een bestand, voor de eerste keer dat het die dag wordt overschreven.
+   De dag wordt alleen opgeschreven als de backup er echt staat: anders geldt een
+   mislukte poging als gedaan en komt er die dag geen tweede. Het opslaan zelf gaat
+   wel door -- een backup die niet kan is geen reden om ook de wijziging te laten
+   vallen -- maar de fout is zichtbaar. */
 /* forceer: ook als er vandaag al een backup is. Dat is nodig bij 'Toch opslaan':
    daar staat op schijf juist de wijziging van buiten die op het punt staat te
-   verdwijnen, en de backup van vandaag is een oudere versie van de app zelf.
-   Zonder forceren stond die wijziging van buiten na het opslaan nergens meer --
-   niet in het bestand, niet in de backup en niet in de herstelbuffer.
-   Wat het kost: de backup van eerder vandaag wordt vervangen. Die is een
-   voorouder van wat er nu wordt weggeschreven, dus dat weegt lichter. */
+   verdwijnen, en de backup van vandaag is een oudere versie van de app zelf. Zonder
+   forceren staat die wijziging van buiten na het opslaan nergens meer -- niet in
+   het bestand, niet in de backup en niet in de herstelbuffer.
+
+   Wat het kost: de backup van eerder vandaag wordt vervangen. Die is een voorouder
+   van wat er nu wordt weggeschreven, dus dat weegt lichter. */
 function maybeBackup(naam, forceer){
   var vandaag = dagsleutel(), sleutel = 'backup:' + naam;
   return idbGet(sleutel).then(function(laatste){
@@ -2510,12 +2418,11 @@ function maybeBackup(naam, forceer){
   });
 }
 /* is het bestand sinds het inlezen door iets anders aangeraakt? */
-/* Drie uitkomsten, niet twee: 'gelijk', 'anders' en 'onbekend'. Hier stond een
-   catch die elke fout als 'niet gewijzigd' afdeed -- bedoeld voor een bestand dat
-   nog niet bestaat, maar hij ving ook een ingetrokken machtiging of een leesfout.
-   De app schreef dan door op de aanname dat er niets was veranderd. Kan de
-   controle niet worden uitgevoerd, dan is dat nu een eigen antwoord en waarschuwt
-   de app. Vergeleken wordt op metadata: wijzigingstijd en grootte. */
+/* Drie uitkomsten, niet twee: 'gelijk', 'anders' en 'onbekend'. Alleen een bestand
+   dat niet bestaat telt als 'gelijk'; een ingetrokken machtiging of een leesfout is
+   'onbekend', zodat de app waarschuwt in plaats van door te schrijven op de aanname
+   dat er niets is veranderd. Vergeleken wordt op metadata: wijzigingstijd en
+   grootte. */
 function externGewijzigd(){
   return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
     .then(function(f){
@@ -2530,19 +2437,18 @@ function externGewijzigd(){
       return 'onbekend';
     });
 }
-/* Er mag er maar een tegelijk schrijven, anders schrijven twee acties over
-   elkaar heen en ziet de botsingscontrole onze eigen schrijfactie aan voor een
-   wijziging van buiten. Het slot gaat om in bewaar(), niet hier: daartussen
-   wordt gewacht op het bestandssysteem. */
+/* Eén schrijver tegelijk, anders ziet de botsingscontrole de eigen schrijfactie aan
+   voor een wijziging van buiten. Het slot gaat om in bewaar(), want daartussen
+   wordt op het bestandssysteem gewacht. */
 var schrijfBezig = false;
 /* eenmalig gezet door 'Toch opslaan' in de botsingsvraag */
 var negeerBotsing = false;
 function schrijfKlaar(){
   schrijfBezig = false;
-  /* Kwam er tijdens het schrijven iets bij, dan gaat dat er nu alsnog in. Dat
-     wordt aan de versies gezien en niet aan een losse vlag, want die vlag kon
-     gewist worden door de verkeerde schrijfactie. Na een fout of een botsing
-     niet: daar wacht de app op de gebruiker. */
+  /* Kwam er tijdens het schrijven iets bij, dan gaat dat er nu alsnog in. Dat wordt
+     aan de versies gezien en niet aan een losse vlag, want zo'n vlag kan gewist
+     worden door de verkeerde schrijfactie. Na een fout of een botsing niet: daar
+     wacht de app op de gebruiker. */
   if(nietOpgeslagen() && saveState !== 'fout' && saveState !== 'extern') return bewaar();
   /* De melding over een nieuwe versie hangt van schrijfBezig af, en die stond
      bij de laatste render nog aan. Alleen opnieuw tekenen als die melding er
@@ -2552,22 +2458,19 @@ function schrijfKlaar(){
 /* Een botsing is geen fout maar een vraag aan de gebruiker, dus hij reist als
    dit ene herkenbare ding door de keten in plaats van als Error. */
 var BOTSING = { botsing:true, onbekend:false };
-/* Direct voor het schrijven nog een keer kijken. De eerste controle staat in
-   bewaar(), nog voor de backup, en die backup kost tijd: in dat venster kan het
-   bestand alsnog veranderen. Hiermee blijft alleen het gat tussen deze controle
-   en createWritable over. Kleiner kan het niet -- de browser-API kent geen
-   vergelijk-en-schrijf in een keer. */
+/* Nog een controle vlak voor het schrijven, omdat de backup tijd kost. Een gat tot
+   createWritable blijft: de API kent geen vergelijk-en-schrijf. */
 function hercontroleer(negeer){
   if(negeer) return Promise.resolve();
-  /* externGewijzigd geeft 'gelijk', 'anders' of 'onbekend'. Let op: alleen
-     'gelijk' mag door. Toen dit nog op de waarheid van de uitkomst testte, gold
-     de string 'gelijk' als een botsing en mislukte elke schrijfactie. */
+  /* externGewijzigd geeft 'gelijk', 'anders' of 'onbekend'. Alleen 'gelijk' mag
+     door; test dus op die waarde en niet op de waarheid van de uitkomst, want ook
+     'gelijk' is een ware string. */
   return externGewijzigd().then(function(stand){
     if(stand !== 'gelijk'){ BOTSING.onbekend = (stand === 'onbekend'); throw BOTSING; }
   });
 }
-/* De botsingsvraag staat op een plek, want hij komt nu van twee kanten: de
-   controle vooraf en die vlak voor het schrijven. */
+/* De botsingsvraag staat op één plek, want hij komt van twee kanten: de controle
+   vooraf en die vlak voor het schrijven. */
 function vraagBotsing(onbekend){
   saveState = 'extern'; render();
   /* het slot gaat los voordat de vraag wordt gesteld, anders staat het open
@@ -2598,9 +2501,9 @@ function schrijfEvents(negeer){
     .then(function(f){
       laatstGelezen = f.lastModified; laatstGrootte = f.size;
       bewaardeVersie = versie;
-      /* Wat nu in het bestand staat, is ook de leeskopie. Zonder deze regel liep
-         de kopie na elke eigen wijziging achter tot het bestand opnieuw werd
-         ingelezen, en dat gebeurt zonder toegang niet. */
+      /* Wat nu in het bestand staat, is ook de leeskopie. Anders loopt de kopie na
+         elke eigen wijziging achter tot het bestand opnieuw wordt ingelezen, en dat
+         gebeurt zonder toegang niet. */
       bewaarKopie(bestandsnaam, tekst);
       /* de twee bestanden staan weer op hetzelfde teken */
       sepOnafgemaakt = ''; sepMist = '';
@@ -2620,11 +2523,9 @@ function schrijfEvents(negeer){
 }
 function bewaar(){
   if(!hasFSA || !dirHandle || !bestandsnaam){ render(); return; }
-  /* Op de leeskopie bewerkt: nu pas om toegang vragen. Na 'toestaan' gaat het
-     verder als een gewone opslag, en de botsingscontrole vergelijkt het bestand
-     met de stempel uit de kopie. Na een weigering blijft de wijziging staan als
-     niet opgeslagen (de herstelbuffer heeft hem) en zegt de app dat opslaan
-     toegang vraagt. */
+  /* Op de leeskopie bewerkt: nu pas om toegang vragen. Na toestaan een gewone
+     opslag met botsingscontrole tegen de stempel van de kopie; na weigeren blijft
+     de wijziging in de herstelbuffer. */
   if(fileState === 'auth'){
     if(schrijfBezig) return;
     schrijfBezig = true;
@@ -2639,16 +2540,16 @@ function bewaar(){
     }, function(){ schrijfBezig = false; toegangGeweigerd = true; render(); });
   }
   /* Het slot gaat hier al om en niet pas in schrijfEvents: de botsingscontrole
-     hieronder wacht op het bestandssysteem, en in dat venster kwam een tweede
-     bewaar() er anders langs. Dan schreven er twee tegelijk en ging de laatste
+     hieronder wacht op het bestandssysteem, en in dat venster komt een tweede
+     bewaar() er anders langs. Dan schrijven er twee tegelijk en gaat de laatste
      wijziging verloren. */
   if(schrijfBezig) return;
   schrijfBezig = true;
   /* 'Toch opslaan' slaat beide controles over, ook die vlak voor het schrijven.
-     Alles hieronder staat in een try, want een SYNCHRONE uitzondering ontsnapt
-     aan de .catch op de belofte en liet het slot dan hangen -- en met een
-     hangend slot kan er nooit meer worden opgeslagen zonder de app te herladen,
-     en is magHerladen() blijvend onwaar. */
+     Alles hieronder staat in een try, want een SYNCHRONE uitzondering ontsnapt aan
+     de .catch op de belofte en laat het slot dan hangen -- en met een hangend slot
+     kan er niet meer worden opgeslagen zonder de app te herladen, en is
+     magHerladen() blijvend onwaar. */
   try {
     if(negeerBotsing){ negeerBotsing = false; return schrijfEvents(true); }
     return externGewijzigd().then(function(stand){
@@ -2694,10 +2595,9 @@ function downloaden(){
   var a = document.createElement('a');
   a.href = URL.createObjectURL(b); a.download = bestandsnaam || 'events.txt'; a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-  /* Hier stond gelijkgezet(), en dat was niet waar: de download is gestart, niet
-     aantoonbaar gelukt. De wijziging blijft dus niet-opgeslagen, zodat de
-     waarschuwing bij afsluiten blijft werken. Alleen welke versie is
-     gedownload wordt onthouden. */
+  /* Geen gelijkgezet(): de download is gestart, niet aantoonbaar gelukt. De
+     wijziging blijft dus niet-opgeslagen, zodat de waarschuwing bij afsluiten
+     blijft werken. Alleen welke versie is gedownload wordt onthouden. */
   gedownloadVersie = wijzigVersie;
   render();
 }
@@ -2711,13 +2611,11 @@ var ICON_TRASH = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" st
 var ICON_REFRESH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>';
 var ICON_X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
-/* De melding dat er een nieuwe versie klaarstaat. Die hoort niet bij het
-   bestand: hij ging over de app zelf, maar stond alleen in de gewone toestand
-   -- en op een telefoon begint elke sessie zonder werkmap, dus zag je hem pas
-   nadat je het bestand had gekozen. Nu ook in de lege toestand en bij de
-   leeskopie. Bij een toegangsprobleem of een ontbrekende configuratie blijft
-   hij weg: daar vraagt het scherm om een handeling aan het bestand, en die
-   gaat voor. */
+/* De melding dat er een nieuwe versie klaarstaat. Die gaat over de app zelf en niet
+   over het bestand, dus staat hij ook in de lege toestand, bij de leeskopie en
+   zonder toegang: op een telefoon begint elke sessie zonder werkmap. Bij een
+   ontbrekende configuratie blijft hij weg: daar vraagt het scherm om een handeling
+   aan het bestand, en die gaat voor. */
 function versieBanner(){
   if(!nieuweVersie && !nieuweInhoud) return '';
   return '<div class="banner"><div class="banner-text">Er is een nieuwe versie van Events.' +
@@ -2757,10 +2655,9 @@ function renderFilebar(){
   }
   if(fileState === 'auth'){
     /* Zonder toegang staat de leeskopie in beeld en is er niets te melden: om
-       toegang wordt pas gevraagd bij de eerste wijziging. Alleen na een
-       weigering staat hier dat wijzigen pas met toegang kan. Is er geen
-       bruikbare kopie (de eerste start na deze versie), dan is er niets te
-       zien en vraagt de app eerst om toegang -- zoals Trends. */
+       toegang wordt pas gevraagd bij de eerste wijziging. Alleen na een weigering
+       staat hier dat opslaan pas met toegang kan. Is er geen bruikbare kopie, dan
+       is er niets te zien en vraagt de app eerst om toegang -- zoals Trends. */
     var mapNaam = esc(dirHandle ? dirHandle.name : 'de werkmap');
     el.innerHTML = (toegangGeweigerd || !kopieRij
       ? '<div class="banner">' +
@@ -2791,14 +2688,13 @@ function renderFilebar(){
   /* Deze drie gaan alle over het bestand en sluiten elkaar dus uit. */
   var meldingen = [];
   if(!hasFSA){
-    /* Deze banner stond permanent in beeld en kostte 131 van de 640 pixels --
-       ruim drie lijstregels, en met het toetsenbord open bleef er nul over
-       (gemeten op 360x640 met 237 records). De mededeling dat automatisch
-       opslaan hier niet kan, hoeft niet elke sessie in beeld: die staat in
-       App-status onder Schrijven, met daar ook een knop om los te downloaden.
-       Wat hier wel hoort: de knop zodra er iets te bewaren is, en de uitleg
-       zodra er werkelijk is gedownload -- want dan moet jij het bestand zelf
-       terugzetten en kan de app niet zien of dat is gelukt. */
+    /* De mededeling dat automatisch opslaan hier niet kan, staat niet vast in
+       beeld: op een telefoon kost zo'n banner ruim drie lijstregels, en met het
+       toetsenbord open blijft er niets over. Hij staat in App-status onder
+       Schrijven, met daar ook een knop om los te downloaden. Hier alleen de knop
+       zodra er iets te bewaren is, en de uitleg zodra er werkelijk is gedownload --
+       want dan moet jij het bestand zelf terugzetten en kan de app niet zien of dat
+       is gelukt. */
     if(gedownloadVersie === wijzigVersie && nietOpgeslagen()){
       meldingen.push('<div class="banner"><div class="banner-text">Gedownload. Zet het bestand ' +
         'zelf terug in je map — de app kan niet zien of dat is gelukt.</div>' +
@@ -2815,16 +2711,15 @@ function renderFilebar(){
       'buiten de app gewijzigd.</div>' + opnieuw +
       '<button class="btn" id="fHerlaad">Opnieuw laden</button></div>');
   }
-  /* Deze gaat niet over het bestand en hoort dus niet met de drie hierboven om
-     een plek te strijden. Zonder de File System Access API staat de regel over
-     downloaden er altijd -- het geval op Chrome voor Android -- en dan zou je
-     nooit horen dat er een nieuwe versie klaarstaat.
-     De nieuwe versie neemt het niet zelf over: herladen met iets dat nog niet
-     is opgeslagen zou die wijziging weggooien. Daarom pas als alles op schijf
-     staat en er niets meer wordt geschreven -- zie magHerladen. */
-  /* Een achtergebleven wijziging is dringender dan een nieuwe versie, dus die
-     staat erboven. Ook deze gaat niet over de staat van het bestand zelf en
-     hoort dus niet met de drie hierboven om een plek te strijden. */
+  /* De meldingen hieronder gaan niet over de staat van het bestand en strijden dus
+     niet met de drie hierboven om een plek. Anders verdringt zonder de File System
+     Access API -- het geval op Chrome voor Android -- de downloadregel de melding
+     dat er een nieuwe versie klaarstaat.
+
+     De nieuwe versie neemt het niet zelf over: herladen met iets dat nog niet is
+     opgeslagen gooit die wijziging weg. Daarom pas als alles op schijf staat en er
+     niets meer wordt geschreven -- zie magHerladen. Een achtergebleven wijziging is
+     dringender dan een nieuwe versie, dus die staat erboven. */
   /* Werkt de herstelopslag niet, dan moet dat in beeld staan en niet alleen in
      App-status: wat je nu typt staat dan nergens anders dan in het geheugen. */
   if(herstelKan === false){
@@ -2832,8 +2727,10 @@ function renderFilebar(){
       'niet veiliggesteld: de herstelopslag werkt niet (' + esc(herstelFout) + '). ' +
       'Sluit de app niet af met een wijziging die nog niet is opgeslagen.</div></div>');
   }
-  /* Kort bevestigen dat er iets van buiten is ingelezen, zodat een lijst die
-     ineens anders is zich laat verklaren. Verdwijnt zelf weer; zie herleesExtern. */
+  /* Lukte de laatste controle van buiten niet, dan blijft dat in beeld tot een
+     controle wel lukt (zie externOnbekend). Is er wel iets van buiten ingelezen,
+     dan wordt dat kort bevestigd, zodat een lijst die ineens anders is zich laat
+     verklaren; die melding verdwijnt zelf weer, zie herleesExtern. */
   if(externOnbekend){
     meldingen.push('<div class="banner"><div class="banner-text">De app kon niet nagaan of ' +
       esc(bestandsnaam) + ' buiten de app is gewijzigd. De lijst is daarom niet opnieuw ' +
@@ -2858,7 +2755,7 @@ function renderFilebar(){
 /* --- configuratiemodal --- */
 var cfgBestand = '', pickLijst = [], pickKeuze = '';
 var cfgTypes = [], cfgCats = [], cfgVelden = [], cfgPaas = [];
-/* de drie lijsten starten ingeklapt; je verandert ze zelden */
+/* de secties starten ingeklapt; je verandert ze zelden */
 var cfgOpen = { Bestand:false, Velden:false, Types:false, Cats:false, Paas:false, Rapport:false };
 function tekenSecties(){
   var aantallen = { Velden:cfgVelden.length, Types:cfgTypes.length,
@@ -2873,9 +2770,8 @@ function tekenSecties(){
 var icoonRij = -1, icoonKeuze = '';
 
 var BEKEND = CFG_VOLGORDE;
-/* De configuratie heeft zeven invoervelden die elk hun waarde in een lijst
-   zetten. Dat stond zeven keer als hetzelfde blok van drie regels; hier staat
-   het een keer. Het data-attribuut houdt de plek in de lijst vast. */
+/* De invoervelden van de configuratie zetten elk hun waarde in een lijst; dat
+   gebeurt hier op één plek. Het data-attribuut houdt de plek in de lijst vast. */
 function koppelInvoer(vak, attribuut, zet){
   Array.prototype.forEach.call($(vak).querySelectorAll('[' + attribuut + ']'), function(inp){
     inp.oninput = function(){ zet(+inp.getAttribute(attribuut), inp.value); };
@@ -2966,8 +2862,8 @@ function tekenCfgCats(){
     };
   });
 }
-/* De vijf opslagtoestanden in woorden, met de kleur van het bolletje erbij.
-   Op een plek, zodat de statusregel en App-status niet uit elkaar kunnen lopen. */
+/* De opslagtoestanden in woorden, met de kleur van het bolletje erbij. Op één plek,
+   zodat de statusregel en App-status niet uit elkaar kunnen lopen. */
 function opslagStand(){
   if(saveState === 'fout')   return { tekst:'opslaan mislukt', kleur:' err' };
   if(saveState === 'extern') return { tekst:'buiten de app gewijzigd', kleur:' err' };
@@ -3223,7 +3119,6 @@ function renderChips(){
 
 }
 
-/* in de zoekstand gelden de filters niet: je zoekt altijd in alles */
 /* zoeken en filteren werken samen: wat je typt zoekt binnen het filter */
 function actiefDatumFilter(){ return datumFilter; }
 /* De regels die nu getoond moeten worden, als lijst van posities in records.
@@ -3298,17 +3193,16 @@ function zichtbaar(){
   return out;
 }
 
-/* De laatst weggeschreven tabel. Tekenen kost met 237 records 43 ms op een
-   traag toestel, en bij verreweg de meeste hertekeningen is de uitkomst
-   woordelijk gelijk aan wat er al staat -- je hebt alleen een rij aangetikt.
-   Daarom wordt de uitkomst zelf vergeleken en niet een zelfbedachte sleutel
-   "is er iets veranderd?": zo'n sleutel kan onvolledig zijn en dan toont de app
-   stil verouderde gegevens. De uitkomst vergelijken kan dat niet. */
+/* De laatst weggeschreven tabel. Tekenen is op een traag toestel merkbaar, en bij
+   verreweg de meeste hertekeningen is de uitkomst woordelijk gelijk aan wat er al
+   staat -- je hebt alleen een rij aangetikt. Daarom wordt de uitkomst zelf
+   vergeleken en niet een zelfbedachte sleutel "is er iets veranderd?": zo'n sleutel
+   kan onvolledig zijn en dan toont de app stil verouderde gegevens. */
 var lijstHtml = null;
 
-/* De selectie staat niet in die HTML, want dan zou elke selectiewisseling de
-   hele tabel veranderen. Hij wordt hier als klasse verzet: twee rijen in plaats
-   van 1836 elementen. */
+/* De selectie staat niet in die HTML, want dan zou elke selectiewisseling de hele
+   tabel veranderen. Hij wordt hier als klasse verzet: twee rijen in plaats van de
+   hele tabel. */
 function zetLijstSelectie(){
   var el = $('lijst');
   var oud = el.querySelector('tr.sel');
@@ -3320,15 +3214,13 @@ function zetLijstSelectie(){
 
 function renderLijst(){
   var idx = zichtbaar();
-  /* Het tweede getal is het aantal echte events, dus moet de vergelijking dat ook
-     zijn. Met records.length (inclusief onbegrepen regels) stond er bij 237 goede
-     en 3 kapotte regels "237 / 237": twee keer hetzelfde getal, en alleen in het
-     geval dat er iets mis was. */
+  /* Het tweede getal telt alleen echte events, net als het eerste; anders staat er
+     juist als er regels kapot zijn twee keer hetzelfde getal. */
   var totaalEvents = records.filter(function(r){ return r.raw === undefined; }).length;
-  /* De periodechip kan buiten beeld staan: de strook is 1841 px breed in een
-     venster van 328 en heeft geen zichtbare schuifbalk, dus van de 18 chips zijn
-     er 3 te zien. Stond "oktober" aan, dan zag je 19 van 237 events en nergens
-     waarom. Daarom hier, naast de teller, waar altijd naar gekeken wordt. */
+  /* De periodechip in de strook kan buiten beeld staan: de strook is veel breder
+     dan het venster en heeft geen zichtbare schuifbalk. Dan zie je minder events en
+     nergens waarom. Daarom staat de periode ook hier, naast de teller, waar altijd
+     naar gekeken wordt. */
   var per = actiefDatumFilter();
   $('count').textContent = idx.length + (idx.length !== totaalEvents ? ' / ' + totaalEvents : '') +
                            (per ? ' ' + periodeChip(per) : '');
@@ -3343,10 +3235,8 @@ function renderLijst(){
     return;
   }
   var df = actiefDatumFilter();
-  /* De datum staat er altijd bij. Ook onder onbekend, want dan zie je meteen
-     wat er ontbreekt, en ook in de kale lijst: de volgorde is daar alfabetisch,
-     maar de datum hoort bij de regel en niet bij de reeks. Wordt een naam
-     afgekapt, dan toont de balk onderaan het hele verhaal. */
+  /* De datum staat er altijd bij, ook onder onbekend en in de kale lijst: hij hoort
+     bij de regel. Een afgekapte naam staat volledig in de balk onderaan. */
   var metDatum = true;
   var dagen = idx.map(function(i){ return dagenTov(records[i], zichtJaar); });
   var metDag = dagen.some(function(n){ return n !== null && Math.abs(n) < 10; });
@@ -3439,10 +3329,9 @@ function pasStandaardFilterToe(){
   var f = (cfg.filter && typeof cfg.filter === 'object') ? cfg.filter : {};
   datumFilter = typeof f.periode === 'string' ? f.periode : '';
   /* Een filter op een type dat niet (meer) in de configuratie staat wordt
-     genegeerd, zodat je alles ziet in plaats van niets. Zo doet de macro het
-     ook; dat was de enige plek waar app en macro een cfg-filter anders
-     uitlegden. Hier zijn de records nog niet ingelezen, dus de vergelijking
-     gaat tegen de types uit de configuratie -- precies wat de macro ook doet. */
+     genegeerd, zodat je alles ziet in plaats van niets. Zo doet de macro het ook.
+     Hier zijn de records nog niet ingelezen, dus de vergelijking gaat tegen de
+     types uit de configuratie, net als in de macro. */
   var gevraagdType = typeof f.type === 'string' ? f.type : '';
   filterType = typeOpties().some(function(x){ return x.omschrijving === gevraagdType; })
              ? gevraagdType : '';
@@ -3499,10 +3388,8 @@ function aantalJaar(code, jaar){
 /* Meet hoe de app er als PWA voor staat. Puur informatief: dit toont de
    werkelijke toestand in plaats van dat we moeten gissen waarom installeren
    niet lukt. */
-/* Een mislukte fetch betekent offline iets anders dan online. Weten we zeker
-   dat er geen verbinding is, dan is dit geen gebrek maar een omstandigheid, en
-   hoort het niet in het rood. navigator.onLine is alleen te vertrouwen als het
-   false zegt; zegt het true en lukt het toch niet, dan is er wel iets mis. */
+/* Zeker offline is een omstandigheid, geen fout, en dus niet rood. navigator.onLine
+   is alleen te vertrouwen als het false zegt. */
 function netwerkFout(e, online){
   var aan = (online === undefined) ? navigator.onLine : online;
   return aan === false
@@ -3563,11 +3450,9 @@ function statusServiceWorker(){
         '<div id="stKopie">bezig\u2026</div>' +
         statusRegel('Nieuwe versie', nieuweVersie ? 'ja, een nieuwe worker wacht'
                     : nieuweInhoud ? 'ja, de offline-kopie is nieuwer' : 'nee');
-      /* Pas hier, want stKopie bestaat pas sinds de regel hierboven. Hij werd
-         eerder aangeroepen vanuit vulAppStatus, dus voordat dit stukje er stond:
-         de functie vond zijn element niet, stopte stil, en de regel bleef voor
-         altijd op "bezig..." staan. Gemeten: na 6 seconden nog steeds, terwijl
-         er gewoon een versienummer in de cache stond. */
+      /* Pas hier, want stKopie bestaat pas na de regel hierboven. Eerder
+         aangeroepen vindt de functie zijn element niet, stopt stil, en blijft de
+         regel op "bezig..." staan. */
       statusVersieKopie();
     });
   });
@@ -3579,9 +3464,8 @@ function statusVersieKopie(opslag){
   if(!el) return;
   var c = cacheOpslag(opslag);
   if(!c){ el.innerHTML = statusRegel('Versie in de offline-kopie', 'geen cache'); return; }
-  /* Dezelfde functie als checkAppUpdate gebruikt. Stond hier eerder een eigen
-     kopie van die zoektocht, en dan kon App-status een ander stempel tonen dan
-     de app vergeleek -- juist de twee die het met elkaar eens moeten zijn. */
+  /* Dezelfde functie als checkAppUpdate gebruikt, zodat App-status hetzelfde
+     stempel toont als de app vergelijkt. */
   nieuwsteStempelUitCache(c).then(function(uit){
     if(!uit.stempel) throw new Error(uit.reden);
     var n = uit.stempel, eigen = appStempel();
@@ -3638,10 +3522,8 @@ function statusCache(){
   });
 }
 
-/* Of de browser deze opslag mag wissen, en hoeveel er in gebruik is. Dit hoort
-   bij Opslag en niet bij Cache, want het geldt voor de offline-kopie en de
-   mapverwijzing samen. Er wordt opnieuw nagevraagd in plaats van opslagVast
-   gelezen: vastzetten kan later alsnog zijn toegekend. */
+/* Hoort bij Opslag, want het geldt voor offline-kopie en mapverwijzing samen.
+   Opnieuw nagevraagd in plaats van opslagVast: vastzetten kan later zijn toegekend. */
 function ruimte(n){
   if(typeof n !== 'number' || !isFinite(n)) return '?';
   if(n < 1024) return n + ' B';
@@ -3701,8 +3583,8 @@ function vulAppStatus(){
                 ? 'rechtstreeks in de map'
                 : 'handmatig downloaden — deze browser kan niet in een map schrijven', hasFSA) +
     /* De knop staat hier omdat de banner op het hoofdscherm pas verschijnt als er
-       iets te bewaren is. Zonder deze knop zou een losse kopie maken van een
-       onveranderd bestand niet meer kunnen. */
+       iets te bewaren is. Zonder deze knop is een losse kopie van een onveranderd
+       bestand niet te maken. */
     (hasFSA ? '' : '<div class="checkregel"><button class="btn" id="stDl">Bestand downloaden</button></div>') +
     statusRegel('Botsingscontrole', 'op lastModified, zowel voor de backup als vlak voor het schrijven') +
     statusRegel('Resterende beperking', 'de browser kent geen vergelijk-en-schrijf in één stap, ' +
@@ -3740,7 +3622,6 @@ function vulAppStatus(){
   statusCache();
 }
 
-/* leest alleen, wijzigt niets: het bestand naast de cfg leggen */
 /* Loopt het bestand na tegen de configuratie en geeft de bevindingen terug als
    groepen; deze functie leest alleen en verandert niets. */
 function controleer(){
@@ -3801,8 +3682,8 @@ function controleer(){
   voeg('Categorieen buiten de lijst',
     Object.keys(catFout).map(function(c){ return 'categorie ' + c + ' (' + catFout[c] + 'x)'; }));
 
-  /* Hetzelfde veld waar de macro "? categorie" van maakt. Zonder deze kop stond
-     die klacht alleen in het macrorapport en nergens in de app. */
+  /* Hetzelfde veld waar de macro "? categorie" van maakt. Zonder deze kop staat die
+     klacht alleen in het macrorapport en nergens in de app. */
   voeg('Categorie niet te lezen, geldt als 1', records.filter(function(r){
     return r.raw === undefined && r.catRuw !== undefined;
   }).map(function(r){
@@ -3902,9 +3783,9 @@ function render(){
   if(backupFout) meldingen.push(backupFout);
   if(badCount) meldingen.push(badCount + ' regel(s) met een onbekend formaat blijven ongewijzigd bewaard.');
   $('bad').textContent = meldingen.join(' ');
-  /* Zonder meldingen helemaal weg. De strook heeft 8 px padding boven en onder,
-     en die bleef ook leeg staan: 16 px ruimte onder de blauwe lijn in de stand
-     waarin de app bijna altijd staat. Gemeten op een scherm van 360 px. */
+  /* Zonder meldingen helemaal weg. De strook heeft 8 px padding boven en onder;
+     anders blijft er 16 px lege ruimte onder de blauwe lijn staan, in de stand
+     waarin de app bijna altijd staat. */
   $('bad').hidden = !meldingen.length;
   var bruikbaar = fileState === 'ok' || fileState === 'kopie';
   $('filterMode').disabled = !bruikbaar;
@@ -3977,11 +3858,10 @@ function focusNaarModaal(id){
 function toonModaal(id){
   /* onthouden waar de focus was, zodat hij daar bij sluiten terugkomt */
   focusStapel.push(document.activeElement);
-  /* De vorm vastleggen gebeurt hier en niet bij de aanroepers. Het stond op twee
-     losse plekken vlak voor deze aanroep, en wie zo'n modal langs een andere weg
-     opende hield de vorm van de vorige over -- en kreeg dan bij het sluiten een
-     onterechte vraag over wijzigingen die hij niet had gemaakt. De velden zijn op
-     dit moment al gevuld, dus de uitkomst is dezelfde. */
+  /* De vorm vastleggen gebeurt hier en niet bij de aanroepers: wie een modal langs
+     een andere weg opent, houdt anders de vorm van de vorige over en krijgt bij het
+     sluiten een onterechte vraag over wijzigingen die hij niet heeft gemaakt. De
+     velden zijn op dit moment al gevuld. */
   if(id === 'modal' || id === 'cfgModal') vormBijOpenen = vormNu(id);
   $(id).hidden = false;
   modalStapel.push(id);
@@ -4016,9 +3896,9 @@ function bergNaPop(id){
   herstelFocus(focusStapel.splice(i, 1)[0]);
 }
 function bovensteModaal(){ return modalStapel[modalStapel.length - 1] || ''; }
-/* Tab mag de bovenste modal niet uit. aria-modal vertelt een schermlezer dat
-   de rest niet meedoet, maar houdt Tab niet tegen: zonder dit kwam je met Tab
-   in de tabel en de knoppen achter de modal terecht. */
+/* Tab mag de bovenste modal niet uit. aria-modal vertelt een schermlezer dat de
+   rest niet meedoet, maar houdt Tab niet tegen: zonder dit kom je met Tab in de
+   tabel en de knoppen achter de modal terecht. */
 function houdFocusBinnen(e){
   var id = bovensteModaal();
   if(!id) return;
@@ -4328,10 +4208,10 @@ function updPreview(){
   $('dPreview').textContent = leesbaar(code);
 }
 
-/* Het record terugvinden dat bij een geopende modal hoort. Eerst op de index,
-   zodat twee identieke regels zich blijven gedragen zoals voorheen; wijst die
-   index niet meer naar dezelfde regel, dan op inhoud. Niets gevonden betekent dat
-   het event buiten de app is verdwenen -- dan niet iets anders raken. */
+/* Het record terugvinden dat bij een geopende modal hoort. Eerst op de index, zodat
+   van twee identieke regels de geopende wordt geraakt; wijst die index niet meer
+   naar dezelfde regel, dan op inhoud. Niets gevonden betekent dat het event buiten
+   de app is verdwenen -- dan niet iets anders raken. */
 var editRegel = null;
 function vindRegel(regel, i){
   if(regel === null) return -1;
@@ -4341,20 +4221,15 @@ function vindRegel(regel, i){
 }
 
 function openModal(i){
-  /* De poort staat hier en niet alleen op de knoppen. btnNew was op disabled
-     gezet maar btnEdit niet, en een rij is in de leeskopie-toestand gewoon
-     selecteerbaar -- dus kon er wel worden bewerkt. Die bewerking belandde dan
-     met verouderde kopie-inhoud in de herstelbuffer en kon later een nieuwer
-     bestand overschrijven. Sinds 1352898-003 mag bewerken op de leeskopie wel,
-     want de kopie draagt de stempel van het bestand: bij het opslaan ziet de
-     botsingscontrole een nieuwer bestand en overschrijft het niet zonder vraag. */
+  /* De poort staat hier en niet alleen op de knoppen: een rij is ook zonder toegang
+     te selecteren. Bewerken mag met een gekoppeld bestand of op de leeskopie met
+     stempel; bij het opslaan ziet de botsingscontrole een nieuwer bestand en
+     overschrijft het niet zonder vraag. */
   if(!magBewerken()) return;
   editIndex = (i === undefined ? -1 : i);
   var r = editIndex >= 0 ? records[editIndex] : null;
-  /* De regel zoals hij in het bestand staat, als identiteit. De index alleen is
-     niet genoeg: wordt het bestand tijdens het bewerken opnieuw ingelezen, dan
-     deelt parse() de posities opnieuw uit en wijst dezelfde index naar een ander
-     event. Zie vindRegel. */
+  /* De regel uit het bestand als identiteit: na opnieuw inlezen wijst dezelfde
+     index naar een ander event. Zie vindRegel. */
   editRegel = r ? regelVan(r) : null;
   $('lblSleutel').textContent = veldNaam(0);
   $('lblNaam').textContent = veldNaam(1);
@@ -4410,9 +4285,8 @@ function groei(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight
 function bewaarModal(){
   leesDate();
   var sleutel = $('fSleutel').value.replace(/[\r\n]+/g,' ').trim();
-  /* Ook hier de regelovergangen eruit. Een <input> doet dat zelf al -- een
-     geplakte regelovergang verdwijnt daar zonder spatie -- maar dan hangt de
-     afspraak aan het soort element, en dat is geen afspraak. */
+  /* Ook hier de regelovergangen eruit. Een <input> doet dat zelf al, maar dan hangt
+     de afspraak aan het soort element, en dat is geen afspraak. */
   var naam = $('fNaam').value.replace(/[\r\n]+/g,' ').trim();
   var type = huidigType;
   var notitie = $('fNotitie').value.replace(/[\r\n]+/g,' ').trim();
@@ -4467,9 +4341,8 @@ function bewaarModal(){
     var doel = vindRegel(editRegel, editIndex);
     if(doel < 0){
       /* Het event dat je bewerkte staat niet meer in de lijst: het bestand is
-         tussentijds opnieuw ingelezen en het is daar weg. Dan niets overschrijven
-         -- de oude code zette het op positie editIndex en raakte zo een ander
-         event. */
+         tussentijds opnieuw ingelezen en het is daar weg. Dan niets overschrijven,
+         want op positie editIndex staat nu een ander event. */
       sluitModal(); saveState = 'extern'; render();
       return;
     }
@@ -4481,11 +4354,10 @@ function bewaarModal(){
   wijzig(); sluitModal(); render(); toonSelectie(); bewaar();
 }
 
-/* De bewerkte regel in beeld brengen. Nodig omdat sorteer() hem kan verplaatsen:
-   wijzig je een naam zodat die anders sorteert, dan stond hij daarna duizenden
-   pixels buiten beeld (gemeten: 9077 px boven de vouw bij 237 records) en zag je
-   alleen het balkje onderin. 'nearest' doet niets als de rij al zichtbaar is, dus
-   het scherm springt niet bij een gewone tik op een rij. */
+/* De bewerkte regel in beeld brengen: sorteer() kan hem verplaatsen, bijvoorbeeld
+   als een gewijzigde naam anders sorteert, en dan staat hij ver buiten beeld en zie
+   je alleen het balkje onderin. 'nearest' doet niets als de rij al zichtbaar is,
+   dus dan springt het scherm niet. */
 function toonSelectie(){
   if(selIndex < 0) return;
   var rij = $('lijst').querySelector('tr[data-i="' + selIndex + '"]');
@@ -4520,23 +4392,20 @@ $('zoek').oninput = function(){
   selIndex = -1; render();
 };
 $('zoek').onfocus = function(){ if(selIndex >= 0){ selIndex = -1; render(); } };
-/* De zoektoets op het schermtoetsenbord deed niets -- er is geen formulier om te
-   versturen -- en het toetsenbord bleef staan over de lijst die je net had
-   gefilterd. Enter sluit het nu, zodat je de treffers ziet. */
+/* De zoektoets op het schermtoetsenbord heeft geen formulier om te versturen. Enter
+   sluit het toetsenbord, zodat je de treffers ziet. */
 $('zoek').onkeydown = function(e){
   if(e.key === 'Enter'){ e.preventDefault(); $('zoek').blur(); }
 };
-/* Enter in de tekstvelden van de bewerkmodal. Het eventveld is een textarea van
-   een regel -- nodig omdat een lange naam dan in beeld afbreekt in plaats van
-   weg te lopen -- en Enter zette daar dus een regeleinde in. Bij het opslaan
-   werd dat regeleinde stil een spatie (zie bewaarModal), dus de toets beloofde
-   iets wat ze niet deed, en op de telefoon leverde ze een onbedoelde tweede
-   regel op die het veld liet meegroeien. enterkeyhint zei al "next"; dat gebeurt
-   nu ook.
-   Na Naam gaat het toetsenbord weg in plaats van verder te springen: wat daar
-   volgt zijn Type, Datum en Categorie, en dat zijn knoppen die je dan juist wilt
-   zien. Datzelfde geldt voor de notitie, waar een regeleinde ook een spatie
-   wordt. */
+/* Enter in de tekstvelden van de bewerkmodal. Het eventveld is een textarea van een
+   regel, zodat een lange naam in beeld afbreekt in plaats van weg te lopen. Enter
+   zou daar een regeleinde invoegen dat bij het opslaan stil een spatie wordt (zie
+   bewaarModal), en op de telefoon het veld laat meegroeien. Daarom doet Enter wat
+   enterkeyhint "next" belooft.
+
+   Na Naam gaat het toetsenbord weg in plaats van verder te springen: wat daar volgt
+   zijn Type, Datum en Categorie, en dat zijn knoppen die je dan juist wilt zien.
+   Datzelfde geldt voor de notitie, waar een regeleinde ook een spatie wordt. */
 $('fSleutel').onkeydown = function(e){
   if(e.key === 'Enter'){ e.preventDefault(); $('fNaam').focus(); }
 };
@@ -4547,9 +4416,8 @@ $('fNotitie').onkeydown = function(e){
   if(e.key === 'Enter'){ e.preventDefault(); $('fNotitie').blur(); }
 };
 $('filterNotKnop').onclick = function(){ fNot = !fNot; tekenFilterNot(); };
-/* Wat er in de filtermodal is gekozen overnemen in het echte filter. Dit stond
-   twee keer uitgeschreven, bij Toepassen en bij Vastzetten, en moest dus ook
-   twee keer worden bijgewerkt. */
+/* Wat er in de filtermodal is gekozen overnemen in het echte filter. Op een plek,
+   want Toepassen en Vastzetten gebruiken het allebei. */
 function neemFilterOver(){
   filterType = fType; filterCatVan = fcVan; filterCatTot = fcTot; filterNotitie = fNot;
   zichtJaar = fJaar || huidigJaar();
@@ -4664,10 +4532,9 @@ $('fNaam').oninput = function(){ naamAuto = false; };
 $('fNotitie').oninput = function(){ groei(this); };
 $('fType').onclick = openTypeKeuze;
 $('typeOk').onclick = bevestigType;
-/* Via sluitBovenste, net als Escape. Hier stond sluitModal, en dat slaat de
-   vergelijking met de vorm bij het openen over: naast de modal tikken of op
-   Annuleren gooide alles weg zonder te vragen, terwijl Escape wel vroeg. Bij de
-   configuratie ging zo in een tik de hele inrichting mee. */
+/* Via sluitBovenste, net als Escape: sluitModal slaat de vergelijking met de vorm
+   bij het openen over, en dan gooit naast de modal tikken of Annuleren alle invoer
+   weg zonder te vragen. */
 $('mCancel').onclick = function(){ sluitBovenste(false); };
 $('mOk').onclick = bewaarModal;
 $('modal').onclick = function(e){ if(e.target === this) sluitBovenste(false); };
@@ -4738,11 +4605,11 @@ $('catOk').onclick = function(){
   cat = +catKeuze || 1; bergModaal('catModal'); toonCat();
 };
 
-/* Veertien modals gaan op dezelfde twee manieren dicht: met hun annuleerknop
-   en met een klik naast de modal. Dat stond achtentwintig keer uitgeschreven;
-   hier staat het een keer, met de koppeling in een tabel. De bewerkmodal en de
-   bevestigingsvraag staan er niet in: die hebben hun eigen afhandeling, want
-   de eerste gaat via sluitModal en de tweede zet ook confirmCb terug. */
+/* Veertien modals gaan op dezelfde twee manieren dicht: met hun annuleerknop en met
+   een klik naast de modal. Daarom staat de koppeling in een tabel. De bewerkmodal
+   en de bevestigingsvraag staan er niet in: die hebben hun eigen afhandeling, want
+   de eerste vraagt bij Annuleren eerst naar onopgeslagen invoer (sluitBovenste) en
+   de tweede zet ook confirmCb terug. */
 var SLUITKNOPPEN = [
   ['filterCancel', 'filterModal'],
   ['infoOk', 'infoModal'],
@@ -4801,10 +4668,8 @@ var nieuweVersie = null;
    worker over te stappen: herladen is genoeg. */
 var nieuweInhoud = false;
 var overstapGevraagd = false;
-/* Herladen mag niet met iets dat nog niet op schijf staat, en ook niet midden
-   in een schrijfactie: in beide gevallen gooit herladen die wijziging weg.
-   Een plaats voor die voorwaarde, drie gebruikers: de tekst van de melding, de
-   knop die uit gaat, en de controle hieronder. */
+/* Herladen gooit een niet-opgeslagen wijziging of een lopende schrijfactie weg. Eén
+   voorwaarde voor melding, knop en controle. */
 function magHerladen(){ return !nietOpgeslagen() && !schrijfBezig; }
 
 /* De overstap kan langs twee wegen eindigen: de worker neemt het over
@@ -4835,12 +4700,11 @@ function stapOverNaarNieuweVersie(){
 }
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
-    /* updateViaCache: 'none' -- zonder dit mag de browser de controle op een
-       nieuwe sw-events.js beantwoorden uit zijn eigen HTTP-cache, tot 24 uur
-       lang. Op een statische site met gewone cache-headers betekent dat: een
-       nieuwe worker staat op de server, de app vraagt ernaar, en de browser
-       zegt "niets veranderd". De cache bleef dan op het oude nummer staan.
-       Met 'none' wordt het scriptbestand altijd echt opgehaald. */
+    /* updateViaCache: 'none' -- anders mag de browser de controle op een nieuwe
+       sw-events.js beantwoorden uit zijn eigen HTTP-cache, tot 24 uur lang. Op een
+       statische site met gewone cache-headers zegt de browser dan "niets veranderd"
+       terwijl er een nieuwe worker op de server staat. Met 'none' wordt het
+       scriptbestand altijd echt opgehaald. */
     navigator.serviceWorker.register('sw-events.js', { updateViaCache: 'none' }).then(function(reg){
       swRegistratie = reg;
       function kijk(){
@@ -4873,10 +4737,9 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.ready.then(function(){
       return checkAppUpdate();
     }).catch(function(){});
-    /* Een vangnet naast dat bericht: een worker van een vorige versie kent het
-       nog niet, en een bericht kan een overstap halverwege missen. Vier seconden
-       is ruim genoeg voor de verversing en kort genoeg om nog bij dit bezoek te
-       horen; de andere twee apps doen hetzelfde. */
+    /* Vangnet: een oude worker kent het bericht niet, en een overstap kan het
+       missen. Vier seconden past bij de verversing en dit bezoek; de andere twee
+       apps doen hetzelfde. */
     setTimeout(function(){ checkAppUpdate(); }, 4000);
     /* Terug op het scherm is het moment om te kijken: dan is de app vaak net
        weer in beeld gehaald en is een nieuwe versie het minst storend. */
@@ -4909,9 +4772,9 @@ if(hasFSA){
     });
   }).catch(function(){ leesKopie().then(render, render); });
 } else {
-  /* Geen File System Access (Chrome Android): daar is nooit een werkmap, dus is
-     dit elke sessie het pad. Zonder de kopie stond de app leeg tot het bestand
-     was gekozen -- ook offline, waar kiezen het enige is dat werkt. */
+  /* Geen File System Access (Chrome Android): daar is nooit een werkmap, dus is dit
+     elke sessie het pad. Zonder de kopie staat de app leeg tot het bestand is
+     gekozen -- ook offline, waar kiezen het enige is dat werkt. */
   leesKopie().then(render, render);
 }
 </script>
