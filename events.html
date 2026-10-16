@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-001</div>
+    <div id="appVersieStempel">Versie 1352898-002</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2187,9 +2187,15 @@ function schrijfCfg(){
 var KOPIE = 'kopie';
 var kopieRij = null;
 
+/* De configuratie gaat mee: zonder het scheidingsteken uit de configuratie viel
+   een kopie met een ander teken dan ';' bij het lezen uiteen in onbegrepen
+   regels, en de titel en de types ontbraken. Een losse kopie van het object,
+   zodat latere wijzigingen in het geheugen hem niet raken. */
 function bewaarKopie(naam, tekst){
   if(!naam) return Promise.resolve();
-  return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now() })
+  var cfgKopie = null;
+  try { cfgKopie = JSON.parse(JSON.stringify(cfg || {})); } catch(e){}
+  return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie })
     .then(function(){}, function(){ /* vol of geweigerd: dan is er geen kopie */ });
 }
 
@@ -2200,6 +2206,11 @@ function vulUitKopie(){
   return idbGet(KOPIE).then(function(rij){
     if(!rij || !rij.tekst) return false;
     kopieRij = rij;
+    /* Zonder gelezen bestand geldt de configuratie uit de kopie: die hoort bij
+       deze tekst. Met een gekoppeld bestand wint altijd dat bestand. */
+    if(fileState !== 'ok' && rij.cfg && typeof rij.cfg === 'object'){
+      cfg = rij.cfg; pasStandaardFilterToe();
+    }
     records = parse(rij.tekst); sorteer(); selIndex = -1; gelijkgezet();
     if(!bestandsnaam) bestandsnaam = rij.bestand || '';
     return true;
@@ -2377,14 +2388,43 @@ function herleesExtern(){
   });
 }
 
+/* Toegang tot de werkmap. Zonder toegang kan de app het bestand niet eens
+   lezen, en Edge op Android onthoudt de toestemming maar tot de app dicht is.
+   Daarom vraagt de app er pas om als het nodig is: bij de eerste wijziging en
+   bij 'Opnieuw inlezen'. Tot dan staat de leeskopie in beeld, zonder melding.
+   Wordt de toegang geweigerd, dan zegt de app dat wijzigen pas met toegang kan.
+   Geeft een promise terug die uitkomt als het bestand (opnieuw) is ingelezen. */
+var toegangGeweigerd = false;
+function kanToegangVragen(){ return fileState === 'auth' && !!dirHandle; }
 function autoriseer(){
-  if(!dirHandle) return;
-  dirHandle.requestPermission({ mode:'readwrite' }).then(function(p){
-    if(p === 'granted') laadCfg(); else render();
+  if(!dirHandle) return Promise.resolve();
+  return dirHandle.requestPermission({ mode:'readwrite' }).then(function(p){
+    if(p !== 'granted'){ toegangGeweigerd = true; render(); return; }
+    toegangGeweigerd = false;
+    return laadCfg();
+  }, function(){ toegangGeweigerd = true; render(); });
+}
+/* Een wijziging die eerst toegang nodig heeft. Na de toegang is het bestand zelf
+   gelezen -- dat wint van de kopie -- en pas dan gaat de handeling door. Een
+   gekozen event wordt in het ingelezen bestand teruggezocht; staat het er niet
+   meer in, dan stopt het hier en zie je de nieuwe stand. */
+function metToegang(actie){
+  if(magWijzigen()) return actie();
+  if(!kanToegangVragen()) return;
+  var regel = selIndex >= 0 && records[selIndex] ? regelVan(records[selIndex]) : null;
+  autoriseer().then(function(){
+    if(!magWijzigen()) return;
+    if(regel !== null){
+      var i = vindRegel(regel, -1);
+      if(i < 0){ render(); return; }
+      selIndex = i; render();
+    }
+    actie();
   });
 }
 function ontkoppel(){
   dirHandle = null; bestandsnaam = ''; cfg = {}; cfgFout = ''; cfgKlachten = [];
+  toegangGeweigerd = false;
   cfgGelezen = null; cfgGrootte = null; cfgOverschreven = false;
   sepOnafgemaakt = ''; sepMist = '';
   records = []; selIndex = -1; gelijkgezet(); fileState = 'leeg'; saveState = '';
@@ -2542,6 +2582,10 @@ function schrijfEvents(negeer){
     .then(function(f){
       laatstGelezen = f.lastModified; laatstGrootte = f.size;
       bewaardeVersie = versie;
+      /* Wat nu in het bestand staat, is ook de leeskopie. Zonder deze regel liep
+         de kopie na elke eigen wijziging achter tot het bestand opnieuw werd
+         ingelezen, en dat gebeurt zonder toegang niet. */
+      bewaarKopie(bestandsnaam, tekst);
       /* de twee bestanden staan weer op hetzelfde teken */
       sepOnafgemaakt = ''; sepMist = '';
       /* Dit is het bewijs: de tekst staat in het bestand en is teruggelezen.
@@ -2678,12 +2722,18 @@ function renderFilebar(){
     return;
   }
   if(fileState === 'auth'){
-    el.innerHTML =
-      '<div class="banner">' +
-      '<div class="banner-text">Geen toegang tot ' + esc(dirHandle ? dirHandle.name : 'de werkmap') + '.</div>' +
-      '<button class="btn btn-warn" id="fAuth">Toegang autoriseren</button></div>' + herstelBanner();
-    $('fAuth').onclick = autoriseer;
+    /* Zonder toegang staat de leeskopie in beeld en is er niets te melden: om
+       toegang wordt pas gevraagd bij de eerste wijziging. Alleen na een
+       weigering staat hier dat wijzigen pas met toegang kan. */
+    el.innerHTML = (toegangGeweigerd
+      ? '<div class="banner">' +
+        '<div class="banner-text">Wijzigen en opslaan kan pas met toegang tot ' +
+        esc(dirHandle ? dirHandle.name : 'de werkmap') + '.</div>' +
+        '<button class="btn btn-warn" id="fAuth">Toegang geven</button></div>'
+      : '') + herstelBanner() + versieBanner();
+    if($('fAuth')) $('fAuth').onclick = function(){ autoriseer(); };
     koppelHerstelKnoppen();
+    koppelVersieKnop();
     return;
   }
   if(fileState === 'geencfg'){
@@ -2891,7 +2941,10 @@ function opslagStand(){
 function tekenBestandStatus(){
   var stand = opslagStand();
   var kleur = stand.kleur, tekst = stand.tekst;
-  if(fileState === 'auth'){ kleur = ' err'; tekst = 'geen toegang tot de map'; }
+  if(fileState === 'auth'){
+    kleur = toegangGeweigerd ? ' warn' : '';
+    tekst = 'leeskopie; om toegang wordt gevraagd bij de eerste wijziging';
+  }
   else if(fileState === 'geencfg'){ kleur = ' err'; tekst = cfgFout; }
   $('cfgDot').className = 'dot' + kleur;
   $('cfgStatusTxt').textContent = tekst;
@@ -3599,11 +3652,13 @@ function vulAppStatus(){
     statusRegel('Resterende beperking', 'de browser kent geen vergelijk-en-schrijf in één stap, ' +
                 'dus een wijziging van buiten in de laatste milliseconden voor het schrijven is niet ' +
                 'uit te sluiten; lastModified is op sommige bestandssystemen op de seconde nauwkeurig', false) +
-    statusRegel('Leeskopie', fileState === 'kopie'
-                ? 'in gebruik — de lijst komt uit de bewaarde kopie, niet uit het bestand'
-                : kopieRij
-                  ? 'aanwezig van ' + (kopieRij.bestand || 'onbekend bestand')
-                  : 'geen (wordt gezet bij het eerste inlezen)') +
+    statusRegel('Leeskopie', (kopieRij
+                  ? (fileState === 'kopie' || fileState === 'auth'
+                      ? 'in gebruik — de lijst komt uit de bewaarde kopie, niet uit het bestand; '
+                      : 'aanwezig; ') +
+                    'kopie van ' + (kopieRij.bestand || 'onbekend bestand') +
+                    (kopieRij.tijd ? ', ' + new Date(kopieRij.tijd).toLocaleString('nl-NL') : '')
+                  : 'geen (wordt gezet bij het eerste inlezen)')) +
     statusRegel('Herstelbuffer', herstelKan === false
                 ? 'niet beschikbaar \u2014 wijzigingen zijn niet duurzaam veiliggesteld (' +
                   herstelFout + ')'
@@ -3815,9 +3870,9 @@ function render(){
       (jaren === null ? '' : '<span class="jr">(' + jaren + ')</span>');
   }
   $('btnNew').hidden = selIndex >= 0;
-  $('btnNew').disabled = !magWijzigen();
+  $('btnNew').disabled = !(magWijzigen() || kanToegangVragen());
   $('btnEdit').hidden = selIndex < 0;
-  $('btnEdit').disabled = !magWijzigen();
+  $('btnEdit').disabled = !(magWijzigen() || kanToegangVragen());
   $('btnCfg').disabled = fileState === 'leeg';
   $('stapbalk').hidden = !terug;
   $('stapTekst').textContent = terugTekst();
@@ -4479,8 +4534,8 @@ $('btnUndo').onclick = function(){
   selIndex = -1; wijzig(); render(); toonSelectie(); bewaar();
 };
 $('btnCfg').onclick = openCfg;
-$('btnNew').onclick = function(){ openModal(); };
-$('btnEdit').onclick = function(){ if(selIndex >= 0) openModal(selIndex); };
+$('btnNew').onclick = function(){ metToegang(function(){ openModal(); }); };
+$('btnEdit').onclick = function(){ metToegang(function(){ if(selIndex >= 0) openModal(selIndex); }); };
 $('mDel').onclick = function(){
   if(editIndex < 0 || !magWijzigen()) return;
   var r = records[editIndex], regel = editRegel;
@@ -4504,8 +4559,9 @@ $('pickNew').oninput = function(){
 $('cfgBestand').onclick = openBestandsKeuze;
 $('cfgRefresh').onclick = function(){
   if(!hasFSA) return openenFallback();
-  /* opnieuw inlezen en de configuratie bijwerken, zonder het scherm te verlaten */
-  Promise.resolve(laadCfg()).then(vulCfg);
+  /* opnieuw inlezen en de configuratie bijwerken, zonder het scherm te verlaten;
+     zonder toegang eerst daarom vragen */
+  Promise.resolve(fileState === 'auth' ? autoriseer() : laadCfg()).then(vulCfg);
 };
 $('cfgUnlink').onclick = function(){
   vraag('Werkmap ontkoppelen?', 'De koppeling wordt gewist. De bestanden zelf blijven ongewijzigd.',

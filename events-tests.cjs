@@ -1412,9 +1412,16 @@ kop('13. Reparaties na de koude review');
      /if\(editIndex < 0 \|\| !magWijzigen\(\)\) return;/.test(SCRIPT));
   ok('en de knop Ongedaan maken ook',
      /\$\('btnUndo'\)\.onclick = function\(\)\{\s*\n\s*if\(!magWijzigen\(\)\) return;/.test(SCRIPT));
-  ok('btnEdit wordt nu ook op disabled gezet, net als btnNew',
-     /\$\('btnEdit'\)\.disabled = !magWijzigen\(\);/.test(SCRIPT),
+  /* Sinds 1352898-002 staan + en wijzigen ook aan als er alleen om toegang
+     gevraagd kan worden: de tik vraagt dan eerst om toegang. De poort blijft
+     openModal zelf (hierboven), dus zonder bestand wordt er niets bewerkt. */
+  ok('btnEdit staat op dezelfde voorwaarde als btnNew',
+     /\$\('btnEdit'\)\.disabled = !\(magWijzigen\(\) \|\| kanToegangVragen\(\)\);/.test(SCRIPT) &&
+     /\$\('btnNew'\)\.disabled = !\(magWijzigen\(\) \|\| kanToegangVragen\(\)\);/.test(SCRIPT),
      'dit was het gat: alleen btnNew was afgedicht');
+  ok('en beide gaan via metToegang, dat zonder toegang eerst daarom vraagt',
+     /\$\('btnNew'\)\.onclick = function\(\)\{ metToegang\(/.test(SCRIPT) &&
+     /\$\('btnEdit'\)\.onclick = function\(\)\{ metToegang\(/.test(SCRIPT));
 }
 
 {

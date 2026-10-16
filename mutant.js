@@ -197,7 +197,8 @@ const MUTANTEN = [
   ['geen aandacht voor typen tijdens het inlezen', 'html', s => inFunctie(s, 'herleesExtern', f => f
      .replace("    if(wijzigVersie !== versieVoor){\n      saveState = 'extern'; render();\n      window.scrollTo(0, pos);\n      return;\n    }\n", ''))],
   ['poort op openModal eruit', 'html', s => inFunctie(s, 'openModal', f => f.replace('  if(!magWijzigen()) return;\n', ''))],
-  ['btnEdit weer zonder disabled', 'html', s => s.replace("  $('btnEdit').disabled = !magWijzigen();\n", '')],
+  ['btnEdit weer zonder disabled', 'html', s => s.replace("  $('btnEdit').disabled = !(magWijzigen() || kanToegangVragen());\n", '')],
+  ['wijzigen zonder eerst om toegang te vragen', 'html', s => s.replace("$('btnEdit').onclick = function(){ metToegang(function(){ if(selIndex >= 0) openModal(selIndex); }); };", "$('btnEdit').onclick = function(){ if(selIndex >= 0) openModal(selIndex); };")],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],
