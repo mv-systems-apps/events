@@ -3709,11 +3709,12 @@ function testLeeskopie(){
 
   var INHOUD = '15;Proefpersoon;verjaardag;;1\n';
   return app.idbDel('kopie').catch(function(){}).then(function(){
-    return app.bewaarKopie('proef.txt', INHOUD);
+    return app.bewaarKopie('proef.txt', INHOUD, { mtime: 1000, grootte: INHOUD.length });
   }).then(function(){
     return app.idbGet('kopie');
   }).then(function(rij){
     eis('inlezen legt een kopie vast', !!rij, true);
+    eis('met de stempel van het gekozen bestand', rij && rij.mtime, 1000);
     eis('met de naam van het bestand', rij && rij.bestand, 'proef.txt');
     eis('en met de inhoud', rij && rij.tekst, INHOUD);
 
@@ -3728,6 +3729,8 @@ function testLeeskopie(){
     eis('wijzigen mag niet', app.magWijzigen(), false);
     eis('de melding noemt het bestand', /proef\.txt/.test(app.kopieTekst()), true);
     eis('en zegt dat wijzigen niet kan', /wijzigen kan nu niet/.test(app.kopieTekst()), true);
+    eis('met het moment als dd-mm-jjjj uu:mm, zonder komma ervoor',
+        /gelezen op \d\d-\d\d-\d{4} \d\d:\d\d\./.test(app.kopieTekst()), true);
 
     /* dit is de kern: er mag geen weg zijn waarlangs de kopie wordt weggezet */
     var voor = app.gedownloadVersie;
@@ -3779,6 +3782,16 @@ function testLeeskopie(){
   }).then(function(gelukt){
     eis('zonder kopie verandert er niets aan het opstarten', gelukt, false);
     eis('en blijft de toestand leeg', app.fileState, 'leeg');
+
+    /* een oude kopie zonder stempel (van voor 1352898-003) kan achterlopen: die
+       telt ook zonder werkmap niet, net als in Trends */
+    app.records = []; app.kopieRij = null;
+    return app.idbPut('kopie', { bestand:'proef.txt', tekst:INHOUD, tijd:Date.now() })
+      .then(function(){ return app.leesKopie(); });
+  }).then(function(gelukt){
+    eis('een kopie zonder stempel wordt niet getoond', gelukt, false);
+    eis('de lijst blijft leeg', app.records.length, 0);
+    eis('en de toestand ook', app.fileState, 'leeg');
     zetTerug();
     return app.idbDel('kopie').catch(function(){});
   }, function(e){

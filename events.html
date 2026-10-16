@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-005</div>
+    <div id="appVersieStempel">Versie 1352898-006</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2194,13 +2194,16 @@ var kopieRij = null;
    zodat latere wijzigingen in het geheugen hem niet raken. */
 /* De stempels (wijzigingstijd en grootte) van het bestand en de configuratie
    gaan ook mee. Daarmee kan de botsingscontrole bij het opslaan nagaan of het
-   bestand sinds deze kopie buiten de app is gewijzigd. */
-function bewaarKopie(naam, tekst){
+   bestand sinds deze kopie buiten de app is gewijzigd. Zonder werkmap (een
+   gekozen bestand) komt de stempel van dat bestand mee als derde argument: ook
+   die kopie moet een stempel hebben, anders telt hij niet. */
+function bewaarKopie(naam, tekst, stempel){
   if(!naam) return Promise.resolve();
   var cfgKopie = null;
   try { cfgKopie = JSON.parse(JSON.stringify(cfg || {})); } catch(e){}
   return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie,
-                         mtime: laatstGelezen, grootte: laatstGrootte,
+                         mtime: stempel ? stempel.mtime : laatstGelezen,
+                         grootte: stempel ? stempel.grootte : laatstGrootte,
                          cfgMtime: cfgGelezen, cfgGrootte: cfgGrootte })
     .then(function(){}, function(){ /* vol of geweigerd: dan is er geen kopie */ });
 }
@@ -2242,9 +2245,12 @@ function vulUitKopie(metStempel){
 /* Hetzelfde, maar met de toestand erbij. Alleen als er nog niets is: een
    gekoppeld bestand, een toegangsprobleem of een configuratiefout heeft een
    eigen, dringender melding die hier niet overheen mag worden geschreven. */
+/* Ook hier alleen een kopie met stempel, net als bij het opstarten zonder
+   toegang en in Trends: een oude kopie zonder stempel kon flink achterlopen,
+   en een lijst die er gewoon uitziet maar wijzigingen mist is verwarrend. */
 function leesKopie(){
   if(fileState !== 'leeg') return Promise.resolve(false);
-  return vulUitKopie().then(function(gelukt){
+  return vulUitKopie(true).then(function(gelukt){
     if(gelukt && fileState === 'leeg') fileState = 'kopie';
     return gelukt;
   });
@@ -2252,9 +2258,9 @@ function leesKopie(){
 
 function kopieTekst(){
   var naam = (kopieRij && kopieRij.bestand) || bestandsnaam || 'het bestand';
-  var wanneer = (kopieRij && kopieRij.tijd) ? new Date(kopieRij.tijd) : null;
+  var wanneer = (kopieRij && kopieRij.tijd) ? kopieTijd(kopieRij.tijd) : '';
   return 'Laatst bewaarde kopie van ' + esc(naam) +
-         (wanneer ? ', gelezen op ' + esc(wanneer.toLocaleString('nl-NL')) : '') +
+         (wanneer ? ', gelezen op ' + esc(wanneer) : '') +
          '. Dit is niet het bestand zelf, dus wijzigen kan nu niet.';
 }
 
@@ -2671,7 +2677,7 @@ function openenFallback(){
          enige houvast om later te zien of het bestand nog hetzelfde is */
       laatstGeopend = { naam: f.name, grootte: f.size, lastModified: f.lastModified };
       fileState = 'ok'; bestandsnaam = f.name;
-      bewaarKopie(f.name, t);
+      bewaarKopie(f.name, t, { mtime: f.lastModified, grootte: f.size });
       /* Heb je het gedownloade bestand teruggezet, dan blijkt dat hier: de
          buffer is dan gelijk aan wat je net hebt geopend en kan weg. */
       herstelNaLezen(f.name, t);
@@ -3701,7 +3707,7 @@ function vulAppStatus(){
                       ? 'in gebruik — de lijst komt uit de bewaarde kopie, niet uit het bestand; '
                       : 'aanwezig; ') +
                     'kopie van ' + (kopieRij.bestand || 'onbekend bestand') +
-                    (kopieRij.tijd ? ', ' + new Date(kopieRij.tijd).toLocaleString('nl-NL') : '')
+                    (kopieRij.tijd ? ' van ' + kopieTijd(kopieRij.tijd) : '')
                   : 'geen (wordt gezet bij het eerste inlezen)')) +
     statusRegel('Herstelbuffer', herstelKan === false
                 ? 'niet beschikbaar \u2014 wijzigingen zijn niet duurzaam veiliggesteld (' +

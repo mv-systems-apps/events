@@ -1444,6 +1444,12 @@ kop('13. Reparaties na de koude review');
   ok('opstarten zonder toegang gebruikt alleen een kopie met stempel',
      /fileState = 'auth';\s*return vulUitKopie\(true\)/.test(SCRIPT) &&
      /if\(metStempel && typeof rij\.mtime !== 'number'\) return false;/.test(haal('vulUitKopie')));
+  ok('ook zonder werkmap telt alleen een kopie met stempel',
+     /return vulUitKopie\(true\)/.test(haal('leesKopie')));
+  ok('een gekozen bestand geeft zijn stempel mee aan de kopie',
+     /bewaarKopie\(f\.name, t, \{ mtime: f\.lastModified, grootte: f\.size \}\)/.test(haal('openenFallback')));
+  ok('de kopie-datums staan overal als dd-mm-jjjj uu:mm',
+     !/toLocaleString/.test(SCRIPT) && /kopieTijd\(kopieRij\.tijd\)/.test(haal('kopieTekst')));
   ok('zonder bruikbare kopie vraagt de balk om toegang',
      /toegangGeweigerd \|\| !kopieRij/.test(haal('renderFilebar')) &&
      /Toegang nodig om ' \+ mapNaam \+ ' te lezen\./.test(haal('renderFilebar')));

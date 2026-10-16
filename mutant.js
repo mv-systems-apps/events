@@ -204,6 +204,8 @@ const MUTANTEN = [
   ['opstarten zonder toegang neemt weer elke kopie', 'html', s => s.replace("        return vulUitKopie(true).then(render, render);", "        return vulUitKopie().then(render, render);")],
   ['kopie zonder stempel telt weer mee', 'html', s => s.replace("    if(metStempel && typeof rij.mtime !== 'number') return false;\n", '')],
   ['geen toegangsvraag zonder kopie', 'html', s => s.replace("    el.innerHTML = (toegangGeweigerd || !kopieRij", "    el.innerHTML = (toegangGeweigerd")],
+  ['zonder werkmap weer elke kopie', 'html', s => s.replace("  return vulUitKopie(true).then(function(gelukt){", "  return vulUitKopie().then(function(gelukt){")],
+  ['gekozen bestand zonder stempel in de kopie', 'html', s => s.replace("bewaarKopie(f.name, t, { mtime: f.lastModified, grootte: f.size });", "bewaarKopie(f.name, t);")],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],
