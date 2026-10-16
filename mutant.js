@@ -215,6 +215,9 @@ const MUTANTEN = [
   ['vorige caches op tekst gesorteerd', 'sw', s => inFunctie(s, 'uitVorigeCache', f => f.replace(".sort(function(a, b){ return parseInt(b.slice(8), 10) - parseInt(a.slice(8), 10); });", '.sort().reverse();'))],
   ['ook overnemen uit de cache van een buurapp', 'sw', s => inFunctie(s, 'uitVorigeCache', f => f.replace("n.indexOf('events-v') === 0 && n !== CACHE_NAME", 'n !== CACHE_NAME'))],
   ['no-store gewoon uit de cache', 'sw', s => s.replace("if(!navigatie && (e.request.cache === 'reload' || e.request.cache === 'no-store')){", 'if(false){')],
+  /* De balk met de laatste stap (groep 18). */
+  ['bevestigen laat de stap staan', 'html', s => s.replace("$('btnStapOk').onclick = function(){ terug = null; render(); };", "$('btnStapOk').onclick = function(){ render(); };")],
+  ['de balk staat er ook zonder stap', 'html', s => s.replace("$('stapbalk').hidden = !terug;", "$('stapbalk').hidden = false;")],
   ['reload niet langs de cache', 'sw', s => s.replace("(e.request.cache === 'reload' || e.request.cache === 'no-store')", "(e.request.cache === 'no-store')")],
   ['magHerladen altijd waar', 'html', s => inFunctie(s, 'magHerladen', f => f.replace('return !nietOpgeslagen() && !schrijfBezig;', 'return true;'))],
   ['magHerladen zonder schrijfBezig', 'html', s => inFunctie(s, 'magHerladen', f => f.replace('return !nietOpgeslagen() && !schrijfBezig;', 'return !nietOpgeslagen();'))],

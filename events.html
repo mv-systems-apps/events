@@ -125,17 +125,19 @@ svg{display:block}
 .btn-warn:hover{opacity:.88;border-color:var(--warn)}
 
 /* ---------- toolbar ---------- */
-/* de melding is tegelijk de bevestiging: erop tikken sluit hem af, waarna er
-   niets meer terug te draaien valt en de knop verdwijnt */
-/* 28 px hoog en 6 px boven de eerste lijstrij: te hoog mikken raakte de pil in
-   plaats van de rij. Elders in de app is 44 px de maat. */
-.laatste{
-  display:block;width:fit-content;margin:0 auto 4px;min-height:44px;
-  display:flex;align-items:center;justify-content:center;
-  padding:2px 14px;border:1px solid var(--line);border-radius:999px;line-height:1.3;
-  background:#28313f;color:var(--muted);font-size:17px;
+/* De laatste stap: tekst, ongedaan maken en bevestigen in één balk boven de lijst.
+   Bevestigen vergeet de stap en de balk verdwijnt; de kopregel houdt daardoor
+   alleen + of wijzigen over. De tekst zelf is geen knop, zodat wegtikken niet per
+   ongeluk kan. Neutraal van kleur: het is informatie, geen waarschuwing. */
+.stapbalk{
+  display:flex;align-items:center;gap:8px;margin:2px 0 8px;
+  padding:4px 4px 4px 14px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);
 }
-.laatste:hover{border-color:var(--accent);color:var(--txt)}
+.stapbalk .stap-tekst{
+  flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:17px;color:var(--txt);
+}
 .panel-head{
   display:flex;align-items:center;gap:8px;margin:8px 0;
 }
@@ -455,7 +457,6 @@ svg{display:block}
 
   <div class="panel-head">
     <h2><span id="panelTitel">Events</span> <span class="count" id="count"></span></h2>
-    <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken" hidden></button>
     <button class="icon-btn prominent" id="btnNew" title="Nieuw event" aria-label="Nieuw event">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -463,7 +464,13 @@ svg{display:block}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     </button>
   </div>
-  <button class="laatste" id="laatste" title="Melding sluiten" hidden></button>
+  <div class="stapbalk" id="stapbalk" hidden>
+    <span class="stap-tekst" id="stapTekst" aria-live="polite"></span>
+    <button class="icon-btn" id="btnUndo" title="Ongedaan maken" aria-label="Ongedaan maken"></button>
+    <button class="icon-btn" id="btnStapOk" title="Bevestigen" aria-label="Bevestigen">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </button>
+  </div>
 </header>
 
 <div class="body">
@@ -828,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352897-001</div>
+    <div id="appVersieStempel">Versie 1352898-001</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -1056,20 +1063,13 @@ function terugTekst(){
 }
 /* Eén stap terug, en die stap is zelf ook weer terug te draaien: de knop wisselt
    na gebruik om naar opnieuw. Daardoor is er geen bevestiging nodig — het is de
-   handeling die je beschermt, niet een die bescherming vraagt. */
-/* Eén stap terug, en die stap is zelf ook weer terug te draaien: de knop wisselt
-   na gebruik om naar opnieuw. Daardoor is er geen bevestiging nodig — het is de
    handeling die je beschermt, niet een die bescherming vraagt.
    Bewaard wordt alleen het verschil: welk record het betrof en hoe het eruitzag.
    Het record wordt teruggevonden op zijn nummer, dat bij het inlezen wordt
    uitgedeeld en dat een wijziging of een hersortering overleeft. */
 var terug = null;
-/* of de melding over de laatste stap is weggetikt; een nieuwe stap zet hem weer
-   aan, want dan gaat hij over iets anders */
-var pilWeg = false;
 function onthoud(naam, actie, id, oud){
   terug = { naam:naam, actie:actie, herstel:false, id:id, oud:oud || null, rec:null };
-  pilWeg = false;
 }
 function zoekOpId(id){
   for(var i = 0; i < records.length; i++){ if(records[i].id === id) return i; }
@@ -3819,9 +3819,8 @@ function render(){
   $('btnEdit').hidden = selIndex < 0;
   $('btnEdit').disabled = !magWijzigen();
   $('btnCfg').disabled = fileState === 'leeg';
-  $('btnUndo').hidden = !terug;
-  $('laatste').textContent = terugTekst();
-  $('laatste').hidden = !terug || pilWeg;
+  $('stapbalk').hidden = !terug;
+  $('stapTekst').textContent = terugTekst();
   if(terug){
     $('btnUndo').innerHTML = terug.herstel ? ICON_REDO : ICON_UNDO;
     var wat = (terug.herstel ? 'Opnieuw: ' : 'Ongedaan maken: ') + terugTekst();
@@ -4471,10 +4470,9 @@ $('lijst').onclick = function(e){
   selIndex = (selIndex === i ? -1 : i);
   render();
 };
-/* De pil wegtikken verbergt alleen de melding. Hier stond terug = null, en dat
-   wiste ook de knop Ongedaan maken -- zonder vraag en zonder weg terug, terwijl
-   de tekst alleen "Melding sluiten" belooft. */
-$('laatste').onclick = function(){ pilWeg = true; render(); };
+/* Bevestigen vergeet de stap: de wijziging was al opgeslagen, dit verandert het
+   bestand niet. Daarna valt er niets meer terug te draaien en verdwijnt de balk. */
+$('btnStapOk').onclick = function(){ terug = null; render(); };
 $('btnUndo').onclick = function(){
   if(!magWijzigen()) return;
   if(!draaiTerug()){ terug = null; render(); return; }

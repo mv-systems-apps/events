@@ -51,7 +51,7 @@ process.on('uncaughtException', (e) => { afbreken('uncaughtException', e); });
    halverwege afbreekt, valt hiermee op -- anders print de bundel domweg minder
    regels en lijkt alles in orde. Voeg je een groep toe, dan hoort dit getal mee
    omhoog; de controle aan het eind zegt het als je dat vergeet. */
-const GROEPEN_VERWACHT = 17;
+const GROEPEN_VERWACHT = 18;
 let groepen = 0;
 
 let goed = 0, fout = 0;
@@ -2079,6 +2079,40 @@ kop('17. De worker doet hetzelfde als die van Golf Score en Trends');
   const off = await vraag(ORIGIN + '/manifest.json', 'cors', 'GET', 'no-store');
   ok('offline geeft no-store een fout en niet de oude kopie', !!off && off.status === 503,
      off && (off.status + ' ' + (await tekst(off))));
+}
+
+/* ---------- 18. De balk met de laatste stap ---------- */
+kop('18. De laatste stap: een balk met ongedaan maken en bevestigen');
+{
+  /* Tot 1352897-001 stond er een pil met de tekst van de laatste stap, en een
+     losse knop Ongedaan maken in de kopregel. De pil wegtikken liet de knop
+     staan, dus nam die ruimte in tot er een volgende stap kwam. Nu staan tekst,
+     ongedaan maken en bevestigen samen in een balk; bevestigen vergeet de stap
+     en de balk verdwijnt. */
+  const kopregel = (HTML.match(/<div class="panel-head">([\s\S]*?)<\/div>/) || [])[1] || '';
+  ok('de kopregel heeft geen knop Ongedaan maken meer', !/id="btnUndo"/.test(kopregel));
+  ok('de pil bestaat niet meer', !/id="laatste"/.test(HTML));
+  const balk = (HTML.match(/<div class="stapbalk" id="stapbalk"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || '';
+  ok('er is een balk voor de laatste stap', !!balk);
+  const volgorde = ['id="stapTekst"', 'id="btnUndo"', 'id="btnStapOk"'].map((t) => balk.indexOf(t));
+  ok('met de tekst, dan ongedaan maken, dan bevestigen',
+     volgorde.every((x) => x >= 0) && volgorde[0] < volgorde[1] && volgorde[1] < volgorde[2], volgorde.join(','));
+  ok('de tekst wordt voorgelezen als hij verandert', /id="stapTekst"[^>]*aria-live="polite"/.test(balk));
+  ok('de tekst is geen knop: wegtikken kan niet per ongeluk', !!balk && !/<button[^>]*id="stapTekst"/.test(balk));
+  /* Het vinkje in dezelfde stijl als de pijl van ongedaan maken: zelfde maat,
+     zelfde lijndikte, ronde uiteinden. */
+  const stijl = (svg) => svg ? [(/width="(\d+)"/.exec(svg) || [])[1], (/stroke-width="([\d.]+)"/.exec(svg) || [])[1],
+                                 /stroke-linecap="round"/.test(svg), /stroke-linejoin="round"/.test(svg)].join(' ') : '(geen)';
+  const vink = (balk.match(/id="btnStapOk"[^>]*>\s*(<svg[\s\S]*?<\/svg>)/) || [])[1];
+  const pijl = (SCRIPT.match(/var ICON_UNDO = '(<svg[\s\S]*?<\/svg>)'/) || [])[1];
+  ok('het vinkje heeft de stijl van de pijl', !!vink && stijl(vink) === stijl(pijl), stijl(vink) + ' / ' + stijl(pijl));
+  ok('beide zijn een icoonknop van 44 bij 44',
+     /<button class="icon-btn" id="btnUndo"/.test(balk) && /<button class="icon-btn" id="btnStapOk"/.test(balk));
+  /* Bevestigen vergeet de stap; daarna valt er niets meer terug te draaien. */
+  ok('bevestigen vergeet de stap',
+     /\$\('btnStapOk'\)\.onclick = function\(\)\{ terug = null; render\(\); \};/.test(SCRIPT));
+  ok('de balk staat er zolang er een stap is', /\$\('stapbalk'\)\.hidden = !terug;/.test(SCRIPT));
+  ok('en er is geen aparte schakelaar meer om alleen de melding te verbergen', !/pilWeg/.test(SCRIPT));
 }
 
 afsluiten();

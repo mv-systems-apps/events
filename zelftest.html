@@ -3184,7 +3184,7 @@ function testComfort(){
 
   var d = app.document;
   var namen = ['records','cfg','bestandsnaam','fileState','hasFSA','saveState',
-               'selIndex','zoekterm','filterAan','datumFilter','terug','pilWeg'];
+               'selIndex','zoekterm','filterAan','datumFilter','terug'];
   var bewaard = {};
   namen.forEach(function(n){ bewaard[n] = app[n]; });
 
@@ -3194,7 +3194,7 @@ function testComfort(){
   app.records = app.parse('S1;Drimmelore Vasqinter;Gebeurtenis;D20261015;1\n' +
                           'S2;Bram;Gebeurtenis;D20260301;1');
   app.sorteer(); app.gelijkgezet(); app.selIndex = -1;
-  app.terug = null; app.pilWeg = false;
+  app.terug = null;
   app.render();
 
   function herstel(){
@@ -3255,22 +3255,45 @@ function testComfort(){
   app.records = warenRecords; app.sorteer(); app.gelijkgezet(); app.render();
   eis('en daarna is hij weer weg', strook.hidden, true);
 
-  /* 2. De pil over de laatste stap. Die stond pal boven de lijst en werd
-     aangetikt om hem weg te krijgen -- waarmee ook de enige weg terug verdween. */
+  /* 2. De laatste stap. Tot 1352897-001 een pil die je wegtikte, terwijl de knop
+     Ongedaan maken in de kopregel bleef staan. Nu een balk met de tekst, ongedaan
+     maken en bevestigen; bevestigen vergeet de stap en maakt de kopregel vrij. */
   app.onthoud('Drimmelore Vasqinter', 'gewijzigd', app.records[0].id, null);
   app.render();
-  var pil = d.getElementById('laatste');
-  eis('na een stap staat de pil er', pil.hidden, false);
-  eis('en de knop om die stap terug te draaien ook', d.getElementById('btnUndo').hidden, false);
-  eis('de pil is groot genoeg om te raken', app.getComputedStyle(pil).minHeight, '44px');
-  pil.click();
-  eis('de pil wegtikken laat hem verdwijnen', pil.hidden, true);
-  eis('maar de stap blijft terug te draaien', !!app.terug, true);
-  eis('en de knop daarvoor blijft staan', d.getElementById('btnUndo').hidden, false);
+  var balk = d.getElementById('stapbalk');
+  var undo = d.getElementById('btnUndo'), ok = d.getElementById('btnStapOk');
+  eis('na een stap staat de balk er', !!balk && !balk.hidden, true);
+  eis('met de tekst van de stap', balk ? d.getElementById('stapTekst').textContent : '(geen balk)',
+      'Drimmelore Vasqinter gewijzigd');
+  eis('ongedaan maken staat in de balk, niet in de kopregel',
+      !!(balk && undo && balk.contains(undo) && !d.querySelector('.panel-head #btnUndo')), true);
+  eis('bevestigen staat rechts van ongedaan maken',
+      !!(undo && ok) && ok.getBoundingClientRect().left > undo.getBoundingClientRect().right, true);
+  eis('beide knoppen zijn 44 bij 44',
+      (undo && ok) ? [undo, ok].map(function(b){ var r = b.getBoundingClientRect();
+        return Math.round(r.width) + 'x' + Math.round(r.height); }).join(' ') : '(ontbreekt)', '44x44 44x44');
+  eis('alles op één regel: de balk is hooguit 56 px hoog',
+      balk ? Math.round(balk.getBoundingClientRect().height) <= 56 : false, true);
+  /* een lange naam breekt niet af over twee regels */
+  app.onthoud('Drimmelore Vasqinter van der Langenaamsteeg-Overbeek', 'gewijzigd', app.records[0].id, null);
+  app.render();
+  eis('ook met een lange naam blijft het één regel',
+      balk ? Math.round(balk.getBoundingClientRect().height) <= 56 : false, true);
+  /* de tekst wegtikken doet niets: bevestigen gaat alleen met het vinkje */
+  if(balk) d.getElementById('stapTekst').click();
+  eis('op de tekst tikken laat de balk staan', !!balk && !balk.hidden && !!app.terug, true);
+  /* na ongedaan maken biedt de knop opnieuw aan; de balk blijft */
+  app.terug.herstel = true; app.render();
+  eis('na ongedaan maken zegt de balk wat er gebeurde',
+      balk ? d.getElementById('stapTekst').textContent : '', 'Drimmelore Vasqinter van der Langenaamsteeg-Overbeek hersteld');
+  eis('en biedt de knop opnieuw aan', undo ? /^Opnieuw/.test(undo.title) : false, true);
+  if(ok) ok.click();
+  eis('bevestigen laat de balk verdwijnen', !!balk && balk.hidden, true);
+  eis('en vergeet de stap', app.terug, null);
   app.onthoud('Bram', 'verwijderd', app.records[1].id, null);
   app.render();
-  eis('een volgende stap zet de pil weer aan', pil.hidden, false);
-  app.terug = null; app.pilWeg = false; app.render();
+  eis('een volgende stap zet de balk weer neer', !!balk && !balk.hidden, true);
+  app.terug = null; app.render();
 
   /* 3. De naamkolom houdt 169 px over op een scherm van 360. */
   var naamCel = d.querySelector('#lijst tr[data-i] td.naam');
