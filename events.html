@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-003</div>
+    <div id="appVersieStempel">Versie 1352898-004</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2962,12 +2962,20 @@ function opslagStand(){
   if(nietOpgeslagen())       return { tekst:'niet opgeslagen', kleur:' warn' };
   return { tekst:'opgeslagen', kleur:'' };
 }
+/* Het moment van een kopie als dd-mm-jjjj uu:mm. */
+function kopieTijd(ms){
+  var d = new Date(ms);
+  function p(n){ return (n < 10 ? '0' : '') + n; }
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' +
+         p(d.getHours()) + ':' + p(d.getMinutes());
+}
 function tekenBestandStatus(){
   var stand = opslagStand();
   var kleur = stand.kleur, tekst = stand.tekst;
   if(fileState === 'auth'){
     kleur = toegangGeweigerd ? ' warn' : '';
-    tekst = 'leeskopie; om toegang wordt gevraagd bij het opslaan';
+    /* zonder toegang: alleen het moment van de leeskopie die je ziet */
+    tekst = (kopieRij && kopieRij.tijd) ? kopieTijd(kopieRij.tijd) : '';
   }
   else if(fileState === 'geencfg'){ kleur = ' err'; tekst = cfgFout; }
   $('cfgDot').className = 'dot' + kleur;

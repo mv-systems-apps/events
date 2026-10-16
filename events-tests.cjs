@@ -1425,6 +1425,16 @@ kop('13. Reparaties na de koude review');
      /function kanToegangVragen\(\)\{ return fileState === 'auth' && !!dirHandle && !!kopieRij && !!bestandsnaam; \}/.test(SCRIPT));
   ok('opslaan zonder toegang vraagt eerst daarom',
      /if\(fileState === 'auth'\)\{[\s\S]{0,200}dirHandle\.requestPermission/.test(haal('bewaar')));
+  /* De statusregel zegt alleen dat het de leeskopie is en van wanneer; niet
+     wanneer er om toegang wordt gevraagd. */
+  const status = haal('tekenBestandStatus');
+  ok('de statusregel toont zonder toegang het moment van de kopie',
+     /tekst = \(kopieRij && kopieRij\.tijd\) \? kopieTijd\(kopieRij\.tijd\) : '';/.test(status));
+  let tijdTekst = '(geen kopieTijd)';
+  try { tijdTekst = new Function(haal('kopieTijd') + '; return kopieTijd(new Date(2026, 9, 6, 9, 5).getTime());')(); } catch (e) {}
+  ok('als dd-mm-jjjj uu:mm', tijdTekst === '06-10-2026 09:05', tijdTekst);
+  ok('zonder verdere woorden', !/'leeskopie/.test(status));
+  ok('en niet wanneer er om toegang wordt gevraagd', !/om toegang wordt gevraagd/.test(status));
   ok('een kopie zonder stempel geldt bij het opslaan als niet na te gaan',
      /if\(laatstGelezen === -1\) return 'onbekend';/.test(SCRIPT) &&
      /if\(cfgGelezen === -1\) return 'onbekend';/.test(SCRIPT));
