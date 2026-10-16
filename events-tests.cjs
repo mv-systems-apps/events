@@ -1438,6 +1438,15 @@ kop('13. Reparaties na de koude review');
   ok('een kopie zonder stempel geldt bij het opslaan als niet na te gaan',
      /if\(laatstGelezen === -1\) return 'onbekend';/.test(SCRIPT) &&
      /if\(cfgGelezen === -1\) return 'onbekend';/.test(SCRIPT));
+  /* Sinds 1352898-005 werkt het als in Trends: bij het opstarten zonder toegang
+     telt alleen een kopie met stempel. Een oude kopie zonder stempel kon
+     achterlopen; dan eerst toegang en het echte bestand. */
+  ok('opstarten zonder toegang gebruikt alleen een kopie met stempel',
+     /fileState = 'auth';\s*return vulUitKopie\(true\)/.test(SCRIPT) &&
+     /if\(metStempel && typeof rij\.mtime !== 'number'\) return false;/.test(haal('vulUitKopie')));
+  ok('zonder bruikbare kopie vraagt de balk om toegang',
+     /toegangGeweigerd \|\| !kopieRij/.test(haal('renderFilebar')) &&
+     /Toegang nodig om ' \+ mapNaam \+ ' te lezen\./.test(haal('renderFilebar')));
 }
 
 {

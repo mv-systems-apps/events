@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-004</div>
+    <div id="appVersieStempel">Versie 1352898-005</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2207,10 +2207,17 @@ function bewaarKopie(naam, tekst){
 
 /* De lijst vullen uit de kopie zonder aan de toestand te raken. Bij een
    toegangsprobleem blijft die melding staan -- die vraagt om actie -- en zijn de
-   events ondertussen toch in te zien. */
-function vulUitKopie(){
+   events ondertussen toch in te zien.
+
+   metStempel: alleen een kopie met de stempel van het bestand telt. Zo werkt het
+   ook in Trends. Op een kopie zonder stempel (van voor 1352898-003) mag niet
+   worden bewerkt: die werd niet bijgewerkt na het opslaan, dus kon hij
+   achterlopen, en zonder stempel ziet de botsingscontrole dat niet. Dan geldt
+   er geen kopie en vraagt de app eerst om toegang, net als Trends de eerste keer. */
+function vulUitKopie(metStempel){
   return idbGet(KOPIE).then(function(rij){
     if(!rij || !rij.tekst) return false;
+    if(metStempel && typeof rij.mtime !== 'number') return false;
     kopieRij = rij;
     /* Zonder gelezen bestand geldt de configuratie uit de kopie: die hoort bij
        deze tekst. Met een gekoppeld bestand wint altijd dat bestand. */
@@ -2745,12 +2752,17 @@ function renderFilebar(){
   if(fileState === 'auth'){
     /* Zonder toegang staat de leeskopie in beeld en is er niets te melden: om
        toegang wordt pas gevraagd bij de eerste wijziging. Alleen na een
-       weigering staat hier dat wijzigen pas met toegang kan. */
-    el.innerHTML = (toegangGeweigerd
+       weigering staat hier dat wijzigen pas met toegang kan. Is er geen
+       bruikbare kopie (de eerste start na deze versie), dan is er niets te
+       zien en vraagt de app eerst om toegang -- zoals Trends. */
+    var mapNaam = esc(dirHandle ? dirHandle.name : 'de werkmap');
+    el.innerHTML = (toegangGeweigerd || !kopieRij
       ? '<div class="banner">' +
-        '<div class="banner-text">' + (nietOpgeslagen() ? 'Niet opgeslagen: o' : 'O') +
-        'pslaan kan pas met toegang tot ' +
-        esc(dirHandle ? dirHandle.name : 'de werkmap') + '.</div>' +
+        '<div class="banner-text">' +
+        (!kopieRij && !nietOpgeslagen()
+          ? 'Toegang nodig om ' + mapNaam + ' te lezen.'
+          : (nietOpgeslagen() ? 'Niet opgeslagen: o' : 'O') +
+            'pslaan kan pas met toegang tot ' + mapNaam + '.') + '</div>' +
         '<button class="btn btn-warn" id="fAuth">Toegang geven</button></div>'
       : '') + herstelBanner() + versieBanner();
     /* Met een niet-opgeslagen wijziging slaat de knop op (en vraagt daarbij om
@@ -4879,7 +4891,7 @@ if(hasFSA){
            kopie vult wel de lijst, zodat je je events kunt inzien terwijl de
            machtiging nog niet is hernieuwd. */
         fileState = 'auth';
-        return vulUitKopie().then(render, render);
+        return vulUitKopie(true).then(render, render);
       }
       return laadCfg();
     });

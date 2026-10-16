@@ -3822,7 +3822,8 @@ function testToegangBijWijzigen(){
   var NOOD  = KOPIE + 'B|Bram Jansen|Geboren|D19900703|1\n';
   var map, antwoord, gevraagd;
   /* buiten: true = er is buiten de app een regel bijgekomen (een noodbewerking) */
-  function opzetten(perm, buiten){
+  /* zonderStempel: een kopie zoals versies van voor 1352898-003 die bewaarden */
+  function opzetten(perm, buiten, zonderStempel){
     map = maakMap();
     map.fs['events_cfg.json'] = { tekst: JSON.stringify(CFG), mtime: 500 };
     map.fs['events.txt'] = buiten ? { tekst: NOOD, mtime: 2000 } : { tekst: KOPIE, mtime: 1000 };
@@ -3834,11 +3835,13 @@ function testToegangBijWijzigen(){
     idb['kopie'] = { bestand:'events.txt', tekst:KOPIE, tijd:Date.now() - 3600000, cfg:CFG,
                      mtime:1000, grootte:KOPIE.length, cfgMtime:500,
                      cfgGrootte:JSON.stringify(CFG).length };
+    if(zonderStempel) idb['kopie'] = { bestand:'events.txt', tekst:KOPIE, tijd:Date.now() - 86400000 };
     idb['backup:events.txt'] = app.dagsleutel();
     app.dirHandle = map; app.hasFSA = true; app.bestandsnaam = ''; app.cfg = {};
     app.records = []; app.selIndex = -1; app.terug = null; app.saveState = '';
     app.kopieRij = null; app.fileState = 'auth';
-    return app.vulUitKopie().then(function(){ app.gelijkgezet(); app.render(); });
+    /* zoals bij het opstarten zonder toegang: alleen een kopie met stempel telt */
+    return app.vulUitKopie(true).then(function(){ app.gelijkgezet(); app.render(); });
   }
   function modaalOpen(id){ var m = d.getElementById(id); return !!m && !m.hidden; }
   function voegToe(){
@@ -3924,6 +3927,28 @@ function testToegangBijWijzigen(){
   }).then(function(){
     eis('opnieuw inlezen vraagt om toegang', gevraagd, 1);
     eis('en leest daarna het bestand', app.records.length, 2);
+
+    /* Een kopie zonder stempel (van voor 1352898-003) kan achterlopen: die werd
+       niet bijgewerkt na het opslaan. Dan geldt er geen kopie, net als in Trends
+       de eerste keer: eerst toegang, dan het echte bestand. */
+    try { app.bergModaal('cfgModal'); } catch(e){}
+    return opzetten('granted', true, true);
+  }).then(function(){
+    eis('een kopie zonder stempel komt niet in de lijst', app.records.length, 0);
+    eis('en geldt niet als leeskopie', app.kopieRij, null);
+    eis('dus bewerken kan nog niet', d.getElementById('btnNew').disabled, true);
+    eis('de app vraagt om toegang om te lezen',
+        /Toegang nodig om Events te lezen/.test(d.getElementById('filebar').textContent), true);
+    var knop = d.getElementById('fAuth');
+    eis('met een knop om toegang te geven', !!knop, true);
+    eis('nog zonder vraag vooraf', gevraagd, 0);
+    if(knop) knop.click();
+    return wacht(400);
+  }).then(function(){
+    eis('de knop vraagt om toegang', gevraagd, 1);
+    eis('en leest het echte bestand, met de regel die de kopie miste', app.records.length, 2);
+    eis('daarna is het bestand gekoppeld', app.fileState, 'ok');
+    eis('en is er een kopie met stempel', idb['kopie'] && idb['kopie'].mtime, 2000);
     zetTerug();
   }, function(e){
     zetTerug();
