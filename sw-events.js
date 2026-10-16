@@ -1,55 +1,28 @@
-/* Service worker voor Events.
+/* Service worker voor Events: stale-while-revalidate. Meteen uit de eigen
+   cache bedienen en op de achtergrond verversen; of er een nieuwe versie is,
+   beslist de app zelf (checkAppUpdate, met het versiestempel).
 
-   Dezelfde opzet als sw-golf-score.js en sw-trends.js: de drie werken
-   hetzelfde, alleen in de schrijfstijl van hun eigen app. Wat ze gemeen
-   hebben staat in apps-basis/conventies.md, paragraaf 3; wijzig je hier iets
-   wezenlijks, doe het dan ook daar en in de andere twee.
-   Strategie: stale-while-revalidate.
+   De drie service workers doen hetzelfde, elk in de schrijfstijl van de eigen
+   app; de gedeelde regels staan in apps-basis/conventies.md, paragraaf 3.
+   Wijzig je hier iets wezenlijks, doe het dan ook daar en in de andere twee.
 
-   - Staat een bestand in de cache, dan komt het daaruit en wacht niemand op het
-     netwerk. Starten is daarmee onafhankelijk van de snelheid en de
-     beschikbaarheid van de verbinding.
-   - Daarnaast loopt een verzoek naar het netwerk, zodat de cache zich ververst
-     en events.html bij een volgende start de nieuwe versie kan melden. De
-     worker oordeelt dus niet zelf over versies; dat doet checkAppUpdate in de
-     app, aan de hand van APP_VERSIE in de bewaarde kopie.
-   - Staat het bestand er niet in en is er geen netwerk, dan volgt bij een
-     paginaverzoek de bewaarde app, en anders een nette offlinepagina. Er komt
-     nooit undefined uit respondWith.
-   - Alles wat niet van deze app is: niet aankomen. Elke app staat in een eigen
-     map op deze origin (mv-systems-apps.github.io/<app>/), dus het bereik van
-     deze worker is die map. De cacheopslag is wel van de hele origin, en een
-     controle op alleen de origin is daarom te grof: er wordt op pad vergeleken.
-   - Een verzoek dat uitdrukkelijk vers wil (cache 'reload' of 'no-store'), gaat
-     altijd naar het netwerk en wordt niet bewaard. App-status vraagt zo op wat
-     er op de server staat.
+   CACHE_VERSION is de naam van de cache. update_cache_version.py verhoogt hem,
+   en dat hoort zodra dit bestand of de lijst met appbestanden wijzigt: anders
+   installeert de nieuwe worker in dezelfde cache waaruit de oude nog bedient.
+   Het versiestempel in events.html is een eigen teller en gaat met de hand
+   omhoog. */
 
-   De installatie slaagt alleen als events.html binnen is. De rest mag mislukken;
-   wat ontbreekt wordt overgenomen uit de vorige eigen cache, en anders later
-   door de achtergrondverversing aangevuld.
-
-   Over de twee tellers: CACHE_VERSION hieronder is de naam van de cache en
-   hoeft alleen omhoog als dit bestand zelf wijzigt -- doe je dat niet, dan vult
-   de nieuwe worker tijdens zijn installatie dezelfde cache waaruit de oude nog
-   bedient, en staan er twee deploys in een cache. Voor een wijziging aan
-   events.html is verhogen niet nodig: de cache ververst zichzelf. Het forceert
-   dan alleen een directe verversing in plaats van uiterlijk een bezoek later.
-   Het stempel waaraan de app een nieuwe versie herkent is APP_VERSIE in
-   events.html; dat is een eigen teller. Zie update_cache_version.py. */
-
-const CACHE_VERSION = 161;
+const CACHE_VERSION = 162;
 const CACHE_NAME = 'events-v' + CACHE_VERSION;
 
-/* Dit ene bestand is de app. Zonder dit is er niets om offline te openen, dus
-   dit moet slagen. */
+/* Zonder dit bestand is er niets om offline te openen, dus dit moet slagen. */
 const VERPLICHT = [
   './events.html'
 ];
-/* De rest is gemak: './' en index.html sturen alleen door naar events.html, en
-   manifest en icoon zijn voor het installeren als app. Ze worden geprobeerd en
-   mogen mislukken -- niet elke server beantwoordt een kale map, en dan zou die
-   ene de hele installatie blokkeren. Wat ontbreekt wordt later alsnog
-   aangevuld zodra het er wel is. */
+/* De rest is gemak: './' en index.html sturen alleen door naar events.html,
+   manifest en icoon zijn voor het installeren als app. Ze mogen mislukken:
+   niet elke server beantwoordt een kale map, en dan zou die ene de hele
+   installatie blokkeren. */
 const OPTIONEEL = [
   './',
   './index.html',
@@ -58,38 +31,36 @@ const OPTIONEEL = [
 ];
 const ASSETS = VERPLICHT.concat(OPTIONEEL);
 
-/* Drie uiterste wachttijden, want hetzelfde netwerkverzoek heeft meer rollen.
-   GRENS geldt als de cache een gat heeft: dan is dit verzoek het antwoord en
-   staat de pagina erop te wachten, dus mag het niet lang duren. Ook de
-   installatie haalt met deze grens op: een installatie die blijft hangen loopt
-   nooit af, en zolang dat zo is doet registration.update() niets.
-   GRENS_MET_TERUGVAL geldt als een paginaverzoek de cache mist terwijl de app
-   er wel staat: lang wachten koopt dan niets, liever na 3 s de bewaarde app.
-   GRENS_ACHTERGROND geldt bij een cachetreffer: het antwoord is dan al gegeven
-   en dit verzoek ververst alleen de kopie. Daar wacht niemand op, dus die mag
-   ruimer -- met de krappe grens werd op een trage verbinding de verversing
-   afgekapt en bleef de app op de oude versie, zonder dat dat iemand hielp.
-   Beide breken het verzoek werkelijk af; zie metGrens. */
+/* Drie uiterste wachttijden, naar de rol van het verzoek; bij de grens wordt
+   het verzoek echt afgebroken (zie metGrens).
+   - GRENS: een cachemisser; dan is dit verzoek het antwoord. Ook elke
+     ophaalpoging van de installatie: een installatie die blijft hangen loopt
+     nooit af, en zolang dat zo is doet registration.update() niets.
+   - GRENS_MET_TERUGVAL: een paginaverzoek mist de cache terwijl de app wel
+     bewaard is. Lang wachten koopt dan niets: liever na 3 s de bewaarde app.
+   - GRENS_ACHTERGROND: een cachetreffer. Het antwoord is al gegeven en dit
+     verzoek ververst alleen de kopie; daar wacht niemand op, dus die mag ruim,
+     anders wordt de verversing op een trage verbinding afgekapt. */
 const GRENS = 10000;
 const GRENS_MET_TERUGVAL = 3000;
 const GRENS_ACHTERGROND = 60000;
 
-/* De eigen bestanden als pad, want alleen daarop wordt vergeleken. De
-   zoekstring hoort er niet bij, voor geen enkel eigen bestand: de app kan met
-   ?cfg=... worden geopend, en anders gold events.html?cfg=werk.json als een
-   ander bestand dat nooit uit de cache kwam. Elk pad heeft één kopie. */
+/* De eigen bestanden als pad: de cacheopslag is van de hele origin, en elke
+   app staat in een eigen map (mv-systems-apps.github.io/<app>/), dus alleen
+   de origin vergelijken is te grof. De zoekstring telt niet mee: de app kan
+   met ?cfg=... worden geopend. */
 function volledig(u){ return new URL(u, self.location.href); }
 const EIGEN_PADEN = ASSETS.map(function(u){ return volledig(u).pathname; });
 
 function isEigen(url){
   return url.origin === self.location.origin && EIGEN_PADEN.indexOf(url.pathname) >= 0;
 }
-/* Het pad is de sleutel in de cache, zonder zoekstring: alle varianten van
-   een bestand delen daardoor een regel. */
+/* De sleutel in de cache: het pad zonder zoekstring, zodat alle varianten van
+   een bestand één regel delen. */
 function sleutel(url){ return url.origin + url.pathname; }
 
-/* Een net antwoord in plaats van undefined aan respondWith: dat laatste gaf de
-   pagina een netwerkfout zonder uitleg. */
+/* Een geldig antwoord in plaats van undefined aan respondWith: anders toont de
+   browser een netwerkfout zonder uitleg. */
 function offlineAntwoord(navigatie){
   return new Response(
     navigatie
@@ -116,14 +87,11 @@ function terugval(cache, navigatie){
   );
 }
 
-/* Het netwerk met een uiterste grens. Zonder die grens bleef een verbinding die
-   blijft hangen het tabblad vasthouden tot de browser zelf opgaf.
-   Het verzoek wordt ook werkelijk afgebroken en niet alleen losgelaten: een
-   losgelaten fetch blijft lopen en houdt een verbinding bezet tot de browser er
-   zelf een eind aan maakt, terwijl er niemand meer op het antwoord wacht.
-   AbortController hoort bij elke browser die service workers heeft, maar de
-   controle erop kost niets en houdt de worker ook in een nagemaakte omgeving
-   zonder die klasse werkend. */
+/* Het netwerk met een uiterste grens: een verbinding die blijft hangen, geeft
+   nooit een antwoord en nooit een fout. Bij de grens wordt het verzoek echt
+   afgebroken en niet alleen losgelaten; anders houdt het een verbinding bezet
+   terwijl niemand meer op het antwoord wacht. Zonder AbortController (een
+   nagemaakte omgeving) blijft het bij de grens zonder afbreken. */
 function metGrens(req, ms, init){
   var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   var opties = {};
@@ -147,10 +115,10 @@ function metGrens(req, ms, init){
   });
 }
 
-/* cache:'reload' zodat de installatie niet een oude kopie uit de browsercache
-   overneemt, en met de grens zodat een hangende verbinding de installatie niet
-   eindeloos ophoudt. Een mislukking komt terug als null, zodat de aanroeper
-   beslist of dat erg is. */
+/* cache:'reload' zodat de installatie geen verouderde kopie uit de
+   browsercache overneemt, en met de grens zodat een hangende verbinding de
+   installatie niet eindeloos ophoudt. Een mislukking komt terug als null, zodat
+   de aanroeper beslist of dat erg is. */
 function haal(u){
   return metGrens(u, GRENS, { cache: 'reload' }).then(
     function(res){ return (res && res.ok) ? res : null; },
@@ -158,37 +126,29 @@ function haal(u){
   );
 }
 
-/* De cache vullen met de huidige deploy, in drie fasen en in deze volgorde,
-   omdat de installatie rechtstreeks in de levende cache schrijft: bij een
-   wijziging aan alleen events.html hoeft CACHE_VERSION niet omhoog, en dan is
-   dit dezelfde cache waaruit de oude worker nog bedient.
+/* De cache vullen in drie fasen, in deze volgorde, omdat de installatie
+   rechtstreeks in de cache kan schrijven waaruit de oude worker nog bedient
+   (als CACHE_VERSION niet omhoog is gegaan).
 
-   1. Alle verplichte bestanden ophalen en nog niets wegschrijven. Ontbreekt er
+   1. De verplichte bestanden ophalen en nog niets wegschrijven. Ontbreekt er
       een, dan gooit dit en is er niets veranderd.
    2. De optionele bestanden, elk met zijn eigen vangnet.
    3. Het verplichte bestand als laatste.
 
-   Die laatste volgorde is het hele punt: mislukt er iets in fase 1 of 2, dan
-   staat de vorige, werkende app nog in de cache. En events.html IS de
-   applicatie -- het is een app van één bestand.
-
-   De grens van die garantie, expliciet: per cacheregel is een put atomair, dus
-   met dit ene verplichte bestand is de app oud of nieuw en nooit halverwege.
-   Komt er ooit een tweede verplicht bestand bij, dan kan die set wél half
-   worden weggeschreven; dan is een tijdelijke cache met promoveren nodig en
-   klopt deze opzet niet meer. */
+   Mislukt er iets in fase 1 of 2, dan staat de vorige, werkende app nog in de
+   cache. Dat geldt omdat er één verplicht bestand is en een put per
+   cacheregel atomair is. Komt er een tweede verplicht bestand bij, dan kan die
+   set half worden weggeschreven en is een tijdelijke cache met promoveren
+   nodig. */
 function vulCache(c){
   return Promise.all(VERPLICHT.map(function(u){
     return haal(u).then(function(res){ return { u: u, res: res }; });
   })).then(function(uit){
     var mist = uit.filter(function(x){ return !x.res; }).map(function(x){ return x.u; });
     if(mist.length) throw new Error('verplichte bestanden ontbreken: ' + mist.join(', '));
-    /* De rest mag mislukken -- dat was altijd de bedoeling, maar gold alleen
-       voor een mislukte download. Een geweigerde schrijfactie (volle opslag)
-       sleepte de hele installatie mee, zodat die kon mislukken om een icoon
-       terwijl de app zelf al binnen was. Nu heeft elk optioneel bestand zijn
-       eigen vangnet: wat niet lukt blijft staan zoals het was en wordt later
-       door de achtergrondverversing aangevuld. */
+    /* De rest mag mislukken, ook bij het wegschrijven (volle opslag): een icoon
+       mag de installatie niet tegenhouden. Wat niet binnenkomt, komt uit de
+       vorige eigen cache. */
     return Promise.all(OPTIONEEL.map(function(u){
       return haal(u).then(function(res){
         if(!res) return uitVorigeCache(c, u);
@@ -222,15 +182,12 @@ function uitVorigeCache(c, u){
 
 self.addEventListener('install', function(e){
   e.waitUntil(
-    /* Eerst nagaan of deze cache er al was. Dat is niet theoretisch: voor een
-       wijziging aan alleen events.html hoeft CACHE_VERSION niet omhoog, en dan
-       installeert de nieuwe worker in precies de cache waaruit de draaiende
-       worker nog bedient. Die mag een mislukte installatie nooit wissen -- dan
-       sloopt een netwerkfout de offline-app.
-       Een cache die hier zelf is aangemaakt wordt bij een mislukking wel
-       opgeruimd: caches.open maakt hem aan voordat er iets in staat, en zo'n
-       lege huls zou anders in App-status voor een geslaagde installatie
-       doorgaan. */
+    /* Bestond deze cache al, dan is CACHE_VERSION niet verhoogd en bedient de
+       draaiende worker er nog uit: een mislukte installatie wist hem dan niet,
+       anders sloopt een netwerkfout de offline-app. Een cache die hier zelf is
+       aangemaakt, wordt bij een mislukking wel opgeruimd: caches.open maakt hem
+       aan voordat er iets in staat, en zo'n lege huls gaat anders (ook in
+       App-status) door voor een geslaagde installatie. */
     caches.keys().then(function(namen){
       return namen.indexOf(CACHE_NAME) >= 0;
     }, function(){
@@ -245,9 +202,9 @@ self.addEventListener('install', function(e){
       });
     })
     /* Geen skipWaiting: een nieuwe versie neemt een open app niet onder handen
-       terwijl er misschien iets niet is opgeslagen. De app ziet dat er een
-       nieuwe versie wacht, meldt dat, en vraagt er zelf om zodra alles is
-       opgeslagen -- zie de message-handler hieronder. */
+       terwijl er misschien iets niet is opgeslagen. De app meldt de wachtende
+       versie en vraagt er zelf om zodra alles is opgeslagen; zie de
+       message-handler. */
   );
 });
 
@@ -256,10 +213,9 @@ self.addEventListener('activate', function(e){
     caches.keys()
       .then(function(keys){
         return Promise.all(keys.map(function(k){
-          /* Alle apps op deze origin delen dezelfde cacheopslag, dus hier
-             alleen de oude caches van Events opruimen en die van de andere
-             apps met rust laten. Dit gebeurt pas bij activeren, dus de vorige
-             cache blijft staan tot de nieuwe versie het werkelijk overneemt. */
+          /* Alle apps op deze origin delen dezelfde cacheopslag: alleen eigen
+             oude caches opruimen. Pas bij activeren, zodat de vorige cache
+             blijft staan tot de nieuwe versie het werkelijk overneemt. */
           return (k.indexOf('events-v') !== 0 || k === CACHE_NAME) ? null : caches.delete(k);
         }));
       })
@@ -273,12 +229,10 @@ self.addEventListener('message', function(e){
   if(e.data && e.data.type === 'nuOverstappen') self.skipWaiting();
 });
 
-/* Zeggen dat er een nieuwe kopie van de pagina staat. De pagina kijkt daar bij
-   het laden zelf naar, maar op dat moment is deze verversing nog onderweg:
-   gemeten in Chromium stond de nieuwe kopie er bij 800 ms netwerkvertraging pas
-   na 1,0 s en bij 2500 ms pas na 3,6 s. Zonder dit bericht zag je de melding
-   over een nieuwe versie dus pas als je de app wegschakelde en terughaalde.
-   Hier wordt het exacte moment doorgegeven, zodat er niets te gokken valt. */
+/* Zeggen dat er een verse kopie van de pagina in de cache staat. De app kijkt
+   ook zelf, maar dan is de verversing op een trage verbinding vaak nog
+   onderweg; zonder dit bericht komt de melding pas bij het wegschakelen en
+   terughalen van de app. */
 function meldVerversing(){
   if(!self.clients || typeof self.clients.matchAll !== 'function') return;
   self.clients.matchAll({ type:'window' }).then(function(lijst){
@@ -307,10 +261,10 @@ self.addEventListener('fetch', function(e){
     return;
   }
 
-  /* Eén kopie per pad: opzoeken en bewaren gebeurt onder het pad zonder
-     zoekstring. De Cache API neemt de zoekstring anders mee in de sleutel, en
-     dan mist events.html?cfg=werk.json de cache en faalt het offline, of komt
-     er voor elke variant een kopie bij. */
+  /* Eén kopie per pad: opzoeken en bewaren onder het pad zonder zoekstring. De
+     Cache API neemt de zoekstring anders mee in de sleutel; dan mist
+     events.html?cfg=werk.json de cache en faalt het offline, of komt er voor
+     elke variant een kopie bij. */
   var bewaarSleutel = sleutel(url);
   var appSleutel = sleutel(volledig('./events.html'));
 
@@ -318,18 +272,19 @@ self.addEventListener('fetch', function(e){
     caches.open(CACHE_NAME).then(function(cache){
       return cache.match(bewaarSleutel).then(function(gecached){
         /* Welke grens geldt, hangt af van de rol van dit verzoek: bij een
-           cachetreffer is het alleen een verversing waar niemand op wacht, bij
-           een misser is het het antwoord zelf -- en dan korter als er een
-           bewaarde app is om op terug te vallen. */
+           cachetreffer is het alleen de achtergrondverversing, bij een misser
+           het antwoord zelf, en dan korter als er een bewaarde app is om op
+           terug te vallen. */
         var grens = gecached ? Promise.resolve(GRENS_ACHTERGROND)
           : !navigatie ? Promise.resolve(GRENS)
           : cache.match(appSleutel).then(function(app){ return app ? GRENS_MET_TERUGVAL : GRENS; },
                                          function(){ return GRENS; });
         return grens.then(function(ms){
-          /* Bij een treffer op de pagina zelf met no-cache: GitHub Pages laat een
-             bestand 10 minuten bewaren, en een gewoon verzoek kon dan dezelfde
-             oude bytes terugschrijven. Dan bleef de melding over een nieuwe
-             versie vlak na een push uit. Alleen de pagina: daar staat het stempel. */
+          /* Bij een cachetreffer op de pagina met no-cache: GitHub Pages laat
+             een bestand 10 minuten bewaren, en een gewoon verzoek kan dan
+             dezelfde oude bytes terugschrijven, waardoor de melding van een
+             nieuwe versie vlak na een push uitblijft. Alleen de pagina: daar
+             staat het stempel. */
           var init = (gecached && navigatie) ? { cache: 'no-cache' } : undefined;
           var bewaarKlaar = null;
           var netwerk = metGrens(bewaarSleutel, ms, init).then(function(res){
@@ -337,20 +292,18 @@ self.addEventListener('fetch', function(e){
               /* Mislukt het wegschrijven (geen ruimte, geen toestemming), dan
                  blijft het antwoord staan. */
               bewaarKlaar = cache.put(bewaarSleutel, res.clone())
-                /* alleen bij de pagina zelf: daar staat het versienummer in, en
-                   alleen daarover valt iets te melden */
+                /* alleen bij de pagina: daar staat het stempel */
                 .then(function(){ if(navigatie) meldVerversing(); })
                 .catch(function(){});
             }
             return res;
           }).catch(function(){ return gecached || terugval(cache, navigatie); });
 
-          /* Dit moet VOOR het antwoord staan. Hier stond een waitUntil binnen de
-             then hierboven, en die kwam bij een cachetreffer altijd te laat:
-             respondWith is dan al opgelost met de bewaarde kopie, het event is niet
-             meer actief, en de browser weigert waitUntil met InvalidStateError --
-             gemeten in Chromium. Deze ene waitUntil omvat het ophalen en het
-             wegschrijven. */
+          /* Dit moet vóór het antwoord staan: bij een cachetreffer lost
+             respondWith meteen op, het event is dan afgehandeld en een latere
+             waitUntil gooit InvalidStateError. Deze ene waitUntil omvat het
+             ophalen en het wegschrijven, zodat de browser de worker niet stopt
+             voordat de nieuwe kopie in de cache staat. */
           try { e.waitUntil(netwerk.then(function(){ return bewaarKlaar; })); }
           catch(err){ /* geen actief event meer: dan is er niets te verlengen */ }
           return gecached || netwerk;
