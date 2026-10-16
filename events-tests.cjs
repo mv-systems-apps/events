@@ -1434,6 +1434,26 @@ kop('13. Reparaties na de koude review');
   try { tijdTekst = new Function(haal('kopieTijd') + '; return kopieTijd(new Date(2026, 9, 6, 9, 5).getTime());')(); } catch (e) {}
   ok('als dd-mm-jjjj uu:mm', tijdTekst === '06-10-2026 09:05', tijdTekst);
   ok('zonder verdere woorden', !/'leeskopie/.test(status));
+  /* vandaag en gisteren, op de kalenderdag (ook rond de zomertijd) */
+  const kt = (ms, nu) => { try { return new Function('ms', 'nu', haal('kopieTijd') + '; return kopieTijd(ms, nu);')(ms, nu); } catch (e) { return '(fout)'; } };
+  const NU = new Date(2026, 9, 16, 17, 51).getTime();
+  ok('vandaag', kt(new Date(2026, 9, 16, 0, 5).getTime(), NU) === 'vandaag 00:05', kt(new Date(2026, 9, 16, 0, 5).getTime(), NU));
+  ok('gisteren', kt(new Date(2026, 9, 15, 23, 59).getTime(), NU) === 'gisteren 23:59', kt(new Date(2026, 9, 15, 23, 59).getTime(), NU));
+  ok('eergisteren als datum', kt(new Date(2026, 9, 14, 20, 3).getTime(), NU) === '14-10-2026 20:03');
+  {
+    /* 25 oktober 2026 duurt in Nederland 25 uur: 24 uur terug vanaf middernacht
+       op de 26e valt dan niet op het begin van de 25e */
+    const tzWas = process.env.TZ; process.env.TZ = 'Europe/Amsterdam';
+    const uit = kt(new Date(2026, 9, 25, 23, 30).getTime(), new Date(2026, 9, 26, 23, 50).getTime());
+    if (tzWas === undefined) delete process.env.TZ; else process.env.TZ = tzWas;
+    ok('gisteren over de wisseling naar wintertijd heen', uit === 'gisteren 23:30', uit);
+  }
+  ok('gisteren over de maandgrens', kt(new Date(2026, 8, 30, 8, 0).getTime(), new Date(2026, 9, 1, 8, 0).getTime()) === 'gisteren 08:00');
+  ok('de statusregel toont altijd het moment, ook met toegang',
+     /var tekst = \(kopieRij && kopieRij\.tijd\) \? kopieTijd\(kopieRij\.tijd\) : '';/.test(status) &&
+     !/stand\.tekst/.test(status));
+  ok('na het bewaren van een kopie is die ook in beeld',
+     /kopieRij = rij; tekenBestandStatus\(\);/.test(haal('bewaarKopie')));
   ok('en niet wanneer er om toegang wordt gevraagd', !/om toegang wordt gevraagd/.test(status));
   ok('een kopie zonder stempel geldt bij het opslaan als niet na te gaan',
      /if\(laatstGelezen === -1\) return 'onbekend';/.test(SCRIPT) &&

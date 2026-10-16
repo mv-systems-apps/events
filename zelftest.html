@@ -3727,10 +3727,9 @@ function testLeeskopie(){
     eis('de toestand zegt dat het een kopie is', app.fileState, 'kopie');
     eis('maar niets geldt als niet-opgeslagen', app.nietOpgeslagen(), false);
     eis('wijzigen mag niet', app.magWijzigen(), false);
-    eis('de melding noemt het bestand', /proef\.txt/.test(app.kopieTekst()), true);
-    eis('en zegt dat wijzigen niet kan', /wijzigen kan nu niet/.test(app.kopieTekst()), true);
-    eis('met het moment als dd-mm-jjjj uu:mm, zonder komma ervoor',
-        /gelezen op \d\d-\d\d-\d{4} \d\d:\d\d\./.test(app.kopieTekst()), true);
+    eis('de balk toont alleen het moment van de kopie',
+        /^vandaag \d\d:\d\d$/.test(app.kopieTekst()), true);
+    eis('en wijzigen staat uit', app.magBewerken(), false);
 
     /* dit is de kern: er mag geen weg zijn waarlangs de kopie wordt weggezet */
     var voor = app.gedownloadVersie;
@@ -3899,6 +3898,11 @@ function testToegangBijWijzigen(){
         idb['kopie'] && idb['kopie'].tekst === map.fs['events.txt'].tekst, true);
     eis('met de stempel van het bestand', idb['kopie'] && idb['kopie'].mtime, map.fs['events.txt'].mtime);
     eis('en de configuratie', idb['kopie'] && idb['kopie'].cfg && idb['kopie'].cfg.scheidingsteken, '|');
+    eis('de kopie in beeld is de nieuwe', app.kopieRij === idb['kopie'], true);
+    eis('en de statusregel toont alleen het moment ervan',
+        d.getElementById('cfgStatusTxt').textContent, app.kopieTijd(idb['kopie'].tijd));
+    eis('dus vandaag, met de tijd',
+        /^vandaag \d\d:\d\d$/.test(d.getElementById('cfgStatusTxt').textContent), true);
 
     /* een noodbewerking buiten de app: niets overschrijven zonder vraag */
     return opzetten('granted', true);

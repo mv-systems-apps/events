@@ -835,7 +835,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-006</div>
+    <div id="appVersieStempel">Versie 1352898-007</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2201,11 +2201,14 @@ function bewaarKopie(naam, tekst, stempel){
   if(!naam) return Promise.resolve();
   var cfgKopie = null;
   try { cfgKopie = JSON.parse(JSON.stringify(cfg || {})); } catch(e){}
-  return idbPut(KOPIE, { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie,
+  var rij = { bestand: naam, tekst: tekst, tijd: Date.now(), cfg: cfgKopie,
                          mtime: stempel ? stempel.mtime : laatstGelezen,
                          grootte: stempel ? stempel.grootte : laatstGrootte,
-                         cfgMtime: cfgGelezen, cfgGrootte: cfgGrootte })
-    .then(function(){}, function(){ /* vol of geweigerd: dan is er geen kopie */ });
+                         cfgMtime: cfgGelezen, cfgGrootte: cfgGrootte };
+  /* Pas na het bewaren is dit de kopie: dan ook het moment ervan in beeld. */
+  return idbPut(KOPIE, rij)
+    .then(function(){ kopieRij = rij; tekenBestandStatus(); },
+          function(){ /* vol of geweigerd: dan is er geen kopie */ });
 }
 
 /* De lijst vullen uit de kopie zonder aan de toestand te raken. Bij een
@@ -2256,12 +2259,9 @@ function leesKopie(){
   });
 }
 
+/* Alleen het moment van de kopie: meer tekst hoeft niet, wijzigen staat uit. */
 function kopieTekst(){
-  var naam = (kopieRij && kopieRij.bestand) || bestandsnaam || 'het bestand';
-  var wanneer = (kopieRij && kopieRij.tijd) ? kopieTijd(kopieRij.tijd) : '';
-  return 'Laatst bewaarde kopie van ' + esc(naam) +
-         (wanneer ? ', gelezen op ' + esc(wanneer) : '') +
-         '. Dit is niet het bestand zelf, dus wijzigen kan nu niet.';
+  return (kopieRij && kopieRij.tijd) ? esc(kopieTijd(kopieRij.tijd)) : '';
 }
 
 /* Wijzigen mag alleen met een echt gekoppeld bestand. Lezen, filteren en zoeken
@@ -2980,21 +2980,27 @@ function opslagStand(){
   if(nietOpgeslagen())       return { tekst:'niet opgeslagen', kleur:' warn' };
   return { tekst:'opgeslagen', kleur:'' };
 }
-/* Het moment van een kopie als dd-mm-jjjj uu:mm. */
-function kopieTijd(ms){
-  var d = new Date(ms);
-  function p(n){ return (n < 10 ? '0' : '') + n; }
-  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' +
-         p(d.getHours()) + ':' + p(d.getMinutes());
+/* Het moment van een kopie: 'vandaag 17:45', 'gisteren 09:12' of
+   '14-10-2026 20:03'. nu is er voor de tests; anders de klok. Dezelfde functie
+   staat in Trends. */
+function kopieTijd(ms, nu){
+  var d = new Date(ms), n = new Date(nu === undefined ? Date.now() : nu);
+  function p(x){ return (x < 10 ? '0' : '') + x; }
+  function dag(x){ return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); }
+  var tijd = p(d.getHours()) + ':' + p(d.getMinutes());
+  /* via de kalenderdag, niet via 24 uur: dat gaat ook goed rond de zomertijd */
+  var gisteren = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1).getTime();
+  if(dag(d) === dag(n)) return 'vandaag ' + tijd;
+  if(dag(d) === gisteren) return 'gisteren ' + tijd;
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + tijd;
 }
 function tekenBestandStatus(){
-  var stand = opslagStand();
-  var kleur = stand.kleur, tekst = stand.tekst;
-  if(fileState === 'auth'){
-    kleur = toegangGeweigerd ? ' warn' : '';
-    /* zonder toegang: alleen het moment van de leeskopie die je ziet */
-    tekst = (kopieRij && kopieRij.tijd) ? kopieTijd(kopieRij.tijd) : '';
-  }
+  /* Altijd alleen het moment van de kopie: het laatste moment dat app en bestand
+     gelijk waren (de kopie gaat mee bij elk lezen en opslaan). Een probleem
+     kleurt het bolletje; de uitleg en de knop staan in de balk bovenin. */
+  var kleur = opslagStand().kleur;
+  var tekst = (kopieRij && kopieRij.tijd) ? kopieTijd(kopieRij.tijd) : '';
+  if(fileState === 'auth') kleur = toegangGeweigerd ? ' warn' : '';
   else if(fileState === 'geencfg'){ kleur = ' err'; tekst = cfgFout; }
   $('cfgDot').className = 'dot' + kleur;
   $('cfgStatusTxt').textContent = tekst;
