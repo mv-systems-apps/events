@@ -3272,32 +3272,22 @@ function testComfort(){
   eis('beide knoppen zijn 44 bij 44',
       (undo && ok) ? [undo, ok].map(function(b){ var r = b.getBoundingClientRect();
         return Math.round(r.width) + 'x' + Math.round(r.height); }).join(' ') : '(ontbreekt)', '44x44 44x44');
-  eis('alles op één regel: de balk is hooguit 56 px hoog',
+  eis('de balk is hooguit 56 px hoog',
       balk ? Math.round(balk.getBoundingClientRect().height) <= 56 : false, true);
-  /* een lange naam breekt niet af over twee regels */
+  /* een lange naam breekt niet af: de balk wordt niet hoger */
   app.onthoud('Drimmelore Vasqinter van der Langenaamsteeg-Overbeek', 'gewijzigd', app.records[0].id, null);
   app.render();
-  eis('ook met een lange naam blijft het één regel',
+  eis('ook met een lange naam wordt de balk niet hoger',
       balk ? Math.round(balk.getBoundingClientRect().height) <= 56 : false, true);
-  /* en dan valt het eind van de naam weg, nooit de actie: die staat als icoon vooraan */
-  var ico = d.querySelector('#stapTekst .stap-ico'), naamEl = d.querySelector('#stapTekst .stap-naam');
-  eis('de actie staat als icoon vooraan, volledig in beeld',
-      !!ico && ico.getBoundingClientRect().width >= 18 &&
-      ico.getBoundingClientRect().left >= balk.getBoundingClientRect().left, true);
+  /* en dan valt het eind van de naam weg, nooit de actie: die staat op een eigen regel */
+  var naamEl = d.querySelector('#stapTekst .stap-naam'), actieEl = d.querySelector('#stapTekst .stap-actie');
+  eis('de actie staat op een eigen regel onder de naam',
+      !!naamEl && !!actieEl && actieEl.getBoundingClientRect().top >= naamEl.getBoundingClientRect().bottom - 1, true);
+  eis('en is volledig te lezen', !!actieEl && actieEl.scrollWidth <= actieEl.clientWidth + 1 &&
+      actieEl.textContent.trim() === 'gewijzigd', true);
   eis('alleen de naam wordt afgekapt', !!naamEl && naamEl.scrollWidth > naamEl.clientWidth, true);
-  eis('het woord staat er voor een schermlezer bij', d.getElementById('stapTekst').textContent,
+  eis('voorgelezen als naam en actie', d.getElementById('stapTekst').textContent,
       'Drimmelore Vasqinter van der Langenaamsteeg-Overbeek gewijzigd');
-  var icoonVan = function(actie){
-    app.onthoud('X', actie, app.records[0].id, null); app.render();
-    var e = d.querySelector('#stapTekst .stap-ico'); return e ? e.innerHTML : '';
-  };
-  var iconen = ['gewijzigd', 'toegevoegd', 'verwijderd'].map(icoonVan);
-  app.onthoud('X', 'gewijzigd', app.records[0].id, null); app.terug.herstel = true; app.render();
-  iconen.push(d.querySelector('#stapTekst .stap-ico') ? d.querySelector('#stapTekst .stap-ico').innerHTML : '');
-  eis('elke actie heeft een eigen icoon (gewijzigd, toegevoegd, verwijderd, hersteld)',
-      iconen.filter(function(x, i){ return x && iconen.indexOf(x) === i; }).length, 4);
-  app.onthoud('Drimmelore Vasqinter van der Langenaamsteeg-Overbeek', 'gewijzigd', app.records[0].id, null);
-  app.render();
   /* de tekst wegtikken doet niets: bevestigen gaat alleen met het vinkje */
   if(balk) d.getElementById('stapTekst').click();
   eis('op de tekst tikken laat de balk staan', !!balk && !balk.hidden && !!app.terug, true);

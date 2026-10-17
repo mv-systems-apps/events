@@ -134,15 +134,13 @@ svg{display:block}
   background:var(--panel);
 }
 .stapbalk .stap-tekst{
-  flex:1;min-width:0;display:flex;align-items:center;gap:8px;
+  flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25;
   font-size:17px;color:var(--txt);
 }
-/* Het icoon zegt wat er gebeurde, zodat bij een lange naam alleen het eind van de
-   naam wegvalt en nooit de actie. Het woord staat er voor een schermlezer bij. */
-.stapbalk .stap-ico{flex:0 0 auto;width:20px;height:20px;fill:none;stroke:var(--accent);
-  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.stapbalk .stap-naam{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Twee regels: de naam bovenaan, zo nodig afgekapt; de actie eronder, altijd heel.
+   Zo valt bij een lange naam nooit het werkwoord weg. */
+.stapbalk .stap-naam{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stapbalk .stap-actie{font-size:15px;color:var(--muted)}
 .panel-head{
   display:flex;align-items:center;gap:8px;margin:8px 0;
 }
@@ -839,7 +837,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-012</div>
+    <div id="appVersieStempel">Versie 1352898-013</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -1059,18 +1057,12 @@ function terugTekst(){
   if(!terug) return '';
   return terug.naam + ' ' + terugActie();
 }
-var STAP_ICOON = {
-  gewijzigd: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-  toegevoegd: '<path d="M12 5v14"/><path d="M5 12h14"/>',
-  verwijderd: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/>',
-  hersteld: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'
-};
-/* Icoon, naam (zo nodig afgekapt) en het woord voor een schermlezer. */
+/* Naam en actie op een eigen regel; de spatie houdt de tekst leesbaar voor een
+   schermlezer ('<naam> gewijzigd'). */
 function terugHtml(){
   if(!terug) return '';
-  var actie = terugActie();
-  return '<svg class="stap-ico" viewBox="0 0 24 24" aria-hidden="true">' + STAP_ICOON[actie] + '</svg>' +
-         '<span class="stap-naam">' + esc(terug.naam) + '</span><span class="sr"> ' + actie + '</span>';
+  return '<span class="stap-naam">' + esc(terug.naam) + '</span>' +
+         '<span class="stap-actie"> ' + terugActie() + '</span>';
 }
 /* Eén stap terug, zelf ook terug te draaien (de knop wordt opnieuw), dus geen
    bevestiging nodig. Bewaard wordt alleen het verschil; het record wordt
