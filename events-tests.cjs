@@ -1479,6 +1479,9 @@ kop('13. Reparaties na de koude review');
      /\$\('stapTekst'\)\.innerHTML = terugHtml\(\);/.test(SCRIPT) && /class="stap-actie"/.test(haal('terugHtml')));
   ok('bij "kon niet nagaan" kun je opnieuw laten controleren, ook binnen de tijdrem',
      /\$\('fControle'\)\.onclick = function\(\)\{ externLaatst = 0; kijkExtern\(\); \};/.test(SCRIPT));
+  ok('als het laatste venster dichtgaat, wordt er alsnog gekeken',
+     (SCRIPT.match(/if\(!modalStapel\.length\) kijkNaSluiten\(\);/g) || []).length === 2 &&
+     /setTimeout\(kijkExtern, 300\)/.test(haal('kijkNaSluiten')));
   ok('lezen en opslaan wissen de stand "niet ingelezen"',
      (SCRIPT.match(/laatstGrootte = f\.size; externAfgewezen = null;/g) || []).length === 2);
   ok('zolang een wijziging niet is ingelezen, staat er een balk met Opnieuw laden',

@@ -837,7 +837,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-016</div>
+    <div id="appVersieStempel">Versie 1352898-017</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2272,6 +2272,15 @@ function bestandsStempel(){
     .then(function(f){ return { m: f.lastModified, g: f.size }; });
 }
 
+/* Stond er bij terugkeer een venster open, dan is de controle overgeslagen. Gaat het
+   laatste venster dicht, dan alsnog kijken. Even later, zodat een opslagactie die het
+   sluiten in gang zet al loopt (schrijfBezig) en niet voor een wijziging van buiten
+   wordt aangezien. */
+var kijkNaSluitenKlok = null;
+function kijkNaSluiten(){
+  clearTimeout(kijkNaSluitenKlok);
+  kijkNaSluitenKlok = setTimeout(kijkExtern, 300);
+}
 function kijkExtern(){
   if(!hasFSA || !dirHandle || !bestandsnaam || fileState !== 'ok') return false;
   if(schrijfBezig) return false;                 /* midden in een schrijfactie niet */
@@ -3922,6 +3931,7 @@ function bergModaal(id){
   var i = modalStapel.lastIndexOf(id);
   if(i < 0) return;
   modalStapel.splice(i, 1);
+  if(!modalStapel.length) kijkNaSluiten();
   var terugNaar = focusStapel.splice(i, 1)[0];
   /* per gesloten modal precies een stap terug; twee modals in een keer sluiten
      levert dus ook twee stappen op */
@@ -3935,6 +3945,7 @@ function bergNaPop(id){
   var i = modalStapel.lastIndexOf(id);
   if(i < 0) return;
   modalStapel.splice(i, 1);
+  if(!modalStapel.length) kijkNaSluiten();
   herstelFocus(focusStapel.splice(i, 1)[0]);
 }
 function bovensteModaal(){ return modalStapel[modalStapel.length - 1] || ''; }

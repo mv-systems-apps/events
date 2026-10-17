@@ -215,6 +215,7 @@ const MUTANTEN = [
   ['opnieuw controleren houdt de tijdrem aan', 'html', s => s.replace("$('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };", "$('fControle').onclick = function(){ kijkExtern(); };")],
   ['weer zelf inlezen zonder te vragen', 'html', s => s.replace("    return bestandsStempel().then(function(st){", "    return herleesExtern(); bestandsStempel().then(function(st){")],
   ['dezelfde wijziging steeds opnieuw vragen', 'html', s => s.replace("      if(externAfgewezen && externAfgewezen.m === st.m && externAfgewezen.g === st.g) return;\n", '')],
+  ['niet kijken na het sluiten van een venster', 'html', s => s.replace("  kijkNaSluitenKlok = setTimeout(kijkExtern, 300);", "")],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],

@@ -4009,7 +4009,38 @@ function testToegangBijWijzigen(){
         (app.vraag('t', 'b', 'Ja', function(){}), d.getElementById('cNo').textContent), 'Annuleren');
     app.bergModaal('confirm');
     app.externGemeld = false; app.externAfgewezen = null;
-    zetTerug();
+
+    /* Stond er een venster open bij terugkeer, dan kijkt de app alsnog als het dicht gaat. */
+    return wacht(400).then(function(){
+      app.toonModaal('infoModal');
+      map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst + 'E|Eva|Geboren|D19960101|1\n', mtime: 9500 };
+      app.externLaatst = 0;
+      eis('met een venster open wordt er niet gekeken', app.kijkExtern(), false);
+      app.bergModaal('infoModal');
+      return wacht(700);
+    }).then(function(){
+      eis('na het sluiten van het venster komt de vraag alsnog', modaalOpen('confirm'), true);
+      app.bergModaal('confirm');
+      return wacht(400);
+    }).then(function(){
+      app.externGemeld = false; app.externAfgewezen = null;
+      /* Opslaan via het bewerkvenster: na het sluiten schrijft de app zelf; dat mag
+         geen vraag over een wijziging van buiten opleveren. */
+      return opzetten('granted', false);
+    }).then(function(){
+      return voegToe();                                  // toegang, bestand gelezen
+    }).then(function(){
+      app.selIndex = 0; app.render();
+      app.openModal(0);
+      d.getElementById('fNaam').value = 'Anna de Vries-Bakker';
+      app.bewaarModal();
+      return wacht(900);
+    }).then(function(){
+      eis('opslaan via het bewerkvenster geeft geen vraag over een wijziging van buiten', modaalOpen('confirm'), false);
+      eis('en de wijziging staat in het bestand', /Anna de Vries-Bakker/.test(map.fs['events.txt'].tekst), true);
+      app.externGemeld = false; app.externAfgewezen = null;
+      zetTerug();
+    });
   }, function(e){
     zetTerug();
     eis('de groep liep door', 'uitzondering: ' + (e && e.message), 'ja');
