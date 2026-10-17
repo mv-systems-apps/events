@@ -4141,6 +4141,16 @@ function testNaBewerken(){
       app.document.getElementById('cfgModal').hidden, true);
   eis('zonder vraag', app.document.getElementById('confirm').hidden, true);
 
+  /* de melding over wijzigingen van buiten blijft tot je erop tikt */
+  var bewaardState = app.fileState;
+  app.fileState = 'ok'; app.externGemeld = true; app.render();
+  var balk = app.document.getElementById('fExtern');
+  eis('de melding over wijzigingen van buiten is weg te tikken', !!balk, true);
+  if(balk) balk.click();
+  eis('na de tik is hij weg', !!app.document.getElementById('fExtern'), false);
+  eis('en blijft hij weg', app.externGemeld, false);
+  app.fileState = bewaardState; app.render();
+
   /* de teller: een tweede getal alleen als het iets toevoegt */
   app.records = app.parse(regels.join('\n') + '\ndit is geen event\n');
   app.sorteer(); app.selIndex = -1; app.gelijkgezet(); app.render();

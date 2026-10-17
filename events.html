@@ -833,7 +833,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-010</div>
+    <div id="appVersieStempel">Versie 1352898-011</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2319,10 +2319,10 @@ function herleesExtern(){
       window.scrollTo(0, pos);
       return;
     }
+    /* De melding blijft tot je erop tikt: dan weet je zeker dat je hem hebt gezien. */
     externGemeld = true;
     render();
     window.scrollTo(0, pos);
-    setTimeout(function(){ externGemeld = false; render(); }, 8000);
   });
 }
 
@@ -2737,14 +2737,16 @@ function renderFilebar(){
       'ingelezen en er is niets weggegooid.</div></div>');
   }
   if(externGemeld){
-    meldingen.push('<div class="banner"><div class="banner-text">De wijzigingen van buiten ' +
-      'de app zijn ingelezen.</div></div>');
+    meldingen.push('<div class="banner" id="fExtern" role="button" tabindex="0">' +
+      '<div class="banner-text">De wijzigingen van buiten de app zijn ingelezen — ' +
+      'tik om te sluiten</div></div>');
   }
   var hb = herstelBanner();
   if(hb) meldingen.push(hb);
   var vb = versieBanner();
   if(vb) meldingen.push(vb);
   el.innerHTML = meldingen.join('');
+  if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };
   if($('fDl')) $('fDl').onclick = downloaden;
   if($('fOpnieuw')) $('fOpnieuw').onclick = bewaar;
   if($('fHerlaad')) $('fHerlaad').onclick = laadCfg;

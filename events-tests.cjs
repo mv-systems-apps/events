@@ -1452,6 +1452,8 @@ kop('13. Reparaties na de koude review');
   ok('de statusregel toont altijd het moment, ook met toegang',
      /var tekst = \(kopieRij && kopieRij\.tijd\) \? kopieTijd\(kopieRij\.tijd\) : '';/.test(status) &&
      !/stand\.tekst/.test(status));
+  ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
+     !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
      /\$\('cfgCancel'\)\.onclick = function\(\)\{ sluitBovenste\(false\); \};/.test(SCRIPT));
   ok('na het bewaren van een kopie is die ook in beeld',
