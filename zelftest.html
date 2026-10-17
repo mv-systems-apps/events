@@ -4150,6 +4150,22 @@ function testNaBewerken(){
       app.document.getElementById('cfgModal').hidden, true);
   eis('zonder vraag', app.document.getElementById('confirm').hidden, true);
 
+  /* lukte de controle van buiten niet, dan kun je hem zelf opnieuw laten doen */
+  var bw = {}; ['fileState','hasFSA','dirHandle','bestandsnaam','externOnbekend','externGewijzigd','externLaatst']
+    .forEach(function(k){ bw[k] = app[k]; });
+  app.fileState = 'ok'; app.hasFSA = true; app.dirHandle = {}; app.bestandsnaam = 'e.txt';
+  app.externOnbekend = true; app.externLaatst = Date.now();   // binnen de tijdrem
+  var gecontroleerd = 0;
+  app.externGewijzigd = function(){ gecontroleerd++; return Promise.resolve('gelijk'); };
+  app.render();
+  var knopC = app.document.getElementById('fControle');
+  eis('bij "kon niet nagaan" staat een knop om opnieuw te controleren', !!knopC, true);
+  if(knopC) knopC.click();
+  return new Promise(function(r){ setTimeout(r, 50); }).then(function(){
+  eis('de knop controleert meteen, ook binnen de tijdrem', gecontroleerd, 1);
+  eis('en lukt het nu, dan verdwijnt de melding', !!app.document.getElementById('fControle'), false);
+  Object.keys(bw).forEach(function(k){ app[k] = bw[k]; }); app.render();
+
   /* de melding over wijzigingen van buiten blijft tot je erop tikt */
   var bewaardState = app.fileState;
   app.fileState = 'ok'; app.externGemeld = true; app.render();
@@ -4175,7 +4191,7 @@ function testNaBewerken(){
 
   namen.forEach(function(n){ app[n] = bewaard[n]; });
   app.render();
-  return Promise.resolve();
+  });
 }
 
 /* Het schermtoetsenbord. Dit is het enige overgebleven punt uit de koude review

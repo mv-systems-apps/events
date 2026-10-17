@@ -837,7 +837,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-013</div>
+    <div id="appVersieStempel">Versie 1352898-014</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2746,7 +2746,8 @@ function renderFilebar(){
   if(externOnbekend){
     meldingen.push('<div class="banner"><div class="banner-text">De app kon niet nagaan of ' +
       esc(bestandsnaam) + ' buiten de app is gewijzigd. De lijst is daarom niet opnieuw ' +
-      'ingelezen en er is niets weggegooid.</div></div>');
+      'ingelezen en er is niets weggegooid.</div>' +
+      '<button class="btn btn-warn" id="fControle">Opnieuw controleren</button></div>');
   }
   if(externGemeld){
     meldingen.push('<div class="banner" id="fExtern" role="button" tabindex="0">' +
@@ -2759,6 +2760,8 @@ function renderFilebar(){
   if(vb) meldingen.push(vb);
   el.innerHTML = meldingen.join('');
   if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };
+  /* Opnieuw controleren gaat meteen, ook binnen de tijdrem: je vraagt er zelf om. */
+  if($('fControle')) $('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };
   if($('fDl')) $('fDl').onclick = downloaden;
   if($('fOpnieuw')) $('fOpnieuw').onclick = bewaar;
   if($('fHerlaad')) $('fHerlaad').onclick = laadCfg;

@@ -1454,6 +1454,8 @@ kop('13. Reparaties na de koude review');
      !/stand\.tekst/.test(status));
   ok('de stapbalk toont naam en actie op een eigen regel',
      /\$\('stapTekst'\)\.innerHTML = terugHtml\(\);/.test(SCRIPT) && /class="stap-actie"/.test(haal('terugHtml')));
+  ok('bij "kon niet nagaan" kun je opnieuw laten controleren, ook binnen de tijdrem',
+     /\$\('fControle'\)\.onclick = function\(\)\{ externLaatst = 0; kijkExtern\(\); \};/.test(SCRIPT));
   ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
      !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',

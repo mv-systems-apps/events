@@ -212,6 +212,7 @@ const MUTANTEN = [
   ['Annuleren in de configuratie weer zonder vraag', 'html', s => s.replace("$('cfgCancel').onclick = function(){ sluitBovenste(false); };", '')],
   ['melding van buiten niet weg te tikken', 'html', s => s.replace("  if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };\n", '')],
   ['stapbalk weer als platte tekst', 'html', s => s.replace("  $('stapTekst').innerHTML = terugHtml();", "  $('stapTekst').textContent = terugTekst();")],
+  ['opnieuw controleren houdt de tijdrem aan', 'html', s => s.replace("$('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };", "$('fControle').onclick = function(){ kijkExtern(); };")],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],
