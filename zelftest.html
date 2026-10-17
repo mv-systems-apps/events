@@ -3978,72 +3978,47 @@ function testToegangBijWijzigen(){
     eis('daarna is het bestand gekoppeld', app.fileState, 'ok');
     eis('en is er een kopie met stempel', idb['kopie'] && idb['kopie'].mtime, 2000);
 
-    /* Gewijzigd buiten de app terwijl hij open staat: vragen, zoals een editor. */
+    /* Een wijziging buiten de app wordt niet bij terugkeer gemeld; wel vangt de
+       botsingscontrole hem op bij het opslaan. Opslaan via het bewerkvenster
+       zonder wijziging van buiten geeft dus geen balk. */
     return opzetten('granted', false);
   }).then(function(){
-    return voegToe();                                  // nu met toegang, bestand gelezen
+    return voegToe();                                  // toegang, bestand gelezen
   }).then(function(){
-    var voor = app.records.length;
     map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst + 'D|Dirk|Geboren|D19950101|1\n', mtime: 9000 };
-    app.externLaatst = 0; app.kijkExtern();
-    return wacht(300).then(function(){ return voor; });
-  }).then(function(voor){
-    var fb = function(){ return d.getElementById('filebar').textContent; };
-    eis('bij terugkeer na een wijziging buiten de app: geen vraagvenster', modaalOpen('confirm'), false);
-    eis('maar een balk: Bestand is buiten de app gewijzigd.', /Bestand is buiten de app gewijzigd\./.test(fb()), true);
-    eis('met Inlezen en Annuleren', !!d.getElementById('fHerlees') && !!d.getElementById('fNegeer'), true);
-    eis('nog niets ingelezen', app.records.length, voor);
-    d.getElementById('fNegeer').click();
-    eis('Annuleren: de lijst blijft zoals hij was', app.records.length, voor);
-    eis('en de balk is weg', !!d.getElementById('fNegeer'), false);
-    app.externLaatst = 0; app.kijkExtern();
-    return wacht(300).then(function(){ return voor; });
-  }).then(function(voor){
-    eis('dezelfde wijziging komt na Annuleren niet terug', !!d.getElementById('fHerlees'), false);
-    map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst, mtime: 9100 };
-    app.externLaatst = 0; app.kijkExtern();
-    return wacht(300).then(function(){ return voor; });
-  }).then(function(voor){
-    var knop = d.getElementById('fHerlees');
-    eis('een volgende wijziging meldt zich wel weer', !!knop, true);
-    if(knop) knop.click();
-    return wacht(300).then(function(){ return voor; });
-  }).then(function(voor){
-    eis('Inlezen leest het bestand in', app.records.length, voor + 1);
-    eis('en daarna is de balk weg', !!d.getElementById('fHerlees'), false);
-    app.externGemeld = false; app.externAfgewezen = null;
-
-    /* Stond er een venster open bij terugkeer, dan kijkt de app alsnog als het dicht gaat. */
-    return wacht(400).then(function(){
-      app.toonModaal('infoModal');
-      map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst + 'E|Eva|Geboren|D19960101|1\n', mtime: 9500 };
-      app.externLaatst = 0;
-      eis('met een venster open wordt er niet gekeken', app.kijkExtern(), false);
-      app.bergModaal('infoModal');
-      return wacht(700);
+    app.externLaatst = 0;   // bestond tot 1352898-018: dan telt de tijdrem niet mee
+    app.dispatchEvent(new app.Event('focus'));
+    app.document.dispatchEvent(new app.Event('visibilitychange'));
+    return wacht(400);
+  }).then(function(){
+    eis('bij terugkeer na een wijziging buiten de app gebeurt er niets', 
+        modaalOpen('confirm') || /buiten de app gewijzigd/.test(d.getElementById('filebar').textContent), false);
+    app.selIndex = 0; app.render();
+    app.openModal(0);
+    d.getElementById('fNaam').value = 'Anna de Vries-Bakker';
+    app.bewaarModal();
+    return wacht(900);
+  }).then(function(){
+    eis('maar opslaan daarna botst: Toch opslaan en Annuleren in de balk',
+        !!d.getElementById('fToch') && !!d.getElementById('fAnnuleer'), true);
+    d.getElementById('fToch').click();
+    return wacht(600);
+  }).then(function(){
+    eis('Toch opslaan zet jouw wijziging in het bestand', /Anna de Vries-Bakker/.test(map.fs['events.txt'].tekst), true);
+    return opzetten('granted', false);
+  }).then(function(){
+    return voegToe();
+  }).then(function(){
+    app.selIndex = 0; app.render();
+    app.openModal(0);
+    d.getElementById('fNaam').value = 'Anna de Vries-Bakker';
+    app.bewaarModal();
+    return wacht(900);
     }).then(function(){
-      eis('na het sluiten van het venster komt de melding alsnog', !!d.getElementById('fHerlees'), true);
-      return wacht(400);
-    }).then(function(){
-      app.externGemeld = false; app.externAfgewezen = null;
-      /* Opslaan via het bewerkvenster: na het sluiten schrijft de app zelf; dat mag
-         geen vraag over een wijziging van buiten opleveren. */
-      return opzetten('granted', false);
-    }).then(function(){
-      return voegToe();                                  // toegang, bestand gelezen
-    }).then(function(){
-      app.selIndex = 0; app.render();
-      app.openModal(0);
-      d.getElementById('fNaam').value = 'Anna de Vries-Bakker';
-      app.bewaarModal();
-      return wacht(900);
-    }).then(function(){
-      eis('opslaan via het bewerkvenster geeft geen melding over een wijziging van buiten',
-          !!d.getElementById('fHerlees') || !!d.getElementById('fToch'), false);
+      eis('opslaan via het bewerkvenster zonder wijziging van buiten geeft geen balk',
+          !!d.getElementById('fToch'), false);
       eis('en de wijziging staat in het bestand', /Anna de Vries-Bakker/.test(map.fs['events.txt'].tekst), true);
-      app.externGemeld = false; app.externAfgewezen = null;
       zetTerug();
-    });
   }, function(e){
     zetTerug();
     eis('de groep liep door', 'uitzondering: ' + (e && e.message), 'ja');
@@ -4218,31 +4193,25 @@ function testNaBewerken(){
       app.document.getElementById('cfgModal').hidden, true);
   eis('zonder vraag', app.document.getElementById('confirm').hidden, true);
 
-  /* lukte de controle van buiten niet, dan kun je hem zelf opnieuw laten doen */
-  var bw = {}; ['fileState','hasFSA','dirHandle','bestandsnaam','externOnbekend','externGewijzigd','externLaatst']
-    .forEach(function(k){ bw[k] = app[k]; });
-  app.fileState = 'ok'; app.hasFSA = true; app.dirHandle = {}; app.bestandsnaam = 'e.txt';
-  app.externOnbekend = true; app.externLaatst = Date.now();   // binnen de tijdrem
-  var gecontroleerd = 0;
-  app.externGewijzigd = function(){ gecontroleerd++; return Promise.resolve('gelijk'); };
-  app.render();
-  var knopC = app.document.getElementById('fControle');
-  eis('bij "kon niet nagaan" staat een knop om opnieuw te controleren', !!knopC, true);
-  if(knopC) knopC.click();
-  return new Promise(function(r){ setTimeout(r, 50); }).then(function(){
-  eis('de knop controleert meteen, ook binnen de tijdrem', gecontroleerd, 1);
-  eis('en lukt het nu, dan verdwijnt de melding', !!app.document.getElementById('fControle'), false);
-  Object.keys(bw).forEach(function(k){ app[k] = bw[k]; }); app.render();
+  return Promise.resolve().then(function(){
 
-  /* de melding over wijzigingen van buiten blijft tot je erop tikt */
-  var bewaardState = app.fileState;
-  app.fileState = 'ok'; app.externGemeld = true; app.render();
-  var balk = app.document.getElementById('fExtern');
-  eis('de melding over wijzigingen van buiten is weg te tikken', !!balk, true);
-  if(balk) balk.click();
-  eis('na de tik is hij weg', !!app.document.getElementById('fExtern'), false);
-  eis('en blijft hij weg', app.externGemeld, false);
-  app.fileState = bewaardState; app.render();
+  /* App-status: het versienummer van de offline-kopie komt later binnen. Is het
+     scherm dan al weg, dan mag dat geen fout geven. */
+  var fouten = 0, vang = function(){ fouten++; };
+  app.addEventListener('unhandledrejection', vang);
+  var bwS = { cacheOpslag: app.cacheOpslag, nieuwsteStempelUitCache: app.nieuwsteStempelUitCache };
+  var los;
+  app.cacheOpslag = function(){ return {}; };
+  app.nieuwsteStempelUitCache = function(){ return new Promise(function(r){ los = r; }); };
+  var tijdelijk = app.document.createElement('div'); tijdelijk.id = 'stKopie';
+  app.document.body.appendChild(tijdelijk);
+  app.statusVersieKopie({});
+  tijdelijk.remove();
+  los({ stempel: '1352898-999' });
+  return new Promise(function(r){ setTimeout(r, 50); }).then(function(){
+  app.removeEventListener('unhandledrejection', vang);
+  app.cacheOpslag = bwS.cacheOpslag; app.nieuwsteStempelUitCache = bwS.nieuwsteStempelUitCache;
+  eis('een laat antwoord voor App-status geeft geen fout als het scherm al weg is', fouten, 0);
 
   /* de teller: een tweede getal alleen als het iets toevoegt */
   app.records = app.parse(regels.join('\n') + '\ndit is geen event\n');
@@ -4259,6 +4228,7 @@ function testNaBewerken(){
 
   namen.forEach(function(n){ app[n] = bewaard[n]; });
   app.render();
+  });
   });
 }
 

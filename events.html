@@ -840,7 +840,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-018</div>
+    <div id="appVersieStempel">Versie 1352898-019</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2215,7 +2215,7 @@ function magWijzigen(){ return fileState === 'ok'; }
 function laden(){
   if(!dirHandle || !bestandsnaam) return Promise.resolve();
   return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
-    .then(function(f){ laatstGelezen = f.lastModified; laatstGrootte = f.size; externAfgewezen = null; return f.text(); })
+    .then(function(f){ laatstGelezen = f.lastModified; laatstGrootte = f.size; return f.text(); })
     .then(function(t){
       records = parse(t); sorteer(); selIndex = -1; gelijkgezet();
       /* Na de echte parse: zoekBeterSep parseert zelf ook en deelt nummers uit,
@@ -2246,123 +2246,9 @@ function laden(){
       fileState = 'auth'; render();
     });
 }
-/* --- terugkeren naar de app: is het bestand buiten de app gewijzigd? ---
-   Met dezelfde externGewijzigd() en laden() als bij het opslaan, dus geen tweede
-   mechanisme. Alleen op het FSA-pad: zonder werkmap is er geen handle en kan de app
-   het bestand na het openen niet meer bekijken. Op Chrome Android kiest elke sessie
-   het bestand opnieuw, dus is de inhoud daar bij het openen vers.
-
-   De tijdrem is er omdat focus en visibilitychange vlak na elkaar afgaan als je
-   terugschakelt: zonder rem worden het twee controles op hetzelfde moment. */
-var EXTERN_INTERVAL = 1500;
-var externLaatst = 0;
-var externGemeld = false;
-/* Een slot naast de tijdrem. De rem beperkt hoe vaak er wordt gekeken, het slot dat
-   er twee controles naast elkaar lopen: duurt een controle langer dan het interval
-   -- een trage schijf, een netwerkmap -- dan start de volgende er anders bovenop en
-   wordt er twee keer opnieuw ingelezen. */
-var externBezig = false;
-/* Een toestand, geen gebeurtenis: de melding blijft staan zolang de controle
-   mislukt en verdwijnt zodra er een lukt, zonder bij elk terugschakelen opnieuw te
-   verschijnen. */
-var externOnbekend = false;
-/* Buiten de app gewijzigd en (nog) niet ingelezen: de stempel van die versie. Zolang
-   die staat, zie je de versie van ervoor en zegt een balk dat; de vraag komt niet
-   opnieuw voor dezelfde wijziging, wel als het bestand daarna weer verandert. */
-var externAfgewezen = null;
-function bestandsStempel(){
-  return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
-    .then(function(f){ return { m: f.lastModified, g: f.size }; });
-}
-
-/* Stond er bij terugkeer een venster open, dan is de controle overgeslagen. Gaat het
-   laatste venster dicht, dan alsnog kijken. Even later, zodat een opslagactie die het
-   sluiten in gang zet al loopt (schrijfBezig) en niet voor een wijziging van buiten
-   wordt aangezien. */
-var kijkNaSluitenKlok = null;
-function kijkNaSluiten(){
-  clearTimeout(kijkNaSluitenKlok);
-  kijkNaSluitenKlok = setTimeout(kijkExtern, 300);
-}
-function kijkExtern(){
-  if(!hasFSA || !dirHandle || !bestandsnaam || fileState !== 'ok') return false;
-  if(schrijfBezig) return false;                 /* midden in een schrijfactie niet */
-  /* Niet met een open modal: die houdt een record vast en opnieuw inlezen vervangt
-     het. De controle volgt na het sluiten; de tijdrem staat dat toe. */
-  if(modalStapel.length) return false;
-  if(externBezig) return false;
-  var nu = Date.now();
-  if(nu - externLaatst < EXTERN_INTERVAL) return false;
-  externLaatst = nu;
-  externBezig = true;
-  /* Ook een SYNCHRONE uitzondering van externGewijzigd -- een ingetrokken handle
-     waarbij getFileHandle meteen gooit in plaats van een afgewezen belofte te geven
-     -- moet het slot vrijgeven; de vangnetten hieronder zitten op de belofte.
-     Anders merkt de app tot herladen geen enkele wijziging van buiten meer op. */
-  var bezig;
-  try { bezig = externGewijzigd(); }
-  catch(err){ externBezig = false; return true; }
-  bezig.then(function(stand){
-    /* Onbekend is geen vaststelling van gewijzigd: niet inlezen (dat gooit de stap
-       terug weg) en niets wissen, volgende keer opnieuw proberen. */
-    if(stand === 'onbekend'){
-      if(!externOnbekend){ externOnbekend = true; render(); }
-      return;
-    }
-    if(externOnbekend){ externOnbekend = false; render(); }
-    if(stand === 'gelijk') return;
-    if(nietOpgeslagen() && saveState !== 'fout'){
-      /* Er staat iets in het geheugen en de app gaat dat zelf nog wegschrijven. Dan
-         hier niets doen: bewaar() doet vlak voor het schrijven zijn eigen
-         botsingscontrole, en dat is het juiste moment. Een melding hier zet
-         saveState op 'extern' en houdt juist die schrijfactie tegen. */
-      return;
-    }
-    if(nietOpgeslagen() || herstelRij){
-      /* Opslaan lukt niet of er staan herstelgegevens: melden zoals bij een
-         botsing, met Opnieuw laden. De buffer blijft staan en er wordt niets
-         overheen gelezen. */
-      saveState = 'extern'; render();
-      return;
-    }
-    /* Niet zelf inlezen maar melden, met de keuze in de balk: een per ongeluk
-       gewijzigd bestand komt zo niet ongemerkt in beeld. */
-    return bestandsStempel().then(function(st){
-      if(externAfgewezen && externAfgewezen.m === st.m && externAfgewezen.g === st.g) return;
-      externAfgewezen = st;
-      render();
-    });
-  }).catch(function(){
-    /* een mislukte controle mag de app niet laten struikelen */
-  }).then(function(){ externBezig = false; });
-  return true;
-}
-
-/* Selectie op inhoud, niet op index: parse deelt de nummers opnieuw uit. Filters en
-   zoekterm blijven staan. */
-function herleesExtern(){
-  var was = (selIndex >= 0 && records[selIndex]) ? regelVan(records[selIndex]) : null;
-  var pos = window.scrollY;
-  var versieVoor = wijzigVersie;
-  return laden().then(function(){
-    if(was){
-      for(var i = 0; i < records.length; i++){
-        if(regelVan(records[i]) === was){ selIndex = i; break; }
-      }
-    }
-    /* Getypt tijdens het inlezen: laden() heeft de wijziging verdrongen, de buffer
-       heeft hem nog. Dan niet melden dat alles netjes is ingelezen. */
-    if(wijzigVersie !== versieVoor){
-      saveState = 'extern'; render();
-      window.scrollTo(0, pos);
-      return;
-    }
-    /* De melding blijft tot je erop tikt: dan weet je zeker dat je hem hebt gezien. */
-    externGemeld = true;
-    render();
-    window.scrollTo(0, pos);
-  });
-}
+/* Een wijziging buiten de app wordt niet bij terugkeer gecontroleerd: dat gaf te
+   veel onduidelijke meldingen. Je leest zelf opnieuw in (Instellingen > Bestand), en
+   bij het opslaan vangt de botsingscontrole een wijziging van buiten op. */
 
 /* Edge op Android onthoudt de toegang maar tot de app dicht is, dus de app vraagt
    er pas om bij opslaan en bij 'Opnieuw inlezen'; tot dan staat de leeskopie in
@@ -2532,7 +2418,7 @@ function schrijfEvents(negeer){
     .then(function(){ return dirHandle.getFileHandle(bestandsnaam); })
     .then(function(h){ return h.getFile(); })
     .then(function(f){
-      laatstGelezen = f.lastModified; laatstGrootte = f.size; externAfgewezen = null;
+      laatstGelezen = f.lastModified; laatstGrootte = f.size;
       bewaardeVersie = versie;
       /* Wat nu in het bestand staat, is ook de leeskopie. Anders loopt de kopie na
          elke eigen wijziging achter tot het bestand opnieuw wordt ingelezen, en dat
@@ -2762,39 +2648,13 @@ function renderFilebar(){
     meldingen.push('<div class="banner"><div class="banner-text">Wijzigingen worden niet ' +
       'tussentijds bewaard. Sla op voor je de app sluit.</div></div>');
   }
-  /* Lukte de laatste controle van buiten niet, dan blijft dat in beeld tot een
-     controle wel lukt (zie externOnbekend). Is er wel iets van buiten ingelezen,
-     dan wordt dat gemeld, zodat een lijst die ineens anders is zich laat
-     verklaren; die melding blijft tot je erop tikt. */
-  if(externOnbekend){
-    meldingen.push('<div class="banner"><div class="banner-text">Controle op wijzigingen ' +
-      'mislukt.</div>' +
-      '<button class="btn btn-warn" id="fControle">Opnieuw proberen</button></div>');
-  }
-  /* Niet bij een botsing: die melding heeft zelf de keuze. Annuleren verbergt de
-     melding voor deze wijziging; een volgende wijziging meldt zich weer. */
-  if(externAfgewezen && !externAfgewezen.verborgen && saveState !== 'extern'){
-    meldingen.push('<div class="banner"><div class="banner-text">Bestand is buiten de app ' +
-      'gewijzigd.</div><div class="banner-knoppen">' +
-      '<button class="btn btn-warn" id="fHerlees">Inlezen</button>' +
-      '<button class="btn" id="fNegeer">Annuleren</button></div></div>');
-  }
-  if(externGemeld){
-    meldingen.push('<div class="banner" id="fExtern" role="button" tabindex="0">' +
-      '<div class="banner-text">Wijziging van buiten ingelezen — tik om te sluiten</div></div>');
-  }
   var hb = herstelBanner();
   if(hb) meldingen.push(hb);
   var vb = versieBanner();
   if(vb) meldingen.push(vb);
   el.innerHTML = meldingen.join('');
-  if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };
-  if($('fHerlees')) $('fHerlees').onclick = function(){ herleesExtern(); };
-  if($('fNegeer')) $('fNegeer').onclick = function(){ externAfgewezen.verborgen = true; render(); };
   if($('fToch')) $('fToch').onclick = function(){ negeerBotsing = true; bewaar(); };
   if($('fAnnuleer')) $('fAnnuleer').onclick = laadCfg;
-  /* Opnieuw controleren gaat meteen, ook binnen de tijdrem: je vraagt er zelf om. */
-  if($('fControle')) $('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };
   if($('fDl')) $('fDl').onclick = downloaden;
   if($('fOpnieuw')) $('fOpnieuw').onclick = bewaar;
   koppelVersieKnop();
@@ -3515,13 +3375,16 @@ function statusVersieKopie(opslag){
   if(!c){ el.innerHTML = statusRegel('Versie in de offline-kopie', 'geen cache'); return; }
   /* Dezelfde functie als checkAppUpdate gebruikt, zodat App-status hetzelfde
      stempel toont als de app vergelijkt. */
+  /* Het antwoord komt later; is App-status intussen dicht of opnieuw opgebouwd,
+     dan is dit element weg en valt er niets meer in te vullen. */
+  var zet = function(html){ if(document.contains(el)) el.innerHTML = html; };
   nieuwsteStempelUitCache(c).then(function(uit){
     if(!uit.stempel) throw new Error(uit.reden);
     var n = uit.stempel, eigen = appStempel();
-    $('stKopie').innerHTML = statusRegel('Versie in de offline-kopie',
-      n + (n > eigen ? ' \u2014 nieuwer dan deze pagina' : ''), n >= eigen);
+    zet(statusRegel('Versie in de offline-kopie',
+      n + (n > eigen ? ' \u2014 nieuwer dan deze pagina' : ''), n >= eigen));
   }).catch(function(e){
-    $('stKopie').innerHTML = statusRegel('Versie in de offline-kopie', e.message, false);
+    zet(statusRegel('Versie in de offline-kopie', e.message, false));
   });
 }
 
@@ -3930,7 +3793,6 @@ function bergModaal(id){
   var i = modalStapel.lastIndexOf(id);
   if(i < 0) return;
   modalStapel.splice(i, 1);
-  if(!modalStapel.length) kijkNaSluiten();
   var terugNaar = focusStapel.splice(i, 1)[0];
   /* per gesloten modal precies een stap terug; twee modals in een keer sluiten
      levert dus ook twee stappen op */
@@ -3944,7 +3806,6 @@ function bergNaPop(id){
   var i = modalStapel.lastIndexOf(id);
   if(i < 0) return;
   modalStapel.splice(i, 1);
-  if(!modalStapel.length) kijkNaSluiten();
   herstelFocus(focusStapel.splice(i, 1)[0]);
 }
 function bovensteModaal(){ return modalStapel[modalStapel.length - 1] || ''; }
@@ -4417,11 +4278,10 @@ function toonSelectie(){
 }
 
 /* ------------------ bevestiging ------------------ */
-function vraag(titel, tekst, knop, cb, neeKnop){
+function vraag(titel, tekst, knop, cb){
   $('cTitle').textContent = titel;
   $('cBody').textContent = tekst;
   $('cYes').textContent = knop;
-  $('cNo').textContent = neeKnop || 'Annuleren';
   confirmCb = cb;
   toonModaal('confirm');
 }
@@ -4805,12 +4665,7 @@ if('serviceWorker' in navigator){
       if(document.visibilityState !== 'visible') return;
       vraagSwUpdate();
       checkAppUpdate();
-      kijkExtern();
     });
-    /* Op desktop schakel je tussen vensters zonder dat visibilitychange afgaat;
-       daar is focus het signaal. Gaan ze beide af, dan vangt de tijdrem in
-       kijkExtern dat op. */
-    window.addEventListener('focus', function(){ kijkExtern(); });
   });
 }
 

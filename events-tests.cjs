@@ -1013,7 +1013,7 @@ kop('12. Externe wijzigingen aan het gegevensbestand');
 /* Eerst kijken of de functies er zijn. Zonder deze controle crasht de bundel op
    een oudere events.html en krijg je een stacktrace in plaats van te zien wat
    er mist -- dan lijkt er niets te zijn mislukt. */
-const AANWEZIG = ['regelVan', 'kijkExtern', 'herleesExtern', 'externGewijzigd']
+const AANWEZIG = ['regelVan', 'externGewijzigd']
   .filter((n) => !new RegExp('^function ' + n + '\\s*\\(', 'm').test(SCRIPT));
 if (AANWEZIG.length) {
   AANWEZIG.forEach((n) => ok('events.html heeft de functie ' + n, false, 'ontbreekt'));
@@ -1214,206 +1214,15 @@ if (AANWEZIG.length) {
 }
 
 {
-  /* kijkExtern: wanneer wordt er gekeken, en wat gebeurt er met het antwoord? */
-  const maak = (opzet) => {
-    const ctx = { geladen: 0, getekend: 0, gemeld: 0, saveState: '', gevraagd: 0, vraagCb: null,
-                  stempel: { m: 2, g: 20 } };
-    const fn = new Function('ctx', [
-      'var EXTERN_INTERVAL = ' + /var EXTERN_INTERVAL = (\d+);/.exec(SCRIPT)[1] + ';',
-      'var externLaatst = 0, externGemeld = false, externBezig = false, externOnbekend = false;',
-      'var externAfgewezen = null;',
-      'function bestandsStempel(){ return Promise.resolve(ctx.stempel); }',
-      /* het antwoord op de vraag: standaard Opnieuw laden, 'geen' = nog niet gekozen */
-      'function vraag(t, b, k, cb, nee){ ctx.gevraagd++; ctx.vraagCb = cb; ctx.nee = nee;',
-      '  if("' + (opzet.antwoord || 'ja') + '" === "ja") cb(); }',
-      'var hasFSA = ' + (opzet.hasFSA === false ? 'false' : 'true') + ';',
-      'var dirHandle = ' + (opzet.handle === false ? 'null' : '{}') + ';',
-      'var bestandsnaam = ' + (opzet.naam === false ? '""' : '"events_mark.txt"') + ';',
-      'var fileState = "' + (opzet.fileState || 'ok') + '";',
-      'var schrijfBezig = ' + (opzet.schrijfBezig ? 'true' : 'false') + ';',
-      'var herstelRij = ' + (opzet.herstelRij ? '{ tekst:"x" }' : 'null') + ';',
-      'var selIndex = -1, records = [], wijzigVersie = 0, saveState = "' + (opzet.saveState || '') + '";',
-      'var modalStapel = ' + (opzet.modalOpen ? '["modal"]' : '[]') + ';',
-      'var window = { scrollY: 0, scrollTo: function(){} };',
-      'function nietOpgeslagen(){ return ' + (opzet.vuil ? 'true' : 'false') + '; }',
-      'function render(){ ctx.getekend++; ctx.saveState = saveState; if(externGemeld) ctx.gemeld++; }',
-      'function regelVan(){ return ""; }',
-      'function laden(){ ctx.geladen++; ' + (opzet.tijdensLezen || '') +
-      '  return new Promise(function(r){ setTimeout(r, ' + (opzet.laadDuur || 0) + '); }); }',
-      'ctx.stand = "' + (opzet.stand || 'gelijk') + '";',
-      opzet.gooit
-        ? 'function externGewijzigd(){ throw new TypeError("geen getFileHandle"); }'
-        : 'function externGewijzigd(){ return new Promise(function(r){ setTimeout(function(){ r(ctx.stand); }, ' +
-          (opzet.controleDuur || 0) + '); }); }',
-      'var echteTimeout = setTimeout;',
-      haal('kijkExtern'), haal('herleesExtern'),
-      'return { kijkExtern:kijkExtern, laatst:function(v){ externLaatst = v; },',
-      '         onbekend:function(){ return externOnbekend; },',
-      '         zetHerstel:function(v){ herstelRij = v; },',
-      '         wijzig:function(){ wijzigVersie++; },',
-      '         zetStand:function(v){ ctx.stand = v; },',
-      '         afgewezen:function(){ return externAfgewezen; },',
-      '         inlezen:herleesExtern };'
-    ].join('\n'))(ctx);
-    return { ctx, ...fn };
-  };
-  const rust2 = () => new Promise((r) => setTimeout(r, 10));
-
-  {
-    const t = maak({ stand: 'gelijk' });
-    ok('er wordt gekeken als er een bestand gekoppeld is', t.kijkExtern() === true);
-    await rust2();
-    ok('en bij een ongewijzigd bestand gebeurt er niets',
-       t.ctx.geladen === 0 && t.ctx.saveState === '');
-  }
-  {
-    const t = maak({ stand: 'gelijk' });
-    t.kijkExtern();
-    ok('een tweede controle er meteen achteraan wordt overgeslagen',
-       t.kijkExtern() === false, 'focus en visibilitychange vlak na elkaar');
-    await rust2();                       /* de eerste controle laten aflopen */
-    /* De afgeronde controle laat het slot los, maar de tijdrem moet het dan nog
-       tegenhouden -- dat is het geval waarin focus en visibilitychange na een
-       snelle controle alsnog allebei afgaan. Zonder deze controle zou alleen het
-       slot worden getoetst en de rem niet. */
-    ok('ook na een afgeronde controle houdt de tijdrem het nog tegen',
-       t.kijkExtern() === false);
-    t.laatst(0);
-    ok('en na de tijdrem mag het weer', t.kijkExtern() === true);
-  }
-  {
-    ok('zonder File System Access wordt er niet gekeken',
-       maak({ hasFSA: false }).kijkExtern() === false);
-    ok('zonder gekoppelde map ook niet', maak({ handle: false }).kijkExtern() === false);
-    ok('zonder bestandsnaam ook niet', maak({ naam: false }).kijkExtern() === false);
-    ok('en niet terwijl de app aan het schrijven is',
-       maak({ schrijfBezig: true }).kijkExtern() === false);
-    ok('en niet zolang er een toegangsprobleem is',
-       maak({ fileState: 'auth' }).kijkExtern() === false);
-  }
-  {
-    /* Niet zelf inlezen en geen vraagvenster: een oranje balk met Inlezen/Annuleren. */
-    const t = maak({ stand: 'anders' });
-    t.kijkExtern(); await rust2();
-    ok('een gewijzigd bestand wordt niet vanzelf ingelezen', t.ctx.geladen === 0, t.ctx.geladen + ' keer');
-    ok('en er komt geen vraagvenster', t.ctx.gevraagd === 0);
-    ok('maar de balk "buiten de app gewijzigd" staat klaar', !!t.afgewezen() && t.ctx.getekend > 0);
-    const tek = t.ctx.getekend;
-    t.laatst(0); t.kijkExtern(); await rust2();
-    ok('voor dezelfde wijziging verandert er niets', t.ctx.getekend === tek);
-    t.ctx.stempel = { m: 3, g: 21 };
-    t.laatst(0); t.kijkExtern(); await rust2();
-    ok('verandert het bestand daarna weer, dan wordt dat opnieuw gemeld',
-       t.ctx.getekend > tek && t.afgewezen().m === 3);
-    await t.inlezen(); await rust2();
-    ok('Inlezen leest het bestand in', t.ctx.geladen === 1);
-  }
-  {
-    const t = maak({ stand: 'anders', vuil: true });
-    t.kijkExtern(); await rust2();
-    ok('met een eigen wijziging wordt er NIET overheen gelezen', t.ctx.geladen === 0);
-    ok('en er wordt niets gemeld zolang de app zelf nog gaat opslaan',
-       t.ctx.saveState !== 'extern',
-       'anders blokkeert die melding juist die schrijfactie');
-  }
-  {
-    const t = maak({ stand: 'anders', vuil: true, saveState: 'fout' });
-    t.kijkExtern(); await rust2();
-    ok('lukt opslaan niet, dan wordt het wel gemeld', t.ctx.saveState === 'extern',
-       t.ctx.saveState);
-    ok('en nog steeds niet overheen gelezen', t.ctx.geladen === 0);
-  }
-  {
-    const t = maak({ stand: 'anders', herstelRij: true });
-    t.kijkExtern(); await rust2();
-    ok('met herstelgegevens evenmin', t.ctx.geladen === 0);
-    ok('en ook dan volgt de melding', t.ctx.saveState === 'extern', t.ctx.saveState);
-  }
-  {
-    /* 'onbekend' is geen vaststelling dat het bestand is gewijzigd. Dus niet
-       opnieuw inlezen: dat zou de stap terug weggooien en een melding geven die
-       niet waar is. */
-    const t = maak({ stand: 'onbekend' });
-    t.kijkExtern(); await rust2();
-    ok('een mislukte controle leidt niet tot opnieuw inlezen', t.ctx.geladen === 0,
-       t.ctx.geladen + ' keer');
-    ok('en niet tot de melding dat er iets is ingelezen', t.ctx.gemeld === 0);
-    ok('maar wel tot een eigen melding dat het niet na te gaan was', t.onbekend() === true);
-    const tekeningen = t.ctx.getekend;
-    t.laatst(0); t.kijkExtern(); await rust2();
-    ok('een tweede mislukte controle meldt niet opnieuw', t.ctx.getekend === tekeningen,
-       'anders komt bij elke keer terugschakelen dezelfde melding');
-    ok('en de melding blijft wel staan', t.onbekend() === true);
-  }
-  {
-    const t = maak({ stand: 'onbekend', vuil: true, saveState: 'fout' });
-    t.kijkExtern(); await rust2();
-    ok('ook met een eigen wijziging wordt er niets overheen gelezen', t.ctx.geladen === 0);
-    ok('en wordt er niet gedaan alsof er een botsing is vastgesteld',
-       t.ctx.saveState !== 'extern', t.ctx.saveState);
-  }
-  {
-    /* En zodra een controle wel lukt, hoort die melding weg te zijn. */
-    const t = maak({ stand: 'onbekend' });
-    t.kijkExtern(); await rust2();
-    ok('de melding staat er na een mislukte controle', t.onbekend() === true);
-    t.laatst(0);
-    t.zetStand('gelijk'); t.kijkExtern(); await rust2();
-    ok('en verdwijnt zodra een controle wel lukt', t.onbekend() === false);
-  }
-  {
-    /* Het slot: een tweede controle terwijl de eerste nog loopt. De tijdrem
-       beperkt de frequentie, niet de overlap -- duurt een controle langer dan
-       het interval, dan startte de volgende er gewoon bovenop. */
-    const t = maak({ stand: 'anders', controleDuur: 60 });
-    ok('de eerste controle wordt aanvaard', t.kijkExtern() === true);
-    t.laatst(0);
-    ok('een tweede terwijl de eerste nog loopt niet', t.kijkExtern() === false);
-    await new Promise((r) => setTimeout(r, 200));
-    ok('en er is één keer gemeld', t.afgewezen() && t.ctx.getekend === 1, t.ctx.getekend + ' keer');
-    t.laatst(0);
-    ok('daarna mag er weer worden gekeken', t.kijkExtern() === true);
-  }
-  {
-    /* Een slot dat blijft hangen. externGewijzigd leest het bestandssysteem; valt
-       dat SYNCHROON om -- een ingetrokken machtiging, een handle die geen
-       getFileHandle meer heeft -- dan ontsnapt die uitzondering aan de .catch op
-       de belofte. Het slot ging dan nooit meer open en er werd tot de volgende
-       herlaadactie niet meer naar het bestand gekeken. */
-    const t = maak({ gooit: true });
-    let viel = false;
-    try { t.kijkExtern(); } catch(e){ viel = true; }
-    ok('een struikelende controle komt niet bij de aanroeper terecht', viel === false,
-       'anders valt de focus-handler om');
-    t.laatst(0);
-    ok('en het slot staat daarna weer open', t.kijkExtern() === true,
-       'met een hangend slot wordt er nooit meer naar het bestand gekeken');
-  }
-  {
-    /* Herstelgegevens die tijdens de controle binnenkomen moeten gezien worden.
-       Dat gaat goed omdat kijkExtern ze pas op het moment van beslissen leest
-       en niet bij het starten -- dit legt dat vast. */
-    const t = maak({ stand: 'anders', controleDuur: 40 });
-    t.kijkExtern();
-    await new Promise((r) => setTimeout(r, 10));
-    t.zetHerstel({ tekst: 'van de vorige sessie' });
-    await new Promise((r) => setTimeout(r, 200));
-    ok('herstelgegevens die tijdens de controle binnenkomen worden gezien',
-       t.ctx.geladen === 0, t.ctx.geladen + ' keer ingelezen');
-    ok('en dan volgt de melding in plaats van een herlaadactie',
-       t.ctx.saveState === 'extern', t.ctx.saveState);
-  }
-  {
-    /* Getypt tijdens het inlezen: de buffer heeft het, dus niet melden dat
-       alles netjes is ingelezen. */
-    const t = maak({ stand: 'anders', laadDuur: 30, tijdensLezen: 'wijzigVersie++;' });
-    t.kijkExtern(); await rust2();
-    t.inlezen();                                    // Inlezen in de balk
-    await new Promise((r) => setTimeout(r, 200));
-    ok('een wijziging tijdens het inlezen levert geen onterechte bevestiging',
-       t.ctx.gemeld === 0, t.ctx.gemeld + ' bevestigingen');
-    ok('maar de melding over de botsing', t.ctx.saveState === 'extern', t.ctx.saveState);
-  }
+  /* Geen controle bij terugkeer meer: die gaf te veel onduidelijke meldingen. Wat
+     blijft: zelf opnieuw inlezen, en de botsingscontrole bij het opslaan. */
+  ok('bij terugkeer naar de app wordt het bestand niet gecontroleerd',
+     !/function kijkExtern\s*\(/.test(SCRIPT) && !/kijkExtern\(/.test(SCRIPT) &&
+     !/addEventListener\('focus'/.test(SCRIPT));
+  ok('App-status vult het versienummer alleen in als het scherm er nog is',
+     /if\(document\.contains\(el\)\) el\.innerHTML = html;/.test(haal('statusVersieKopie')));
+  ok('de botsingscontrole bij het opslaan blijft', /function externGewijzigd\s*\(/.test(SCRIPT) &&
+     /function vraagBotsing\s*\(/.test(SCRIPT));
 }
 
 }
@@ -1474,22 +1283,9 @@ kop('13. Reparaties na de koude review');
      !/stand\.tekst/.test(status));
   ok('de stapbalk toont naam en actie op een eigen regel',
      /\$\('stapTekst'\)\.innerHTML = terugHtml\(\);/.test(SCRIPT) && /class="stap-actie"/.test(haal('terugHtml')));
-  ok('bij "kon niet nagaan" kun je opnieuw laten controleren, ook binnen de tijdrem',
-     /\$\('fControle'\)\.onclick = function\(\)\{ externLaatst = 0; kijkExtern\(\); \};/.test(SCRIPT));
-  ok('als het laatste venster dichtgaat, wordt er alsnog gekeken',
-     (SCRIPT.match(/if\(!modalStapel\.length\) kijkNaSluiten\(\);/g) || []).length === 2 &&
-     /setTimeout\(kijkExtern, 300\)/.test(haal('kijkNaSluiten')));
-  ok('lezen en opslaan wissen de stand "niet ingelezen"',
-     (SCRIPT.match(/laatstGrootte = f\.size; externAfgewezen = null;/g) || []).length === 2);
-  ok('zolang een wijziging niet is ingelezen, staat er een balk met Inlezen en Annuleren',
-     /if\(externAfgewezen && !externAfgewezen\.verborgen && saveState !== 'extern'\)/.test(haal('renderFilebar')) &&
-     /\$\('fHerlees'\)\.onclick = function\(\)\{ herleesExtern\(\); \};/.test(SCRIPT) &&
-     /\$\('fNegeer'\)\.onclick = function\(\)\{ externAfgewezen\.verborgen = true; render\(\); \};/.test(SCRIPT));
   ok('bij een botsing: Toch opslaan en Annuleren in de balk, geen vraagvenster',
      /\$\('fToch'\)\.onclick = function\(\)\{ negeerBotsing = true; bewaar\(\); \};/.test(SCRIPT) &&
      /\$\('fAnnuleer'\)\.onclick = laadCfg;/.test(SCRIPT) && !/vraag\(/.test(haal('vraagBotsing')));
-  ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
-     !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
      /\$\('cfgCancel'\)\.onclick = function\(\)\{ sluitBovenste\(false\); \};/.test(SCRIPT));
   ok('na het bewaren van een kopie is die ook in beeld',
@@ -1541,35 +1337,6 @@ kop('13. Reparaties na de koude review');
      /var doel = vindRegel\(regel, editIndex\);[\s\S]{0,200}?records\.splice\(doel,1\)/.test(SCRIPT));
 }
 
-{
-  /* C-vervolg: geen automatische herlaadactie terwijl er een modal openstaat. */
-  const bouwKijk = (modalOpen) => {
-    const ctx = { geladen: 0 };
-    return new Function('ctx', [
-      'var EXTERN_INTERVAL = 1500, externLaatst = 0, externBezig = false, externOnbekend = false;',
-      'var externGemeld = false, hasFSA = true, dirHandle = {}, bestandsnaam = "e.txt";',
-      'var fileState = "ok", schrijfBezig = false, saveState = "", herstelRij = null;',
-      'var selIndex = -1, records = [], wijzigVersie = 0;',
-      'var modalStapel = ' + (modalOpen ? '["modal"]' : '[]') + ';',
-      'var window = { scrollY: 0, scrollTo: function(){} };',
-      'function nietOpgeslagen(){ return false; }',
-      'function render(){} function regelVan(){ return ""; }',
-      'function laden(){ ctx.geladen++; return Promise.resolve(); }',
-      'function externGewijzigd(){ return Promise.resolve("anders"); }',
-      'var externAfgewezen = null;',
-      'function bestandsStempel(){ return Promise.resolve({ m: 1, g: 1 }); }',
-      'function vraag(t, b, k, cb){ cb(); }',
-      haal('kijkExtern'), haal('herleesExtern'),
-      'return { kijkExtern: kijkExtern, ctx: ctx, gemeld: function(){ return !!externAfgewezen; } };'
-    ].join('\n'))(ctx);
-  };
-  ok('met een open modal wordt er niet gekeken', bouwKijk(true).kijkExtern() === false,
-     'daar wordt een record over gebruikerstijd heen vastgehouden');
-  const u = bouwKijk(false);
-  ok('en zonder open modal wel', u.kijkExtern() === true);
-  await new Promise((r) => setTimeout(r, 20));
-  ok('waarbij de wijziging dan ook werkelijk wordt gemeld', u.gemeld() === true);
-}
 
 {
   /* D. Bij 'Toch opslaan' hoort er een backup te komen, ook als er die dag al

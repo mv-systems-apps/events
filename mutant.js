@@ -166,36 +166,12 @@ const MUTANTEN = [
      .replace('    var catGetal = /^\\d+$/.test(catRuw);', '    var catGetal = /^[1-9]\\d*$/.test(catRuw);')],
   ['tweede botsingscontrole op waarheid in plaats van gelijk', 'html', s => inFunctie(s, 'hercontroleer', f => f
      .replace("    if(stand !== 'gelijk'){ BOTSING.onbekend = (stand === 'onbekend'); throw BOTSING; }", '    if(stand) throw BOTSING;'))],
-  ['terugkeercontrole zonder tijdrem', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('  if(nu - externLaatst < EXTERN_INTERVAL) return false;\n', ''))],
-  ['terugkeercontrole leest over eigen werk heen', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('    if(nietOpgeslagen() || herstelRij){', '    if(false){'))],
   ['serialize met eigen opmaak naast regelVan', 'html', s => s
      .replace('  return records.map(regelVan).join', "  return records.map(function(r){ return r.raw !== undefined ? r.raw : [r.sleutel, r.naam, r.type, r.code].join(sep()); }).join")],
-  ['terugkeercontrole zonder voorwaarden', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace("  if(!hasFSA || !dirHandle || !bestandsnaam || fileState !== 'ok') return false;\n", ''))],
-  ['terugkeercontrole kijkt ook tijdens schrijven', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('  if(schrijfBezig) return false;', ''))],
-  ['terugkeercontrole leest nooit opnieuw in', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('    return herleesExtern();', '    return;'))],
-  ['terugkeercontrole doet nooit iets', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('  externLaatst = nu;', '  externLaatst = nu; return false;'))],
   ['wijzigingstijd niet meevergelijken', 'html', s => inFunctie(s, 'externGewijzigd', f => f
      .replace("      if(f.lastModified !== laatstGelezen) return 'anders';\n", ''))],
   ['botsingscontrole roept altijd botsing', 'html', s => inFunctie(s, 'externGewijzigd', f => f
      .replace("      if(laatstGelezen === null) return 'gelijk';", "      return 'anders';"))],
-  ['onbekend weer als gewijzigd behandelen', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace("    if(stand === 'onbekend'){\n      if(!externOnbekend){ externOnbekend = true; render(); }\n      return;\n    }\n", ''))],
-  ['melding over een mislukte controle elke keer opnieuw', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('      if(!externOnbekend){ externOnbekend = true; render(); }', '      externOnbekend = true; render();'))],
-  ['melding over een mislukte controle blijft eeuwig staan', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('    if(externOnbekend){ externOnbekend = false; render(); }\n', ''))],
-  ['slot op gelijktijdige controles eruit', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('  if(externBezig) return false;\n', ''))],
-  ['slot blijft hangen na een controle', 'html', s => inFunctie(s, 'kijkExtern', f => f
-     .replace('  }).then(function(){ externBezig = false; });', '  });'))],
-  ['geen aandacht voor typen tijdens het inlezen', 'html', s => inFunctie(s, 'herleesExtern', f => f
-     .replace("    if(wijzigVersie !== versieVoor){\n      saveState = 'extern'; render();\n      window.scrollTo(0, pos);\n      return;\n    }\n", ''))],
   ['poort op openModal eruit', 'html', s => inFunctie(s, 'openModal', f => f.replace('  if(!magBewerken()) return;\n', ''))],
   ['btnEdit weer zonder disabled', 'html', s => s.replace("  $('btnEdit').disabled = !magBewerken();\n", '')],
   ['opslaan zonder eerst om toegang te vragen', 'html', s => inFunctie(s, 'bewaar', f => f.replace("  if(fileState === 'auth'){\n    if(schrijfBezig) return;", "  if(false){\n    if(schrijfBezig) return;"))],
@@ -210,17 +186,12 @@ const MUTANTEN = [
   ['gisteren als 24 uur terug', 'html', s => s.replace("  var gisteren = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1).getTime();", "  var gisteren = dag(n) - 86400000;")],
   ['kopie in beeld niet bijgewerkt na bewaren', 'html', s => s.replace("    .then(function(){ kopieRij = rij; tekenBestandStatus(); },", "    .then(function(){},")],
   ['Annuleren in de configuratie weer zonder vraag', 'html', s => s.replace("$('cfgCancel').onclick = function(){ sluitBovenste(false); };", '')],
-  ['melding van buiten niet weg te tikken', 'html', s => s.replace("  if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };\n", '')],
   ['stapbalk weer als platte tekst', 'html', s => s.replace("  $('stapTekst').innerHTML = terugHtml();", "  $('stapTekst').textContent = terugTekst();")],
-  ['opnieuw controleren houdt de tijdrem aan', 'html', s => s.replace("$('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };", "$('fControle').onclick = function(){ kijkExtern(); };")],
-  ['weer zelf inlezen zonder te melden', 'html', s => s.replace("    return bestandsStempel().then(function(st){", "    return herleesExtern(); bestandsStempel().then(function(st){")],
-  ['dezelfde wijziging steeds opnieuw melden', 'html', s => s.replace("      if(externAfgewezen && externAfgewezen.m === st.m && externAfgewezen.g === st.g) return;\n", '')],
   ['botsing weer met een vraagvenster', 'html', s => s.replace("  schrijfKlaar();\n}", "  schrijfKlaar();\n  vraag('x', 'y', 'Toch opslaan', function(){});\n}")],
-  ['niet kijken na het sluiten van een venster', 'html', s => s.replace("  kijkNaSluitenKlok = setTimeout(kijkExtern, 300);", "")],
+  ['App-status schrijft weer naar een verdwenen element', 'html', s => s.replace("  var zet = function(html){ if(document.contains(el)) el.innerHTML = html; };", "  var zet = function(html){ $('stKopie').innerHTML = html; };")],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],
-  ['herlaadcontrole negeert een open modal', 'html', s => inFunctie(s, 'kijkExtern', f => f.replace('  if(modalStapel.length) return false;\n', ''))],
   ['backup niet forceren bij Toch opslaan', 'html', s => s.replace('    if(laatste === vandaag && !forceer){', '    if(laatste === vandaag){')],
   ['forceer niet doorgegeven', 'html', s => s.replace('return maybeBackup(bestandsnaam, negeer)', 'return maybeBackup(bestandsnaam)')],
   ['verlenging weer na het antwoord', 'sw', s => s
@@ -278,13 +249,8 @@ const basis = draai(SW, HTML);
 const alle = groen(basis);
 console.log('ongewijzigd: ' + alle.length + ' geslaagd, ' + rood(basis).length + ' mislukt\n');
 
-/* De twee vangnetten rond een SYNCHRONE uitzondering. Beide sloten gingen daar
-   hangen: daarna werd er nooit meer naar het bestand gekeken, respectievelijk
-   nooit meer opgeslagen, tot de app werd herladen. */
-MUTANTEN.push(['slot hangt bij een synchrone leesfout', 'html',
-  s => inFunctie(s, 'kijkExtern', f => f.replace(
-    "var bezig;\n  try { bezig = externGewijzigd(); }\n  catch(err){ externBezig = false; return true; }",
-    'var bezig = externGewijzigd();'))]);
+/* Het vangnet rond een SYNCHRONE uitzondering bij het opslaan: anders bleef het
+   slot hangen en werd er tot herladen niet meer opgeslagen. */
 MUTANTEN.push(['opslaan zonder vangnet om de botsingscontrole', 'html',
   s => inFunctie(s, 'bewaar', f => f
     .replace("  try {\n    if(negeerBotsing)", '  if(negeerBotsing)')
