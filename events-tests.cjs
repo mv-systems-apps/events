@@ -1296,7 +1296,7 @@ if (AANWEZIG.length) {
     t.kijkExtern(); await rust2();
     ok('een gewijzigd bestand wordt niet vanzelf ingelezen', t.ctx.geladen === 0, t.ctx.geladen + ' keer');
     ok('maar de app vraagt of het opnieuw geladen moet worden', t.ctx.gevraagd === 1);
-    ok('met als tweede keuze: houd wat ik zie', t.ctx.nee === 'Nee, houd wat ik zie');
+    ok('met als tweede keuze alleen: Nee', t.ctx.nee === 'Nee');
     ok('en tot je kiest, staat er dat je een oudere versie ziet', !!t.afgewezen());
     t.laatst(0); t.kijkExtern(); await rust2();
     ok('voor dezelfde wijziging komt de vraag niet opnieuw', t.ctx.gevraagd === 1);

@@ -837,7 +837,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-015</div>
+    <div id="appVersieStempel">Versie 1352898-016</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2321,7 +2321,7 @@ function kijkExtern(){
       render();
       vraag('Buiten de app gewijzigd',
             bestandsnaam + ' is buiten de app gewijzigd. Opnieuw laden?',
-            'Opnieuw laden', function(){ herleesExtern(); }, 'Nee, houd wat ik zie');
+            'Opnieuw laden', function(){ herleesExtern(); }, 'Nee');
     });
   }).catch(function(){
     /* een mislukte controle mag de app niet laten struikelen */

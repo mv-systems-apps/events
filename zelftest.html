@@ -3988,7 +3988,7 @@ function testToegangBijWijzigen(){
   }).then(function(voor){
     eis('bij terugkeer na een wijziging buiten de app: een vraag', modaalOpen('confirm'), true);
     eis('of het opnieuw geladen moet worden', /Opnieuw laden\?/.test(d.getElementById('cBody').textContent), true);
-    eis('met Nee, houd wat ik zie', d.getElementById('cNo').textContent, 'Nee, houd wat ik zie');
+    eis('met Nee', d.getElementById('cNo').textContent, 'Nee');
     eis('nog niets ingelezen', app.records.length, voor);
     d.getElementById('cNo').click();
     eis('na Nee blijft de lijst zoals hij was', app.records.length, voor);
