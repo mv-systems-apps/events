@@ -1452,6 +1452,8 @@ kop('13. Reparaties na de koude review');
   ok('de statusregel toont altijd het moment, ook met toegang',
      /var tekst = \(kopieRij && kopieRij\.tijd\) \? kopieTijd\(kopieRij\.tijd\) : '';/.test(status) &&
      !/stand\.tekst/.test(status));
+  ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
+     /\$\('cfgCancel'\)\.onclick = function\(\)\{ sluitBovenste\(false\); \};/.test(SCRIPT));
   ok('na het bewaren van een kopie is die ook in beeld',
      /kopieRij = rij; tekenBestandStatus\(\);/.test(haal('bewaarKopie')));
   ok('en niet wanneer er om toegang wordt gevraagd', !/om toegang wordt gevraagd/.test(status));

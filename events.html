@@ -833,7 +833,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-009</div>
+    <div id="appVersieStempel">Versie 1352898-010</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -4609,7 +4609,8 @@ $('catOk').onclick = function(){
    een klik naast de modal. Daarom staat de koppeling in een tabel. De bewerkmodal
    en de bevestigingsvraag staan er niet in: die hebben hun eigen afhandeling, want
    de eerste vraagt bij Annuleren eerst naar onopgeslagen invoer (sluitBovenste) en
-   de tweede zet ook confirmCb terug. */
+   de tweede zet ook confirmCb terug. De configuratie vraagt dat ook: zie
+   cfgCancel hieronder. */
 var SLUITKNOPPEN = [
   ['filterCancel', 'filterModal'],
   ['infoOk', 'infoModal'],
@@ -4633,6 +4634,10 @@ SLUITKNOPPEN.forEach(function(p){
      en alleen die weg laat de vraag over onopgeslagen invoer achterwege */
   $(id).onclick = function(e){ if(e.target === this) sluitBovenste(false); };
 });
+/* Annuleren in de configuratie vraagt eerst als er iets is gewijzigd, net als
+   naast de modal tikken, Escape en de bewerkmodal: anders gaat de hele inrichting
+   in één tik verloren. */
+$('cfgCancel').onclick = function(){ sluitBovenste(false); };
 
 $('cNo').onclick = function(){ bergModaal('confirm'); confirmCb = null; };
 $('cYes').onclick = function(){ bergModaal('confirm'); if(confirmCb) confirmCb(); confirmCb = null; };

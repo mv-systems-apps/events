@@ -4121,6 +4121,26 @@ function testNaBewerken(){
       app.document.getElementById('modal').hidden, true);
   eis('en zonder vraag', app.document.getElementById('confirm').hidden, true);
 
+  /* de configuratie: Annuleren met een wijziging vraagt ook */
+  app.openCfg();
+  var titelWas = app.document.getElementById('cfgTitel').value;
+  app.document.getElementById('cfgTitel').value = titelWas + ' gewijzigd';
+  app.document.getElementById('cfgCancel').click();
+  eis('Annuleren in de configuratie met een wijziging sluit hem niet',
+      app.document.getElementById('cfgModal').hidden, false);
+  eis('maar vraagt erom', app.document.getElementById('confirm').hidden, false);
+  app.document.getElementById('cNo').click();
+  eis('terug naar de configuratie houdt hem open', app.document.getElementById('cfgModal').hidden, false);
+  app.document.getElementById('cfgCancel').click();
+  app.document.getElementById('cYes').click();
+  eis('Niet opslaan sluit de configuratie daarna wel',
+      app.document.getElementById('cfgModal').hidden, true);
+  app.openCfg();
+  app.document.getElementById('cfgCancel').click();
+  eis('zonder wijziging sluit Annuleren de configuratie meteen',
+      app.document.getElementById('cfgModal').hidden, true);
+  eis('zonder vraag', app.document.getElementById('confirm').hidden, true);
+
   /* de teller: een tweede getal alleen als het iets toevoegt */
   app.records = app.parse(regels.join('\n') + '\ndit is geen event\n');
   app.sorteer(); app.selIndex = -1; app.gelijkgezet(); app.render();

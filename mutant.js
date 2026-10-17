@@ -209,6 +209,7 @@ const MUTANTEN = [
   ['geen gisteren', 'html', s => s.replace("  if(dag(d) === gisteren) return 'gisteren ' + tijd;\n", '')],
   ['gisteren als 24 uur terug', 'html', s => s.replace("  var gisteren = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1).getTime();", "  var gisteren = dag(n) - 86400000;")],
   ['kopie in beeld niet bijgewerkt na bewaren', 'html', s => s.replace("    .then(function(){ kopieRij = rij; tekenBestandStatus(); },", "    .then(function(){},")],
+  ['Annuleren in de configuratie weer zonder vraag', 'html', s => s.replace("$('cfgCancel').onclick = function(){ sluitBovenste(false); };", '')],
   ['record weer op de oude index overschrijven', 'html', s => s.replace('    records[doel] = rec;', '    records[editIndex] = rec;')],
   ['record weer op de oude index verwijderen', 'html', s => s.replace('    records.splice(doel,1);', '    records.splice(editIndex,1);')],
   ['vindRegel zoekt niet op inhoud', 'html', s => inFunctie(s, 'vindRegel', f => f.replace('  for(var k = 0; k < records.length; k++) if(regelVan(records[k]) === regel) return k;\n', ''))],
