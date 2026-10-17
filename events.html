@@ -121,6 +121,9 @@ svg{display:block}
 .banner + .banner{margin-top:8px}
 .banner-text{color:#f0d98a;font-size:17px;line-height:1.4}
 .banner .btn{width:100%;padding:11px 18px;font-size:17px;font-weight:650}
+/* twee keuzes naast elkaar: de actie links, Annuleren of Weggooien rechts */
+.banner-knoppen{display:flex;gap:8px}
+.banner-knoppen .btn{flex:1;min-width:0}
 .btn-warn{background:var(--warn);color:#2a1a02;border-color:var(--warn)}
 .btn-warn:hover{opacity:.88;border-color:var(--warn)}
 
@@ -837,7 +840,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-017</div>
+    <div id="appVersieStempel">Versie 1352898-018</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -1734,18 +1737,18 @@ function herstelBanner(){
   if(!herstelRij || !herstelStand) return '';
   var weg = '<button class="btn" id="fHweg">Weggooien</button>';
   var terugzet = '<button class="btn btn-warn" id="fHterug">Terugzetten</button>';
-  var kop = '<div class="banner"><div class="banner-text">Niet-opgeslagen wijzigingen' +
+  var kop = '<div class="banner"><div class="banner-text">Niet-opgeslagen wijziging gevonden' +
             herstelTekst();
   if(herstelStand === 'wacht'){
-    return kop + ' in ' + esc(herstelRij.bestand) + '. Open dat bestand om ze terug te ' +
+    /* terugzetten kan pas met het bestand erbij */
+    return kop + ', voor ' + esc(herstelRij.bestand) + '. Open dat bestand om hem terug te ' +
            'zetten.</div>' + weg + '</div>';
   }
+  var knoppen = '<div class="banner-knoppen">' + terugzet + weg + '</div></div>';
   if(herstelStand === 'afwijkend'){
-    return kop + ', maar ' + esc(herstelRij.bestand) + ' is daarna buiten de app ' +
-           'gewijzigd. Terugzetten zet ze in het geheugen; opslaan doe je daarna ' +
-           'zelf.</div>' + terugzet + weg + '</div>';
+    return kop + '; bestand is intussen gewijzigd.</div>' + knoppen;
   }
-  return kop + '. Het bestand is sindsdien niet veranderd.</div>' + terugzet + weg + '</div>';
+  return kop + '.</div>' + knoppen;
 }
 function zetHerstelTerug(){
   if(!herstelRij) return;
@@ -2322,15 +2325,12 @@ function kijkExtern(){
       saveState = 'extern'; render();
       return;
     }
-    /* Niet zelf inlezen maar vragen, zoals een editor: een per ongeluk gewijzigd
-       bestand komt zo niet ongemerkt in beeld. Tot je kiest, staat de balk er al. */
+    /* Niet zelf inlezen maar melden, met de keuze in de balk: een per ongeluk
+       gewijzigd bestand komt zo niet ongemerkt in beeld. */
     return bestandsStempel().then(function(st){
       if(externAfgewezen && externAfgewezen.m === st.m && externAfgewezen.g === st.g) return;
       externAfgewezen = st;
       render();
-      vraag('Buiten de app gewijzigd',
-            bestandsnaam + ' is buiten de app gewijzigd. Opnieuw laden?',
-            'Opnieuw laden', function(){ herleesExtern(); }, 'Nee');
     });
   }).catch(function(){
     /* een mislukte controle mag de app niet laten struikelen */
@@ -2509,18 +2509,13 @@ function hercontroleer(negeer){
 }
 /* De botsingsvraag staat op één plek, want hij komt van twee kanten: de controle
    vooraf en die vlak voor het schrijven. */
+/* De keuze staat in de oranje balk (Toch opslaan / Annuleren), niet in een venster. */
+var botsingOnbekend = false;
 function vraagBotsing(onbekend){
+  botsingOnbekend = !!onbekend;
   saveState = 'extern'; render();
-  /* het slot gaat los voordat de vraag wordt gesteld, anders staat het open
-     zolang de gebruiker niet antwoordt; saveState houdt schrijfKlaar tegen */
+  /* het slot gaat los; saveState houdt schrijfKlaar tegen tot je kiest */
   schrijfKlaar();
-  vraag(onbekend ? 'Niet na te gaan' : 'Buiten de app gewijzigd',
-        onbekend
-          ? 'De app kon niet nagaan of ' + bestandsnaam + ' buiten de app is gewijzigd. ' +
-            'Opslaan overschrijft een eventuele wijziging; vernieuwen gooit jouw wijziging weg.'
-          : bestandsnaam + ' is aangepast sinds de app het inlas. Opslaan overschrijft die wijziging; ' +
-            'vernieuwen gooit jouw wijziging weg.',
-        'Toch opslaan', function(){ negeerBotsing = true; bewaar(); });
 }
 function schrijfEvents(negeer){
   /* De tekst en de versie horen bij elkaar en worden hier samen vastgelegd,
@@ -2700,10 +2695,7 @@ function renderFilebar(){
     el.innerHTML = (toegangGeweigerd || !kopieRij
       ? '<div class="banner">' +
         '<div class="banner-text">' +
-        (!kopieRij && !nietOpgeslagen()
-          ? 'Toegang nodig om ' + mapNaam + ' te lezen.'
-          : (nietOpgeslagen() ? 'Niet opgeslagen: o' : 'O') +
-            'pslaan kan pas met toegang tot ' + mapNaam + '.') + '</div>' +
+        (nietOpgeslagen() ? 'Niet opgeslagen: geen' : 'Geen') + ' toegang tot ' + mapNaam + '.</div>' +
         '<button class="btn btn-warn" id="fAuth">Toegang geven</button></div>'
       : '') + herstelBanner() + versieBanner();
     /* Met een niet-opgeslagen wijziging slaat de knop op (en vraagt daarbij om
@@ -2723,6 +2715,11 @@ function renderFilebar(){
   }
   /* alles in orde: dan hoort hier niets te staan */
   var opnieuw = '<button class="btn btn-warn" id="fOpnieuw">Opnieuw proberen</button>';
+  /* Bij een botsing: jouw versie toch opslaan (de versie van buiten gaat eerst naar de
+     backup), of annuleren: jouw wijziging vervalt en het bestand wordt ingelezen. */
+  var botsKnoppen = '<div class="banner-knoppen">' +
+    '<button class="btn btn-warn" id="fToch">Toch opslaan</button>' +
+    '<button class="btn" id="fAnnuleer">Annuleren</button></div>';
   /* Deze drie gaan alle over het bestand en sluiten elkaar dus uit. */
   var meldingen = [];
   if(!hasFSA){
@@ -2735,19 +2732,20 @@ function renderFilebar(){
        is gelukt. */
     if(gedownloadVersie === wijzigVersie && nietOpgeslagen()){
       meldingen.push('<div class="banner"><div class="banner-text">Gedownload. Zet het bestand ' +
-        'zelf terug in je map — de app kan niet zien of dat is gelukt.</div>' +
+        'terug in je map.</div>' +
         '<button class="btn btn-warn" id="fDl">Opnieuw downloaden</button></div>');
     } else if(nietOpgeslagen()){
       meldingen.push('<div class="banner"><div class="banner-text">Niet opgeslagen.</div>' +
         '<button class="btn btn-warn" id="fDl">Downloaden</button></div>');
     }
   } else if(saveState === 'fout'){
-    meldingen.push('<div class="banner"><div class="banner-text">Opslaan mislukt. Controleer de ' +
-      'toegang tot de map.</div>' + opnieuw + '</div>');
+    meldingen.push('<div class="banner"><div class="banner-text">Opslaan mislukt.</div>' +
+      opnieuw + '</div>');
   } else if(saveState === 'extern'){
-    meldingen.push('<div class="banner"><div class="banner-text">Niet opgeslagen: het bestand is ' +
-      'buiten de app gewijzigd.</div>' + opnieuw +
-      '<button class="btn" id="fHerlaad">Opnieuw laden</button></div>');
+    meldingen.push('<div class="banner"><div class="banner-text">' +
+      (botsingOnbekend ? 'Niet na te gaan of het bestand buiten de app is gewijzigd.'
+                       : 'Bestand is buiten de app gewijzigd.') +
+      ' Jouw wijziging is niet opgeslagen.</div>' + botsKnoppen + '</div>');
   }
   /* De meldingen hieronder gaan niet over de staat van het bestand en strijden dus
      niet met de drie hierboven om een plek. Anders verdringt zonder de File System
@@ -2761,30 +2759,29 @@ function renderFilebar(){
   /* Werkt de herstelopslag niet, dan moet dat in beeld staan en niet alleen in
      App-status: wat je nu typt staat dan nergens anders dan in het geheugen. */
   if(herstelKan === false){
-    meldingen.push('<div class="banner"><div class="banner-text">Wijzigingen worden ' +
-      'niet veiliggesteld: de herstelopslag werkt niet (' + esc(herstelFout) + '). ' +
-      'Sluit de app niet af met een wijziging die nog niet is opgeslagen.</div></div>');
+    meldingen.push('<div class="banner"><div class="banner-text">Wijzigingen worden niet ' +
+      'tussentijds bewaard. Sla op voor je de app sluit.</div></div>');
   }
   /* Lukte de laatste controle van buiten niet, dan blijft dat in beeld tot een
      controle wel lukt (zie externOnbekend). Is er wel iets van buiten ingelezen,
      dan wordt dat gemeld, zodat een lijst die ineens anders is zich laat
      verklaren; die melding blijft tot je erop tikt. */
   if(externOnbekend){
-    meldingen.push('<div class="banner"><div class="banner-text">De app kon niet nagaan of ' +
-      esc(bestandsnaam) + ' buiten de app is gewijzigd. De lijst is daarom niet opnieuw ' +
-      'ingelezen en er is niets weggegooid.</div>' +
-      '<button class="btn btn-warn" id="fControle">Opnieuw controleren</button></div>');
+    meldingen.push('<div class="banner"><div class="banner-text">Controle op wijzigingen ' +
+      'mislukt.</div>' +
+      '<button class="btn btn-warn" id="fControle">Opnieuw proberen</button></div>');
   }
-  /* Niet bij een botsing: die melding heeft zelf Opnieuw laden. */
-  if(externAfgewezen && saveState !== 'extern'){
-    meldingen.push('<div class="banner"><div class="banner-text">' + esc(bestandsnaam) +
-      ' is buiten de app gewijzigd; je ziet de versie van vóór die wijziging.</div>' +
-      '<button class="btn btn-warn" id="fHerlees">Opnieuw laden</button></div>');
+  /* Niet bij een botsing: die melding heeft zelf de keuze. Annuleren verbergt de
+     melding voor deze wijziging; een volgende wijziging meldt zich weer. */
+  if(externAfgewezen && !externAfgewezen.verborgen && saveState !== 'extern'){
+    meldingen.push('<div class="banner"><div class="banner-text">Bestand is buiten de app ' +
+      'gewijzigd.</div><div class="banner-knoppen">' +
+      '<button class="btn btn-warn" id="fHerlees">Inlezen</button>' +
+      '<button class="btn" id="fNegeer">Annuleren</button></div></div>');
   }
   if(externGemeld){
     meldingen.push('<div class="banner" id="fExtern" role="button" tabindex="0">' +
-      '<div class="banner-text">De wijzigingen van buiten de app zijn ingelezen — ' +
-      'tik om te sluiten</div></div>');
+      '<div class="banner-text">Wijziging van buiten ingelezen — tik om te sluiten</div></div>');
   }
   var hb = herstelBanner();
   if(hb) meldingen.push(hb);
@@ -2793,11 +2790,13 @@ function renderFilebar(){
   el.innerHTML = meldingen.join('');
   if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };
   if($('fHerlees')) $('fHerlees').onclick = function(){ herleesExtern(); };
+  if($('fNegeer')) $('fNegeer').onclick = function(){ externAfgewezen.verborgen = true; render(); };
+  if($('fToch')) $('fToch').onclick = function(){ negeerBotsing = true; bewaar(); };
+  if($('fAnnuleer')) $('fAnnuleer').onclick = laadCfg;
   /* Opnieuw controleren gaat meteen, ook binnen de tijdrem: je vraagt er zelf om. */
   if($('fControle')) $('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };
   if($('fDl')) $('fDl').onclick = downloaden;
   if($('fOpnieuw')) $('fOpnieuw').onclick = bewaar;
-  if($('fHerlaad')) $('fHerlaad').onclick = laadCfg;
   koppelVersieKnop();
   koppelHerstelKnoppen();
 }

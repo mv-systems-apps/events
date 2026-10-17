@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
   const ctx = await browser.newContext();
   const pg = await ctx.newPage();
   const fouten = [];
-  pg.on('pageerror', e => fouten.push('pageerror: ' + e.message));
+  pg.on('pageerror', e => fouten.push('pageerror: ' + e.message + (e.stack ? ' | ' + String(e.stack).split('\n').slice(1, 4).join(' <- ').trim() : '')));
   pg.on('console', m => { if (m.type() === 'error') fouten.push('console: ' + m.text()); });
 
   await pg.goto(basis + '/zelftest.html', { waitUntil: 'load' });

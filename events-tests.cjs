@@ -1252,7 +1252,8 @@ if (AANWEZIG.length) {
       '         zetHerstel:function(v){ herstelRij = v; },',
       '         wijzig:function(){ wijzigVersie++; },',
       '         zetStand:function(v){ ctx.stand = v; },',
-      '         afgewezen:function(){ return externAfgewezen; } };'
+      '         afgewezen:function(){ return externAfgewezen; },',
+      '         inlezen:herleesExtern };'
     ].join('\n'))(ctx);
     return { ctx, ...fn };
   };
@@ -1291,26 +1292,21 @@ if (AANWEZIG.length) {
        maak({ fileState: 'auth' }).kijkExtern() === false);
   }
   {
-    /* Zoals een editor: eerst vragen, niet zelf inlezen. */
-    const t = maak({ stand: 'anders', antwoord: 'geen' });
-    t.kijkExtern(); await rust2();
-    ok('een gewijzigd bestand wordt niet vanzelf ingelezen', t.ctx.geladen === 0, t.ctx.geladen + ' keer');
-    ok('maar de app vraagt of het opnieuw geladen moet worden', t.ctx.gevraagd === 1);
-    ok('met als tweede keuze alleen: Nee', t.ctx.nee === 'Nee');
-    ok('en tot je kiest, staat er dat je een oudere versie ziet', !!t.afgewezen());
-    t.laatst(0); t.kijkExtern(); await rust2();
-    ok('voor dezelfde wijziging komt de vraag niet opnieuw', t.ctx.gevraagd === 1);
-    t.ctx.stempel = { m: 3, g: 21 };
-    t.laatst(0); t.kijkExtern(); await rust2();
-    ok('verandert het bestand daarna weer, dan wel', t.ctx.gevraagd === 2);
-    t.ctx.vraagCb(); await rust2();
-    ok('Opnieuw laden leest het bestand in', t.ctx.geladen === 1);
-  }
-  {
+    /* Niet zelf inlezen en geen vraagvenster: een oranje balk met Inlezen/Annuleren. */
     const t = maak({ stand: 'anders' });
     t.kijkExtern(); await rust2();
-    ok('kies je meteen Opnieuw laden, dan wordt er ingelezen', t.ctx.geladen === 1);
-    ok('en dat wordt gemeld', t.ctx.getekend > 0);
+    ok('een gewijzigd bestand wordt niet vanzelf ingelezen', t.ctx.geladen === 0, t.ctx.geladen + ' keer');
+    ok('en er komt geen vraagvenster', t.ctx.gevraagd === 0);
+    ok('maar de balk "buiten de app gewijzigd" staat klaar', !!t.afgewezen() && t.ctx.getekend > 0);
+    const tek = t.ctx.getekend;
+    t.laatst(0); t.kijkExtern(); await rust2();
+    ok('voor dezelfde wijziging verandert er niets', t.ctx.getekend === tek);
+    t.ctx.stempel = { m: 3, g: 21 };
+    t.laatst(0); t.kijkExtern(); await rust2();
+    ok('verandert het bestand daarna weer, dan wordt dat opnieuw gemeld',
+       t.ctx.getekend > tek && t.afgewezen().m === 3);
+    await t.inlezen(); await rust2();
+    ok('Inlezen leest het bestand in', t.ctx.geladen === 1);
   }
   {
     const t = maak({ stand: 'anders', vuil: true });
@@ -1374,7 +1370,7 @@ if (AANWEZIG.length) {
     t.laatst(0);
     ok('een tweede terwijl de eerste nog loopt niet', t.kijkExtern() === false);
     await new Promise((r) => setTimeout(r, 200));
-    ok('en er is één keer opnieuw ingelezen', t.ctx.geladen === 1, t.ctx.geladen + ' keer');
+    ok('en er is één keer gemeld', t.afgewezen() && t.ctx.getekend === 1, t.ctx.getekend + ' keer');
     t.laatst(0);
     ok('daarna mag er weer worden gekeken', t.kijkExtern() === true);
   }
@@ -1411,7 +1407,8 @@ if (AANWEZIG.length) {
     /* Getypt tijdens het inlezen: de buffer heeft het, dus niet melden dat
        alles netjes is ingelezen. */
     const t = maak({ stand: 'anders', laadDuur: 30, tijdensLezen: 'wijzigVersie++;' });
-    t.kijkExtern();
+    t.kijkExtern(); await rust2();
+    t.inlezen();                                    // Inlezen in de balk
     await new Promise((r) => setTimeout(r, 200));
     ok('een wijziging tijdens het inlezen levert geen onterechte bevestiging',
        t.ctx.gemeld === 0, t.ctx.gemeld + ' bevestigingen');
@@ -1484,9 +1481,13 @@ kop('13. Reparaties na de koude review');
      /setTimeout\(kijkExtern, 300\)/.test(haal('kijkNaSluiten')));
   ok('lezen en opslaan wissen de stand "niet ingelezen"',
      (SCRIPT.match(/laatstGrootte = f\.size; externAfgewezen = null;/g) || []).length === 2);
-  ok('zolang een wijziging niet is ingelezen, staat er een balk met Opnieuw laden',
-     /if\(externAfgewezen && saveState !== 'extern'\)/.test(haal('renderFilebar')) &&
-     /\$\('fHerlees'\)\.onclick = function\(\)\{ herleesExtern\(\); \};/.test(SCRIPT));
+  ok('zolang een wijziging niet is ingelezen, staat er een balk met Inlezen en Annuleren',
+     /if\(externAfgewezen && !externAfgewezen\.verborgen && saveState !== 'extern'\)/.test(haal('renderFilebar')) &&
+     /\$\('fHerlees'\)\.onclick = function\(\)\{ herleesExtern\(\); \};/.test(SCRIPT) &&
+     /\$\('fNegeer'\)\.onclick = function\(\)\{ externAfgewezen\.verborgen = true; render\(\); \};/.test(SCRIPT));
+  ok('bij een botsing: Toch opslaan en Annuleren in de balk, geen vraagvenster',
+     /\$\('fToch'\)\.onclick = function\(\)\{ negeerBotsing = true; bewaar\(\); \};/.test(SCRIPT) &&
+     /\$\('fAnnuleer'\)\.onclick = laadCfg;/.test(SCRIPT) && !/vraag\(/.test(haal('vraagBotsing')));
   ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
      !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
@@ -1511,7 +1512,7 @@ kop('13. Reparaties na de koude review');
      !/toLocaleString/.test(SCRIPT) && /kopieTijd\(kopieRij\.tijd\)/.test(haal('kopieTekst')));
   ok('zonder bruikbare kopie vraagt de balk om toegang',
      /toegangGeweigerd \|\| !kopieRij/.test(haal('renderFilebar')) &&
-     /Toegang nodig om ' \+ mapNaam \+ ' te lezen\./.test(haal('renderFilebar')));
+     /\(nietOpgeslagen\(\) \? 'Niet opgeslagen: geen' : 'Geen'\) \+ ' toegang tot ' \+ mapNaam/.test(haal('renderFilebar')));
 }
 
 {
@@ -1559,7 +1560,7 @@ kop('13. Reparaties na de koude review');
       'function bestandsStempel(){ return Promise.resolve({ m: 1, g: 1 }); }',
       'function vraag(t, b, k, cb){ cb(); }',
       haal('kijkExtern'), haal('herleesExtern'),
-      'return { kijkExtern: kijkExtern, ctx: ctx };'
+      'return { kijkExtern: kijkExtern, ctx: ctx, gemeld: function(){ return !!externAfgewezen; } };'
     ].join('\n'))(ctx);
   };
   ok('met een open modal wordt er niet gekeken', bouwKijk(true).kijkExtern() === false,
@@ -1567,7 +1568,7 @@ kop('13. Reparaties na de koude review');
   const u = bouwKijk(false);
   ok('en zonder open modal wel', u.kijkExtern() === true);
   await new Promise((r) => setTimeout(r, 20));
-  ok('waarbij er dan ook werkelijk opnieuw is ingelezen', u.ctx.geladen === 1);
+  ok('waarbij de wijziging dan ook werkelijk wordt gemeld', u.gemeld() === true);
 }
 
 {

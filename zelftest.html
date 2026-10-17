@@ -934,7 +934,7 @@ function testTerugval(){
   eis('en de app zegt niet dat het is opgeslagen',
       app.opslagStand().tekst, 'gedownload, niet automatisch opgeslagen');
   eis('de melding onder de header zegt wat je zelf nog moet doen',
-      /Zet het bestand zelf terug/.test(app.document.getElementById('filebar').textContent), true);
+      /Zet het bestand terug in je map/.test(app.document.getElementById('filebar').textContent), true);
 
   /* en na een volgende wijziging is ook die download achterhaald */
   app.records.push({ sleutel:'Y, test', naam:'Y', type:'Geboren',
@@ -1765,7 +1765,7 @@ function testNieuweVersieMelding(){
      een wijziging maken, anders is er niets om naast de versiemelding te zetten. */
   var DOWNLOAD = 'Niet opgeslagen.';
   var NIEUW    = 'Er is een';
-  var MISLUKT  = 'Opslaan mislukt. Controleer';
+  var MISLUKT  = 'Opslaan mislukt.';
   function erStaat(id){ return !!app.document.getElementById(id); }
   app.wijzig();
   app.render();
@@ -2046,8 +2046,10 @@ function testOpslag(){
       eis('de wijziging blijft als niet-opgeslagen gelden', app.nietOpgeslagen(), true);
       eis('het slot blijft niet hangen', app.schrijfBezig, false);
 
-      /* 2. en met 'Toch opslaan' gaat het er alsnog in */
-      app.document.getElementById('cYes').click();
+      /* 2. en met 'Toch opslaan' in de balk gaat het er alsnog in */
+      eis('de balk biedt Toch opslaan en Annuleren',
+          !!app.document.getElementById('fToch') && !!app.document.getElementById('fAnnuleer'), true);
+      app.document.getElementById('fToch').click();
       return rust();
     }).then(function(){
       eis('met "Toch opslaan" wordt er wel geschreven', regels(), app.records.length);
@@ -2593,7 +2595,7 @@ function testHerstelbuffer(){
     eis('is het bestand buiten de app gewijzigd, dan wordt dat gemeld',
         app.herstelStand, 'afwijkend');
     app.render();
-    eis('en zegt de melding dat ook', !!bannerMet('buiten de app gewijzigd'), true);
+    eis('en zegt de melding dat ook', !!bannerMet('bestand is intussen gewijzigd'), true);
     eis('maar terugzetten blijft mogelijk', !!app.document.getElementById('fHterug'), true);
 
     /* terugzetten zet het in het geheugen en geldt als niet opgeslagen */
@@ -2657,7 +2659,7 @@ function testHerstelbuffer(){
     eis('met de reden erbij', app.herstelFout, 'QuotaExceededError');
     app.render();
     eis('en dat staat in beeld, niet alleen in App-status',
-        !!bannerMet('niet veiliggesteld'), true);
+        !!bannerMet('niet tussentijds bewaard'), true);
 
     app.herstelKan = null; app.herstelFout = '';
     return binnen(app.leesHerstel(), 2000);
@@ -3921,8 +3923,8 @@ function testToegangBijWijzigen(){
     eis('na een noodbewerking: opslaan vraagt om toegang', gevraagd, 1);
     eis('en ziet dat het bestand buiten de app is gewijzigd', app.saveState, 'extern');
     eis('dus is er niets overschreven', map.fs['events.txt'].tekst, NOOD);
-    eis('en staat de vraag over de botsing open', modaalOpen('confirm'), true);
-    try { app.bergModaal('confirm'); } catch(e){}
+    eis('en staat de keuze in de balk: Toch opslaan of Annuleren, zonder vraagvenster',
+        !!d.getElementById('fToch') && !!d.getElementById('fAnnuleer') && !modaalOpen('confirm'), true);
 
     /* toegang geweigerd: de wijziging blijft staan als niet opgeslagen */
     return opzetten('denied', false);
@@ -3933,7 +3935,7 @@ function testToegangBijWijzigen(){
     eis('de wijziging staat nog in beeld', app.records.length, 2);
     eis('als niet opgeslagen', app.nietOpgeslagen(), true);
     eis('en de app zegt dat opslaan toegang vraagt',
-        /pas met toegang/.test(d.getElementById('filebar').textContent), true);
+        /Niet opgeslagen: geen toegang tot/.test(d.getElementById('filebar').textContent), true);
     antwoord = 'granted';
     var knop = d.getElementById('fAuth');
     eis('met een knop om alsnog toegang te geven', !!knop, true);
@@ -3964,7 +3966,7 @@ function testToegangBijWijzigen(){
     eis('en geldt niet als leeskopie', app.kopieRij, null);
     eis('dus bewerken kan nog niet', d.getElementById('btnNew').disabled, true);
     eis('de app vraagt om toegang om te lezen',
-        /Toegang nodig om Events te lezen/.test(d.getElementById('filebar').textContent), true);
+        /Geen toegang tot Events\./.test(d.getElementById('filebar').textContent), true);
     var knop = d.getElementById('fAuth');
     eis('met een knop om toegang te geven', !!knop, true);
     eis('nog zonder vraag vooraf', gevraagd, 0);
@@ -3986,28 +3988,29 @@ function testToegangBijWijzigen(){
     app.externLaatst = 0; app.kijkExtern();
     return wacht(300).then(function(){ return voor; });
   }).then(function(voor){
-    eis('bij terugkeer na een wijziging buiten de app: een vraag', modaalOpen('confirm'), true);
-    eis('of het opnieuw geladen moet worden', /Opnieuw laden\?/.test(d.getElementById('cBody').textContent), true);
-    eis('met Nee', d.getElementById('cNo').textContent, 'Nee');
+    var fb = function(){ return d.getElementById('filebar').textContent; };
+    eis('bij terugkeer na een wijziging buiten de app: geen vraagvenster', modaalOpen('confirm'), false);
+    eis('maar een balk: Bestand is buiten de app gewijzigd.', /Bestand is buiten de app gewijzigd\./.test(fb()), true);
+    eis('met Inlezen en Annuleren', !!d.getElementById('fHerlees') && !!d.getElementById('fNegeer'), true);
     eis('nog niets ingelezen', app.records.length, voor);
-    d.getElementById('cNo').click();
-    eis('na Nee blijft de lijst zoals hij was', app.records.length, voor);
-    eis('en zegt een balk dat je de versie van ervoor ziet',
-        /je ziet de versie van vóór die wijziging/.test(d.getElementById('filebar').textContent), true);
+    d.getElementById('fNegeer').click();
+    eis('Annuleren: de lijst blijft zoals hij was', app.records.length, voor);
+    eis('en de balk is weg', !!d.getElementById('fNegeer'), false);
     app.externLaatst = 0; app.kijkExtern();
     return wacht(300).then(function(){ return voor; });
   }).then(function(voor){
-    eis('dezelfde wijziging levert geen tweede vraag', modaalOpen('confirm'), false);
+    eis('dezelfde wijziging komt na Annuleren niet terug', !!d.getElementById('fHerlees'), false);
+    map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst, mtime: 9100 };
+    app.externLaatst = 0; app.kijkExtern();
+    return wacht(300).then(function(){ return voor; });
+  }).then(function(voor){
     var knop = d.getElementById('fHerlees');
-    eis('de balk heeft een knop Opnieuw laden', !!knop, true);
+    eis('een volgende wijziging meldt zich wel weer', !!knop, true);
     if(knop) knop.click();
     return wacht(300).then(function(){ return voor; });
   }).then(function(voor){
-    eis('Opnieuw laden leest het bestand in', app.records.length, voor + 1);
+    eis('Inlezen leest het bestand in', app.records.length, voor + 1);
     eis('en daarna is de balk weg', !!d.getElementById('fHerlees'), false);
-    eis('de knop Annuleren heet in andere vragen weer gewoon Annuleren',
-        (app.vraag('t', 'b', 'Ja', function(){}), d.getElementById('cNo').textContent), 'Annuleren');
-    app.bergModaal('confirm');
     app.externGemeld = false; app.externAfgewezen = null;
 
     /* Stond er een venster open bij terugkeer, dan kijkt de app alsnog als het dicht gaat. */
@@ -4019,8 +4022,7 @@ function testToegangBijWijzigen(){
       app.bergModaal('infoModal');
       return wacht(700);
     }).then(function(){
-      eis('na het sluiten van het venster komt de vraag alsnog', modaalOpen('confirm'), true);
-      app.bergModaal('confirm');
+      eis('na het sluiten van het venster komt de melding alsnog', !!d.getElementById('fHerlees'), true);
       return wacht(400);
     }).then(function(){
       app.externGemeld = false; app.externAfgewezen = null;
@@ -4036,7 +4038,8 @@ function testToegangBijWijzigen(){
       app.bewaarModal();
       return wacht(900);
     }).then(function(){
-      eis('opslaan via het bewerkvenster geeft geen vraag over een wijziging van buiten', modaalOpen('confirm'), false);
+      eis('opslaan via het bewerkvenster geeft geen melding over een wijziging van buiten',
+          !!d.getElementById('fHerlees') || !!d.getElementById('fToch'), false);
       eis('en de wijziging staat in het bestand', /Anna de Vries-Bakker/.test(map.fs['events.txt'].tekst), true);
       app.externGemeld = false; app.externAfgewezen = null;
       zetTerug();
@@ -4089,7 +4092,7 @@ function testDownloadbanner(){
   app.gedownloadVersie = app.wijzigVersie;
   var c = stand();
   eis('na het downloaden legt de melding uit wat jij moet doen',
-      /zelf terug in je map/.test(c.tekst), true);
+      /Zet het bestand terug in je map/.test(c.tekst), true);
   eis('en de knop heet dan Opnieuw downloaden', c.knopTekst, 'Opnieuw downloaden');
 
   app.gelijkgezet();
