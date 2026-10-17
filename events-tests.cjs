@@ -1452,6 +1452,8 @@ kop('13. Reparaties na de koude review');
   ok('de statusregel toont altijd het moment, ook met toegang',
      /var tekst = \(kopieRij && kopieRij\.tijd\) \? kopieTijd\(kopieRij\.tijd\) : '';/.test(status) &&
      !/stand\.tekst/.test(status));
+  ok('de stapbalk toont icoon en naam, met het woord voor een schermlezer',
+     /\$\('stapTekst'\)\.innerHTML = terugHtml\(\);/.test(SCRIPT) && /class="sr"/.test(haal('terugHtml')));
   ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
      !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
