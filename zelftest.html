@@ -3975,6 +3975,40 @@ function testToegangBijWijzigen(){
     eis('en leest het echte bestand, met de regel die de kopie miste', app.records.length, 2);
     eis('daarna is het bestand gekoppeld', app.fileState, 'ok');
     eis('en is er een kopie met stempel', idb['kopie'] && idb['kopie'].mtime, 2000);
+
+    /* Gewijzigd buiten de app terwijl hij open staat: vragen, zoals een editor. */
+    return opzetten('granted', false);
+  }).then(function(){
+    return voegToe();                                  // nu met toegang, bestand gelezen
+  }).then(function(){
+    var voor = app.records.length;
+    map.fs['events.txt'] = { tekst: map.fs['events.txt'].tekst + 'D|Dirk|Geboren|D19950101|1\n', mtime: 9000 };
+    app.externLaatst = 0; app.kijkExtern();
+    return wacht(300).then(function(){ return voor; });
+  }).then(function(voor){
+    eis('bij terugkeer na een wijziging buiten de app: een vraag', modaalOpen('confirm'), true);
+    eis('of het opnieuw geladen moet worden', /Opnieuw laden\?/.test(d.getElementById('cBody').textContent), true);
+    eis('met Nee, houd wat ik zie', d.getElementById('cNo').textContent, 'Nee, houd wat ik zie');
+    eis('nog niets ingelezen', app.records.length, voor);
+    d.getElementById('cNo').click();
+    eis('na Nee blijft de lijst zoals hij was', app.records.length, voor);
+    eis('en zegt een balk dat je de versie van ervoor ziet',
+        /je ziet de versie van vóór die wijziging/.test(d.getElementById('filebar').textContent), true);
+    app.externLaatst = 0; app.kijkExtern();
+    return wacht(300).then(function(){ return voor; });
+  }).then(function(voor){
+    eis('dezelfde wijziging levert geen tweede vraag', modaalOpen('confirm'), false);
+    var knop = d.getElementById('fHerlees');
+    eis('de balk heeft een knop Opnieuw laden', !!knop, true);
+    if(knop) knop.click();
+    return wacht(300).then(function(){ return voor; });
+  }).then(function(voor){
+    eis('Opnieuw laden leest het bestand in', app.records.length, voor + 1);
+    eis('en daarna is de balk weg', !!d.getElementById('fHerlees'), false);
+    eis('de knop Annuleren heet in andere vragen weer gewoon Annuleren',
+        (app.vraag('t', 'b', 'Ja', function(){}), d.getElementById('cNo').textContent), 'Annuleren');
+    app.bergModaal('confirm');
+    app.externGemeld = false; app.externAfgewezen = null;
     zetTerug();
   }, function(e){
     zetTerug();

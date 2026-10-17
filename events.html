@@ -837,7 +837,7 @@ svg{display:block}
     </div>
     <div id="cfgExtra"></div>
     <div class="err" id="cfgErr"></div>
-    <div id="appVersieStempel">Versie 1352898-014</div>
+    <div id="appVersieStempel">Versie 1352898-015</div>
     <div class="modal-actions">
       <button class="btn" id="cfgCancel">Annuleren</button>
       <button class="btn btn-primary" id="cfgOk">Opslaan</button>
@@ -2212,7 +2212,7 @@ function magWijzigen(){ return fileState === 'ok'; }
 function laden(){
   if(!dirHandle || !bestandsnaam) return Promise.resolve();
   return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
-    .then(function(f){ laatstGelezen = f.lastModified; laatstGrootte = f.size; return f.text(); })
+    .then(function(f){ laatstGelezen = f.lastModified; laatstGrootte = f.size; externAfgewezen = null; return f.text(); })
     .then(function(t){
       records = parse(t); sorteer(); selIndex = -1; gelijkgezet();
       /* Na de echte parse: zoekBeterSep parseert zelf ook en deelt nummers uit,
@@ -2263,6 +2263,14 @@ var externBezig = false;
    mislukt en verdwijnt zodra er een lukt, zonder bij elk terugschakelen opnieuw te
    verschijnen. */
 var externOnbekend = false;
+/* Buiten de app gewijzigd en (nog) niet ingelezen: de stempel van die versie. Zolang
+   die staat, zie je de versie van ervoor en zegt een balk dat; de vraag komt niet
+   opnieuw voor dezelfde wijziging, wel als het bestand daarna weer verandert. */
+var externAfgewezen = null;
+function bestandsStempel(){
+  return dirHandle.getFileHandle(bestandsnaam).then(function(h){ return h.getFile(); })
+    .then(function(f){ return { m: f.lastModified, g: f.size }; });
+}
 
 function kijkExtern(){
   if(!hasFSA || !dirHandle || !bestandsnaam || fileState !== 'ok') return false;
@@ -2305,7 +2313,16 @@ function kijkExtern(){
       saveState = 'extern'; render();
       return;
     }
-    return herleesExtern();
+    /* Niet zelf inlezen maar vragen, zoals een editor: een per ongeluk gewijzigd
+       bestand komt zo niet ongemerkt in beeld. Tot je kiest, staat de balk er al. */
+    return bestandsStempel().then(function(st){
+      if(externAfgewezen && externAfgewezen.m === st.m && externAfgewezen.g === st.g) return;
+      externAfgewezen = st;
+      render();
+      vraag('Buiten de app gewijzigd',
+            bestandsnaam + ' is buiten de app gewijzigd. Opnieuw laden?',
+            'Opnieuw laden', function(){ herleesExtern(); }, 'Nee, houd wat ik zie');
+    });
   }).catch(function(){
     /* een mislukte controle mag de app niet laten struikelen */
   }).then(function(){ externBezig = false; });
@@ -2511,7 +2528,7 @@ function schrijfEvents(negeer){
     .then(function(){ return dirHandle.getFileHandle(bestandsnaam); })
     .then(function(h){ return h.getFile(); })
     .then(function(f){
-      laatstGelezen = f.lastModified; laatstGrootte = f.size;
+      laatstGelezen = f.lastModified; laatstGrootte = f.size; externAfgewezen = null;
       bewaardeVersie = versie;
       /* Wat nu in het bestand staat, is ook de leeskopie. Anders loopt de kopie na
          elke eigen wijziging achter tot het bestand opnieuw wordt ingelezen, en dat
@@ -2749,6 +2766,12 @@ function renderFilebar(){
       'ingelezen en er is niets weggegooid.</div>' +
       '<button class="btn btn-warn" id="fControle">Opnieuw controleren</button></div>');
   }
+  /* Niet bij een botsing: die melding heeft zelf Opnieuw laden. */
+  if(externAfgewezen && saveState !== 'extern'){
+    meldingen.push('<div class="banner"><div class="banner-text">' + esc(bestandsnaam) +
+      ' is buiten de app gewijzigd; je ziet de versie van vóór die wijziging.</div>' +
+      '<button class="btn btn-warn" id="fHerlees">Opnieuw laden</button></div>');
+  }
   if(externGemeld){
     meldingen.push('<div class="banner" id="fExtern" role="button" tabindex="0">' +
       '<div class="banner-text">De wijzigingen van buiten de app zijn ingelezen — ' +
@@ -2760,6 +2783,7 @@ function renderFilebar(){
   if(vb) meldingen.push(vb);
   el.innerHTML = meldingen.join('');
   if($('fExtern')) $('fExtern').onclick = function(){ externGemeld = false; render(); };
+  if($('fHerlees')) $('fHerlees').onclick = function(){ herleesExtern(); };
   /* Opnieuw controleren gaat meteen, ook binnen de tijdrem: je vraagt er zelf om. */
   if($('fControle')) $('fControle').onclick = function(){ externLaatst = 0; kijkExtern(); };
   if($('fDl')) $('fDl').onclick = downloaden;
@@ -4383,10 +4407,11 @@ function toonSelectie(){
 }
 
 /* ------------------ bevestiging ------------------ */
-function vraag(titel, tekst, knop, cb){
+function vraag(titel, tekst, knop, cb, neeKnop){
   $('cTitle').textContent = titel;
   $('cBody').textContent = tekst;
   $('cYes').textContent = knop;
+  $('cNo').textContent = neeKnop || 'Annuleren';
   confirmCb = cb;
   toonModaal('confirm');
 }

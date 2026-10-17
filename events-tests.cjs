@@ -1216,10 +1216,16 @@ if (AANWEZIG.length) {
 {
   /* kijkExtern: wanneer wordt er gekeken, en wat gebeurt er met het antwoord? */
   const maak = (opzet) => {
-    const ctx = { geladen: 0, getekend: 0, gemeld: 0, saveState: '' };
+    const ctx = { geladen: 0, getekend: 0, gemeld: 0, saveState: '', gevraagd: 0, vraagCb: null,
+                  stempel: { m: 2, g: 20 } };
     const fn = new Function('ctx', [
       'var EXTERN_INTERVAL = ' + /var EXTERN_INTERVAL = (\d+);/.exec(SCRIPT)[1] + ';',
       'var externLaatst = 0, externGemeld = false, externBezig = false, externOnbekend = false;',
+      'var externAfgewezen = null;',
+      'function bestandsStempel(){ return Promise.resolve(ctx.stempel); }',
+      /* het antwoord op de vraag: standaard Opnieuw laden, 'geen' = nog niet gekozen */
+      'function vraag(t, b, k, cb, nee){ ctx.gevraagd++; ctx.vraagCb = cb; ctx.nee = nee;',
+      '  if("' + (opzet.antwoord || 'ja') + '" === "ja") cb(); }',
       'var hasFSA = ' + (opzet.hasFSA === false ? 'false' : 'true') + ';',
       'var dirHandle = ' + (opzet.handle === false ? 'null' : '{}') + ';',
       'var bestandsnaam = ' + (opzet.naam === false ? '""' : '"events_mark.txt"') + ';',
@@ -1245,7 +1251,8 @@ if (AANWEZIG.length) {
       '         onbekend:function(){ return externOnbekend; },',
       '         zetHerstel:function(v){ herstelRij = v; },',
       '         wijzig:function(){ wijzigVersie++; },',
-      '         zetStand:function(v){ ctx.stand = v; } };'
+      '         zetStand:function(v){ ctx.stand = v; },',
+      '         afgewezen:function(){ return externAfgewezen; } };'
     ].join('\n'))(ctx);
     return { ctx, ...fn };
   };
@@ -1284,9 +1291,25 @@ if (AANWEZIG.length) {
        maak({ fileState: 'auth' }).kijkExtern() === false);
   }
   {
+    /* Zoals een editor: eerst vragen, niet zelf inlezen. */
+    const t = maak({ stand: 'anders', antwoord: 'geen' });
+    t.kijkExtern(); await rust2();
+    ok('een gewijzigd bestand wordt niet vanzelf ingelezen', t.ctx.geladen === 0, t.ctx.geladen + ' keer');
+    ok('maar de app vraagt of het opnieuw geladen moet worden', t.ctx.gevraagd === 1);
+    ok('met als tweede keuze: houd wat ik zie', t.ctx.nee === 'Nee, houd wat ik zie');
+    ok('en tot je kiest, staat er dat je een oudere versie ziet', !!t.afgewezen());
+    t.laatst(0); t.kijkExtern(); await rust2();
+    ok('voor dezelfde wijziging komt de vraag niet opnieuw', t.ctx.gevraagd === 1);
+    t.ctx.stempel = { m: 3, g: 21 };
+    t.laatst(0); t.kijkExtern(); await rust2();
+    ok('verandert het bestand daarna weer, dan wel', t.ctx.gevraagd === 2);
+    t.ctx.vraagCb(); await rust2();
+    ok('Opnieuw laden leest het bestand in', t.ctx.geladen === 1);
+  }
+  {
     const t = maak({ stand: 'anders' });
     t.kijkExtern(); await rust2();
-    ok('een gewijzigd bestand wordt opnieuw ingelezen', t.ctx.geladen === 1);
+    ok('kies je meteen Opnieuw laden, dan wordt er ingelezen', t.ctx.geladen === 1);
     ok('en dat wordt gemeld', t.ctx.getekend > 0);
   }
   {
@@ -1456,6 +1479,11 @@ kop('13. Reparaties na de koude review');
      /\$\('stapTekst'\)\.innerHTML = terugHtml\(\);/.test(SCRIPT) && /class="stap-actie"/.test(haal('terugHtml')));
   ok('bij "kon niet nagaan" kun je opnieuw laten controleren, ook binnen de tijdrem',
      /\$\('fControle'\)\.onclick = function\(\)\{ externLaatst = 0; kijkExtern\(\); \};/.test(SCRIPT));
+  ok('lezen en opslaan wissen de stand "niet ingelezen"',
+     (SCRIPT.match(/laatstGrootte = f\.size; externAfgewezen = null;/g) || []).length === 2);
+  ok('zolang een wijziging niet is ingelezen, staat er een balk met Opnieuw laden',
+     /if\(externAfgewezen && saveState !== 'extern'\)/.test(haal('renderFilebar')) &&
+     /\$\('fHerlees'\)\.onclick = function\(\)\{ herleesExtern\(\); \};/.test(SCRIPT));
   ok('de melding over wijzigingen van buiten verdwijnt niet vanzelf',
      !/setTimeout/.test(haal('herleesExtern')) && /\$\('fExtern'\)\.onclick = function\(\)\{ externGemeld = false; render\(\); \};/.test(SCRIPT));
   ok('Annuleren in de configuratie gaat via sluitBovenste (vraagt bij een wijziging)',
@@ -1524,6 +1552,9 @@ kop('13. Reparaties na de koude review');
       'function render(){} function regelVan(){ return ""; }',
       'function laden(){ ctx.geladen++; return Promise.resolve(); }',
       'function externGewijzigd(){ return Promise.resolve("anders"); }',
+      'var externAfgewezen = null;',
+      'function bestandsStempel(){ return Promise.resolve({ m: 1, g: 1 }); }',
+      'function vraag(t, b, k, cb){ cb(); }',
       haal('kijkExtern'), haal('herleesExtern'),
       'return { kijkExtern: kijkExtern, ctx: ctx };'
     ].join('\n'))(ctx);
